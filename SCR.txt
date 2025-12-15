@@ -1,0 +1,50 @@
+NXP Software Content Register
+---------------------------------------------
+la931x_iqplayer repository contains basic application allowing to stream
+time domain IQ samples with la9310 SOC. It includes VSPA firmware source code.
+It includes host linux scripts to control VSPA firmware. 
+It also includes host linux library and application example.
+
+Release Name: Version: 1.1
+Package:i iqplayer_la9310
+Release Location:i https://github.com/nxp-qoriq/la931x_iqplayer 
+Origin: NXP (BSD-3-Clause)
+
+---------------------------------------------
+Package iqplayer VSPA firmware
+Description: VSPA firmware source code
+Author: NXP
+License: BSD-3-Clause 
+Format: source code
+Location: iqplayer_cwproj
+---------------------------------------------
+Package host shell scripts
+Description: set of host linux script
+License: BSD-3-Clause 
+Format: source code
+Location: host-utils
+---------------------------------------------
+Package lib_iqplayer
+Description: linux library to use iqplayer firmware
+License: BSD-3-Clause 
+Format: source code
+Location: host-utils/lib_iqplayer
+---------------------------------------------
+Package iq_app
+Description: linux application example 
+License: BSD-3-Clause 
+Format: source code
+Location: host-utils/iq_app
+---------------------------------------------
+Package iq_monitor
+Description: linux application to monitor VSPA statistics 
+License: BSD-3-Clause 
+Format: source code
+Location: host-utils/iq_monitor
+---------------------------------------------
+Package iq_trace
+Description: linux application to dump VSPA trace 
+License: BSD-3-Clause 
+Format: source code
+Location: host-utils/iq_trace
+---------------------------------------------
