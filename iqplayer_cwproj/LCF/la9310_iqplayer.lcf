@@ -59,7 +59,7 @@ VCPU_DRAMSize = (16*1024);
 VCPU_TopMemAddress    		= 0x4000;
 
 IPPU_DRAM_start = 0x4000;
-IPPU_DRAMSize = (32*1024);
+IPPU_DRAMSize = (16*1024);
 IPPU_TopMemAddress    		= 0x8000;
 
 HeapSize   = 0x00000;
