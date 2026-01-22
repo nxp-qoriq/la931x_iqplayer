@@ -163,7 +163,10 @@ To enable host-side flow control and operate DDR buffers as FIFO :
 
 ::
  
- bin2mem  -f ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin -a 0x96500000
+ # iqflood_addr 0x13a000000
+ # source file at iqflood_addr + 0x00100000 = 0x13a100000
+ 
+ bin2mem  -f ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin -a 0x13a100000
  taskset 0x8 iq_app -t -a 0x00100000 4915200 -f 0x00000000 32768 &
  ./iq-start-txfifo.sh 8
  ./iq-stop.sh

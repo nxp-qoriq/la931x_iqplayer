@@ -47,7 +47,6 @@ volatile uint32_t running;
 
 uint32_t *v_iqflood_ddr_addr;
 uint32_t *v_scratch_ddr_addr;
-uint32_t *v_ocram_addr;
 uint32_t *v_vspa_dmem_proxy_ro;
 t_stats *host_stats;
 t_tx_ch_host_proxy *tx_vspa_proxy_ro;
@@ -60,6 +59,8 @@ uint32_t *BAR1_addr;
 uint32_t *BAR2_addr;
 
 modinfo_t mi;
+
+uint32_t g_iqflood_proxy_offset=-1;
 
 static int get_modem_info(int modem_id) {
     int fd;
@@ -101,12 +102,6 @@ int map_physical_regions(void) {
         return -1;
     }
 
-    v_ocram_addr = mmap(NULL, OCRAM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, OCRAM_ADDR);
-    if (v_ocram_addr == MAP_FAILED) {
-        perror("Mapping v_ocram_addr buffer failed\n");
-        return -1;
-    }
-
     v_iqflood_ddr_addr = mmap(NULL, mi.iqflood.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.iqflood.host_phy_addr);
     if (v_iqflood_ddr_addr == MAP_FAILED) {
         perror("Mapping v_iqflood_ddr_addr buffer failed\n");
@@ -122,26 +117,35 @@ int map_physical_regions(void) {
         return -1;
     }
 
-    BAR0_addr = mmap(NULL, BAR0_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, BAR0_ADDR);
+    BAR0_addr = mmap(NULL, mi.ccsr.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.ccsr.host_phy_addr);
     if (BAR0_addr == MAP_FAILED) {
         perror("Mapping BAR0_addr buffer failed\n");
         return -1;
     }
 
-    BAR1_addr = mmap(NULL, BAR1_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, BAR1_ADDR);
+    BAR1_addr = mmap(NULL, mi.tcml.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.tcml.host_phy_addr);
     if (BAR1_addr == MAP_FAILED) {
         perror("Mapping BAR1_addr buffer failed\n");
         return -1;
     }
 
-    BAR2_addr = mmap(NULL, BAR2_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, BAR2_ADDR);
+    BAR2_addr = mmap(NULL, mi.tcmu.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.tcmu.host_phy_addr);
     if (BAR2_addr == MAP_FAILED) {
         perror("Mapping BAR2_addr buffer failed\n");
         return -1;
     }
 
     /* use last 256 bytes of iqflood as shared vspa dmem proxy , vspa will write mirrored dmem value to avoid PCI read from host */
-    v_vspa_dmem_proxy_ro = (uint32_t *)(v_iqflood_ddr_addr + (mi.iqflood.size - VSPA_DMEM_PROXY_SIZE) / 4);
+	if(g_iqflood_proxy_offset==-1){
+        v_vspa_dmem_proxy_ro = (uint32_t *)(v_iqflood_ddr_addr + (mi.iqflood.size - VSPA_DMEM_PROXY_SIZE) / 4);
+	} else {
+		if(g_iqflood_proxy_offset>mi.iqflood.size - VSPA_DMEM_PROXY_SIZE){
+            perror("VSPA IQFLOOD offset beyond iqflood size \n");
+            return -1;
+		}
+		v_vspa_dmem_proxy_ro = (uint32_t *)(v_iqflood_ddr_addr + (g_iqflood_proxy_offset) / 4);
+	}
+		
     host_stats = &(((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->host_stats);
     rx_vspa_proxy_ro = &(((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->rx_state_readonly[0]);
     tx_vspa_proxy_ro = &(((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly);
@@ -189,7 +193,7 @@ int main(int argc, char *argv[]) {
     int32_t forceFifoSize = 0;
 
     /* command line parser */
-    while ((c = getopt(argc, argv, "hfrts:mdvxDMc")) != EOF) {
+    while ((c = getopt(argc, argv, "hca:")) != EOF) {
         switch (c) {
         case 'h': // help
             print_cmd_help();
@@ -197,6 +201,9 @@ int main(int argc, char *argv[]) {
             break;
         case 'c':
             command = OP_CLEAR_STATS;
+            break;
+        case 'a':
+            g_iqflood_proxy_offset = strtoull(argv[optind - 1], 0, 0);
             break;
         default:
             break;

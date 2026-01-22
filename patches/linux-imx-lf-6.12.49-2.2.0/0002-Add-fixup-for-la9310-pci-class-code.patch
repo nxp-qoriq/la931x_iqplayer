@@ -1,0 +1,55 @@
+From feb9dcbc7554fff6264db71cf90895af4c4465b5 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Thu, 22 Jan 2026 17:14:47 +0100
+Subject: [PATCH] Add fixup for la9310 pci class code
+
+Signed-off-by: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+---
+ drivers/pci/quirks.c    | 17 +++++++++++++++++
+ include/linux/pci_ids.h |  2 ++
+ 2 files changed, 19 insertions(+)
+
+diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
+index db609d26811b..9c97c740c4b8 100644
+--- a/drivers/pci/quirks.c
++++ b/drivers/pci/quirks.c
+@@ -3742,6 +3742,23 @@ static void mellanox_check_broken_intx_masking(struct pci_dev *pdev)
+ DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_MELLANOX, PCI_ANY_ID,
+ 			mellanox_check_broken_intx_masking);
+ 
++/*
++ *  set NXP LA9310 device class code
++ */
++static void quirk_la9310_cc(struct pci_dev *pdev)
++{
++
++       /* LA9310 devices do not have class code set when in PCIe boot mode */
++       if (pdev->class == PCI_CLASS_NOT_DEFINED) {
++               dev_info(&pdev->dev, "Setting PCI class for LA9310 PCIe device\n");
++               pdev->class = PCI_CLASS_NETWORK_OTHER;
++       }
++}
++DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_FREESCALE, PCI_DEVICE_ID_LA9310, quirk_la9310_cc);
++DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_FREESCALE, PCI_DEVICE_ID_LA9310_DISABLE_CIP, quirk_la9310_cc);
++DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_MELLANOX, PCI_ANY_ID,
++                       mellanox_check_broken_intx_masking);
++
+ static void quirk_no_bus_reset(struct pci_dev *dev)
+ {
+ 	dev->dev_flags |= PCI_DEV_FLAGS_NO_BUS_RESET;
+diff --git a/include/linux/pci_ids.h b/include/linux/pci_ids.h
+index 59568da82e6e..d26e14ea7b5d 100644
+--- a/include/linux/pci_ids.h
++++ b/include/linux/pci_ids.h
+@@ -2541,6 +2541,8 @@
+ #define PCI_DEVICE_ID_MPC8641		0x7010
+ #define PCI_DEVICE_ID_MPC8641D		0x7011
+ #define PCI_DEVICE_ID_MPC8610		0x7018
++#define PCI_DEVICE_ID_LA9310		0x1c10
++#define PCI_DEVICE_ID_LA9310_DISABLE_CIP 0x1c12
+ 
+ #define PCI_VENDOR_ID_PASEMI		0x1959
+ 
+-- 
+2.34.1
+

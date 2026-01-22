@@ -104,7 +104,7 @@ static int map_physical_regions(void) {
         return -1;
     }
 
-    v_la9310_bar2 = mmap(NULL, BAR2_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, BAR2_ADDR);
+    v_la9310_bar2 =  mmap(NULL, mi.tcmu.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.tcmu.host_phy_addr); 
     if (v_la9310_bar2 == MAP_FAILED) {
         perror("Mapping v_la9310_bar2 buffer failed\n");
         return -1;

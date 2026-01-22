@@ -1,0 +1,22 @@
+From 47c0b7e9a490dd018004267022e6c6be346f3dfb Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Thu, 22 Jan 2026 17:09:37 +0100
+Subject: [PATCH] Add CONFIG_STRICT_DEVMEM=n in imx_v8_defconfig
+
+Signed-off-by: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+---
+ arch/arm64/configs/imx_v8_defconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/configs/imx_v8_defconfig b/arch/arm64/configs/imx_v8_defconfig
+index 0e9e6dfe63d0..73465f0a382b 100644
+--- a/arch/arm64/configs/imx_v8_defconfig
++++ b/arch/arm64/configs/imx_v8_defconfig
+@@ -1153,3 +1153,4 @@ CONFIG_CORESIGHT_STM=m
+ CONFIG_CORESIGHT_CPU_DEBUG=m
+ CONFIG_CORESIGHT_CTI=m
+ CONFIG_MEMTEST=y
++CONFIG_STRICT_DEVMEM=n
+-- 
+2.34.1
+

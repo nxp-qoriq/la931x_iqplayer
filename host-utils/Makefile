@@ -27,7 +27,7 @@ clean: ${DIRS}
 install: ${DIRS}
 	mkdir -p ${DEST_DIR}
 	$(foreach b, $(DIRS), ${MAKE} -C ${b}  install;)
-	mkdir -p ${DEST_DIR}/home/root/host_utils
-	install -D *.sh ${DEST_DIR}/home/root/host_utils
-	install -D *.bin ${DEST_DIR}/home/root/host_utils
-	install -D *.py ${DEST_DIR}/home/root/host_utils
+	mkdir -p ${DEST_DIR}/root/host_utils
+	install -D *.sh ${DEST_DIR}/root/host_utils
+	install -D *.bin ${DEST_DIR}/root/host_utils
+	install -D *.py ${DEST_DIR}/root/host_utils

@@ -9,10 +9,11 @@ CFLAGS  +=  -g -O3 -Wall -D_GNU_SOURCE -Werror -Wno-unused-variable -I../common 
 LDFLAGS += -pthread -lpthread -lrt
 
 CC=gcc
+AR=ar
 CROSS_COMPILE?=aarch64-linux-gnu-
 
-SRCS_TEST := libiqplayer.c
-OBJS_TEST := $(SRCS_TEST:.c =.o)
+SRCS_TEST := libiqplayer.c imx8-host.c l1-trace-host.c
+OBJS_TEST := libiqplayer.o imx8-host.o l1-trace-host.o
 BIN_TEST := lib_iqplayer.a
 
 .PHONY: all
@@ -20,7 +21,7 @@ BIN_TEST := lib_iqplayer.a
 all: $(BIN_TEST)
 
 $(BIN_TEST): ${OBJS_TEST}
-	$(CROSS_COMPILE)${CC} -c ${CFLAGS} ${LDFLAGS} -o $(BIN_TEST) ${OBJS_TEST} $(INCLUDES)
+	$(CROSS_COMPILE)${AR} rcs  -o $(BIN_TEST) ${OBJS_TEST} $(INCLUDES)
 
 %.o: %.c
 	$(CROSS_COMPILE)${CC} -c ${CFLAGS} ${INCLUDES}  $< -o $@

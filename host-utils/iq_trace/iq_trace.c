@@ -127,25 +127,19 @@ int map_physical_regions(void) {
         return -1;
     }
 
-    v_ocram_addr = mmap(NULL, OCRAM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, OCRAM_ADDR);
-    if (v_ocram_addr == MAP_FAILED) {
-        perror("Mapping v_ocram_addr buffer failed\n");
-        return -1;
-    }
-
-    BAR0_addr = mmap(NULL, BAR0_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, BAR0_ADDR);
+    BAR0_addr = mmap(NULL, mi.ccsr.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.ccsr.host_phy_addr);
     if (BAR0_addr == MAP_FAILED) {
         perror("Mapping BAR0_addr buffer failed\n");
         return -1;
     }
 
-    BAR1_addr = mmap(NULL, BAR1_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, BAR1_ADDR);
+    BAR1_addr = mmap(NULL, mi.tcml.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.tcml.host_phy_addr);
     if (BAR1_addr == MAP_FAILED) {
         perror("Mapping BAR1_addr buffer failed\n");
         return -1;
     }
 
-    BAR2_addr = mmap(NULL, BAR2_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, BAR2_ADDR);
+    BAR2_addr = mmap(NULL, mi.tcmu.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.tcmu.host_phy_addr);
     if (BAR2_addr == MAP_FAILED) {
         perror("Mapping BAR2_addr buffer failed\n");
         return -1;

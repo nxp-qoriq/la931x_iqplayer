@@ -13,9 +13,8 @@
 // IPC region in iqflood
 
 #define IQFLOOD_OUTBOUND_ADDR 0xB0001000
-#define IQFLOOD_OUTBOUND_SIZE 0xD000000
 #define VSPA_DMEM_PROXY_SIZE 1024
-#define VSPA_DMEM_PROXY_ADDR (IQFLOOD_OUTBOUND_ADDR + IQFLOOD_OUTBOUND_SIZE - VSPA_DMEM_PROXY_SIZE)
+#define VSPA_DMEM_PROXY_ADDR (IQFLOOD_OUTBOUND_ADDR + g_iqflood_proxy_offset)
 
 typedef struct s_tx_ch_host_proxy {
     uint32_t la9310_fifo_enqueued_size;

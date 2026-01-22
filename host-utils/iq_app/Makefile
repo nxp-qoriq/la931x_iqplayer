@@ -4,15 +4,16 @@
 PROJ_DIR ?= $(CURDIR)
 DEST_DIR ?= ${PROJ_DIR}/install
 LA9310_COMMON_HEADERS ?= $(CURDIR)/../../../la93xx_freertos/common_headers
+LA9310_IQPLAYER_LIB_HEADERS ?= $(CURDIR)/../lib_iqplayer
 
 CFLAGS  += -g -O3 -Wall -D_GNU_SOURCE -Werror -Wno-unused-variable 
-CFLAGS  += -I../common -I../lib_iqplayer -I../../include -I. -I${LA9310_COMMON_HEADERS}
+CFLAGS  += -I../common -I../lib_iqplayer -I../../include -I. -I${LA9310_COMMON_HEADERS} -I{LA9310_IQPLAYER_LIB_HEADERS}
 LDFLAGS += -pthread -lpthread -lrt ../lib_iqplayer/lib_iqplayer.a
 
 CC=gcc
 CROSS_COMPILE?=aarch64-linux-gnu-
 
-SRCS_TEST := iq_app.c ./l1-trace-host.c ./imx8-host.c
+SRCS_TEST := iq_app.c
 OBJS_TEST := $(SRCS_TEST:.c =.o)
 BIN_TEST := iq_app
 

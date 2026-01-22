@@ -42,6 +42,7 @@ extern vspa_complex_float32 *pgain;
 extern tone_index, image_tone_index;
 extern volatile int dbg_gbl;
 extern uint32_t TX_SingleT_start_bit_update, RX_SingleT_start_bit_update, RX_SingleT_continue;
+extern uint32_t g_iqflood_proxy_offset;
 
 extern volatile uint32_t mailbox_out_msg_0_MSB; // (VCPU_OUT_0_MSB)
 extern volatile uint32_t mailbox_out_msg_0_LSB; // (VCPU_OUT_0_LSB)
@@ -91,7 +92,9 @@ typedef enum {
     MBOX_OPC_RX_CHAN_SELECT,  // 0xD
     MBOX_OPC_RX_DCO_CORR,     // 0xE
     MBOX_OPC_GET_STATS_COUNT, // 0xF
-    MBOX_OPC_DONE_SWRESET     // 0x10
+    MBOX_OPC_DONE_SWRESET,    // 0x10
+    MBOX_OPC_PROXY_OFFSET     // 0x11
+   
 } mbox_opc_e;
 
 void PUSH_TX_DATA(void);

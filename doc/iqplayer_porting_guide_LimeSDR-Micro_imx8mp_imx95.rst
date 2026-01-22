@@ -122,6 +122,15 @@ Deployment sdcard using flex-installer on target or on laptop
   $ flex-installer -f firmware_<machine>_sdboot.img -d /dev/sdx -m <machine>  (only install composite firmware image)
   machine = imx8mpfrdm or imx95frdm
 
+start linux tinyDistro on the target from u-boot
+::
+
+ u-boot=> tftp lsdk2512_poky_tiny_IMX_arm64.itb
+ u-boot=> bootm 0x90400000#imx95frdm
+
+ use ramfs /var/volatile if not large enough use nfs mount
+ root@TinyLinux:/var/volatile# busybox mount -o port=2049,nolock,proto=tcp -t nfs <serverip>:/tftpboot/ /mnt/nfs/
+
 Add LA9310 support 
 ******************
 
@@ -144,159 +153,23 @@ clone linux source code
  git clone https://github.com/nxp-imx/linux-imx -b lf-6.12.y
  cd linux-imx
 
+Apply necessary linux kernel patches 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Workaround: Limited PCI Region Size on i.MX8MP
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+:: 
 
-.. note::
-         Required only for i.MX8MP/DXL. Not needed on i.MX95.
+  cd linux-imx
+  patch -p 1 < 0001-Add-CONFIG_STRICT_DEVMEM-n-in-imx_v8_defconfig.patch
+  patch -p 1 < 0002-Add-fixup-for-la9310-pci-class-code.patch
+  patch -p 1 < 0003-Increase-imx95-PCIe-outbound-space-size-in-device-tr.patch
+  patch -p 1 < 0004-Add-imx98mplus-and-imx8dxl-pcie-quirk-to-force-la931.patch
 
-.. code-block:: c
-
- diff --git a/drivers/pci/probe.c b/drivers/pci/probe.c
- index d9fc02a71baa..84793a6425c8 100644
- --- a/drivers/pci/probe.c
- +++ b/drivers/pci/probe.c
- @@ -208,6 +208,15 @@ int __pci_read_base(struct pci_dev *dev, enum pci_bar_type type,
-          */
-         if (sz == 0xffffffff)
-                 sz = 0;
- +       /*
- +        * LA9310 device (0x1c12) BAR0 default size 256MB is too large for imx8
- +        * as workaround we map only first 64MB and we will update EP BAR0_MASK
- +        * at runtime before accessing BAR1-5 and avoid Bus Errors
- +        */
- +       if((sz<0xfc000000)&&( dev->device==0x1c12)&&(pos==0x10)){
- +               pci_info(dev,"reg 0x%x: forcing BAR0 readback 0x%08x to 0xfc000000 (i.e.64MB)\n",pos,sz);
- +               sz=0xfc000000;
- +       }
-
-Workaround: Incorrect PCI Region Declaration on i.MX95
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: c
-
- diff --git a/arch/arm64/boot/dts/freescale/imx95.dtsi b/arch/arm64/boot/dts/freescale/imx95.dtsi
- index ae113e31a484..7452b1906d45 100644
- --- a/arch/arm64/boot/dts/freescale/imx95.dtsi
- +++ b/arch/arm64/boot/dts/freescale/imx95.dtsi
- @@ -2714,7 +2714,7 @@ pcie0: pcie@4c300000 {
-                               <0 0x4c340000 0 0x4000>;
-                         reg-names = "dbi", "config", "atu", "app";
-                         ranges = <0x81000000 0x0 0x00000000 0x0 0x6ff00000 0 0x00100000>,
- -                                <0x82000000 0x0 0x10000000 0x9 0x10000000 0 0x10000000>;
- +                                <0x82000000 0x0 0x10000000 0x9 0x10000000 0 0x20000000>;
-                         #address-cells = <3>;
-                         #size-cells = <2>;
-                         device_type = "pci";
- 
-
-Workaround: Initialize LA9310 PCI Class During Enumeration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: c
-
- diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
- index a531064233f9..84e86ca15b76 100644
- --- a/drivers/pci/quirks.c
- +++ b/drivers/pci/quirks.c
- @@ -3592,6 +3592,23 @@ static void mellanox_check_broken_intx_masking(struct pci_dev *pdev)
-  out:
-         pci_disable_device(pdev);
-  }
- +
- +/*
- + *  set NXP LA9310 device class code
- + */
- +static void quirk_la9310_cc(struct pci_dev *pdev)
- +{
- +       int i;
- +
- +       /* LA9310 devices do not have class code set when in PCIe boot mode */
- +       if (pdev->class == PCI_CLASS_NOT_DEFINED) {
- +               dev_info(&pdev->dev, "Setting PCI class for LA9310 PCIe device!\n");
- +               pdev->class = PCI_CLASS_NETWORK_OTHER;
- +       }
- +
- +}
- +DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_FREESCALE, PCI_DEVICE_ID_LA9310, quirk_la9310_cc);
- +DECLARE_PCI_FIXUP_EARLY(PCI_VENDOR_ID_FREESCALE, PCI_DEVICE_ID_LA9310_DISABLE_CIP, quirk_la9310_cc);
-  DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_MELLANOX, PCI_ANY_ID,
-                         mellanox_check_broken_intx_masking);
- 
- diff --git a/include/linux/pci_ids.h b/include/linux/pci_ids.h
- index f0558e2a9359..21c745cc4b87 100644
- --- a/include/linux/pci_ids.h
- +++ b/include/linux/pci_ids.h
- @@ -2517,6 +2517,8 @@
-  #define PCI_DEVICE_ID_MPC8641          0x7010
-  #define PCI_DEVICE_ID_MPC8641D         0x7011
-  #define PCI_DEVICE_ID_MPC8610          0x7018
- +#define PCI_DEVICE_ID_LA9310           0x1c10
- +#define PCI_DEVICE_ID_LA9310_DISABLE_CIP 0x1c12
- 
-  #define PCI_VENDOR_ID_PASEMI           0x1959
- 
-Add Reserved Memory for la93xx_host_sw
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: c
-
- diff --git a/arch/arm64/boot/dts/freescale/imx8mp-frdm.dts b/arch/arm64/boot/dts/freescale/imx8mp-frdm.dts
- index 2591abc42624..82156cd9cad6 100644
- --- a/arch/arm64/boot/dts/freescale/imx8mp-frdm.dts
- +++ b/arch/arm64/boot/dts/freescale/imx8mp-frdm.dts
- @@ -23,6 +23,19 @@ memory@40000000 {
-                           <0x1 0x00000000 0 0xc0000000>;
-         };
- 
- +        reserved-memory {
- +                        la93: la93@92400000 {
- +                                reg = <0 0x92400000 0 0x4000000>;
- +                                compatible = "shared-dma-pool";
- +                        };
- +                        iqflood: iqflood@96400000 {
- +                                reg = <0 0x96400000 0 0xD000000>;
- +                                //compatible = "shared-dma-pool";
- +                                //no-map;
- +                                //compatible = "removed-dma-pool";
- +                        };
- +};
- +
-
- diff --git a/arch/arm64/boot/dts/freescale/imx95-15x15-frdm.dts b/arch/arm64/boot/dts/freescale/imx95-15x15-frdm.dts
- index 5fd60b653437..3dde7db09acf 100644
- --- a/arch/arm64/boot/dts/freescale/imx95-15x15-frdm.dts
- +++ b/arch/arm64/boot/dts/freescale/imx95-15x15-frdm.dts
- @@ -65,6 +65,17 @@ linux_cma: linux,cma {
-                         linux,cma-default;
-                 };
- 
- +                la93: la93@a1000000 {
- +                         reg = <0 0xa1000000 0 0x4000000>;
- +                         compatible = "shared-dma-pool";
- +                };
- +                iqflood: iqflood@a5000000 {
- +                         reg = <0 0xa5000000 0 0xD000000>;
- +                         //compatible = "shared-dma-pool";
- +                         //no-map;
- +                         //compatible = "removed-dma-pool";
- +                };
- +
-                 vpu_boot: vpu_boot@a0000000 {
-                         reg = <0 0xa0000000 0 0x100000>;
-                         no-map;
- 
-Allow access to devmem from userspace
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
- need to change kernel config
- ::
-
-  -- CONFIG_STRICT_DEVMEM=y
-  ++ CONFIG_STRICT_DEVMEM=n
-
-
+.. note:: 
+   - 0001 is required to allow userspace iqplayer scrips/app (root) access to PCI space 
+   - 0002 is required for proper enumeration at bootup allowing BAR0-2 mapping
+   - 0003 only imx95, dts declare only 256MB of PCI outbound region when 4G are actually available. Should be fixed in future kernels
+   - 0004 only imx8, workaround host limitation, PCI outbound region not large enough to fit LA9310 BAR0-2 windows
+  
 Compile Linux Kernel and Device Tree
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ::
@@ -306,8 +179,7 @@ Compile Linux Kernel and Device Tree
  export ARCH=arm64
  make imx_v8_defconfig
  make -j$(nproc)
- make dtbs
-
+ 
 Deploy Linux Image
 ~~~~~~~~~~~~~~~~~~
 
@@ -330,8 +202,34 @@ prepare kernel modules
   cd modules_install
   tar -czvf modules.tar.gz lib
 
-
 Copy modules.tar.gz to the target root directory (/) and extract it.
+
+If needed enable LA9310 EP BAR0-2 [disabled] 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+user needto ensure la9310 BAR0-2 are enabled before issuing ./load-la9310.sh
+
+::
+
+ root@imx95frdm:# dmesg |grep 1c12
+ [    3.413672] pci 0000:01:00.0: [1957:1c12] type 00 class 0x000280 PCIe Endpoint
+
+ root@imx95frdm:~# lspci -v -s 0000:01:00.0
+ 0000:01:00.0 Unclassified device [0002]: Freescale Semiconductor Inc Device 1c12 (rev 10) (prog-if 80)
+         Flags: fast devsel, IRQ 273, IOMMU group 11
+         Memory at 910000000 (32-bit, non-prefetchable) [disabled] [size=256M]
+         Memory at 921000000 (32-bit, non-prefetchable) [disabled] [size=128K]
+         Memory at 928000000 (64-bit, prefetchable) [disabled] [size=8M]
+
+ root@imx95frdm:~# setpci -s 01:00.0 COMMAND=0x02
+
+ root@imx95frdm:~# lspci -v -s 0000:01:00.0
+ 0000:01:00.0 Unclassified device [0002]: Freescale Semiconductor Inc Device 1c12 (rev 10) (prog-if 80)
+         Flags: fast devsel, IRQ 273, IOMMU group 11
+         Memory at 910000000 (32-bit, non-prefetchable) [size=256M]
+         Memory at 921000000 (32-bit, non-prefetchable) [size=128K]
+         Memory at 928000000 (64-bit, prefetchable) [size=8M]
+
 
 la93xx_firmware (LA9310 FreeRTOS)
 .................................
@@ -352,10 +250,33 @@ Replace the default NXP LA9310 FreeRTOS image with the LimeSDR‑Micro‑specifi
 la93xx_host_sw
 ..............
 
-Recompile the shiva driver against the newly built kernel.
+
+clone la93xx_host_sw linux kernel module source code  
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ::
 
  git clone  https://github.com/nxp-qoriq/la93xx_host_sw.git
+ cd la93xx_host_sw
+
+Apply necessary la93xx_host_sw patches 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: 
+
+ cd la93xx_host_sw
+ patch -p 1 < 0001-Add-kernel-6.12-support.patch
+ patch -p 1 < 0002-Dynamic-allocation-for-iqflood-and-scratch-buffer.patch
+
+.. note::
+    - 0001 is required for recent kernels. Should be fixed in future releseases
+    - 0002 is optional, experimental alternative to device tree based static reservation of iqflood and scratch buffer regions
+ 
+
+Recompile the shiva driver against the newly built kernel
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
  cd la93xx_host_sw
  git checkout -b imx-la93xx-1.0 imx-la93xx-1.0
  git submodule update --init
@@ -368,18 +289,20 @@ Recompile the shiva driver against the newly built kernel.
  make clean
  CONFIG_ENABLE_FLOAT_BYPASS=y make
 
+Deploy images
+::
+
  make install
  scp -r install/* root@<targetIP>:/
 
-
+ 
 copy la9310shiva.ko to:
 ::
 
- /lib/modules/$(uname -r)/extra/ 
+ /lib/modules/$(uname -r)/extra/  
 
-
-la93xx_host_sw
-..............
+pmu_el0_cycle_counter
+.....................
 
 iq_mon is relying on standard ARMv8 linux kernel allowing access to CPU perf counter. 
 It is deployed by default in our BSP images. Otherwise here how to  compile it
@@ -444,4 +367,23 @@ capture (repeat) in DDR buffer
 
  ./iq-capture-ddr.sh 1200
  ./iq-stop.sh
+
+Tips 
+****
+
+Unexpected imx95frdm going to sleep
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+ root@imx95frdm:~/host_utils# [  916.073426] fsl_enetc4 0001:00:00.0 eth0: Link is Down
+ [  916.419685] PM: suspend entry (deep)
+ [  916.437359] Filesystems sync: 0.014 seconds
+ [  916.445646] Freezing user space processes
+
+ To disable suspend on a Linux system, you can use the command: 
+ 
+:: 
+ sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target. 
+ 
+ After running this command, reboot your system to apply the changes.
 

@@ -1,0 +1,412 @@
+From 6865469d3facc646af19cd922188934f260d5a23 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Mon, 26 Jan 2026 10:51:58 +0100
+Subject: [PATCH] Add kernel 6.12 support
+
+Signed-off-by: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+---
+ .../la9310demo/la9310_v2h_callback_test.c     |  2 ++
+ kernel_driver/la9310shiva/la9310_base.c       |  8 +++---
+ kernel_driver/la9310shiva/la9310_base.h       | 23 ++++++++++++++++
+ kernel_driver/la9310shiva/la9310_boot.c       |  2 +-
+ kernel_driver/la9310shiva/la9310_ipc.c        | 18 ++++++++-----
+ kernel_driver/la9310shiva/la9310_irq_mux.c    |  6 ++---
+ kernel_driver/la9310shiva/la9310_main_vspa.c  |  9 +++----
+ kernel_driver/la9310shiva/la9310_pci.c        |  8 +++---
+ kernel_driver/la9310shiva/la9310_tti.c        | 26 +++++++++++++++----
+ kernel_driver/la9310shiva/la9310_tvd.c        |  2 +-
+ kernel_driver/la9310shiva/la9310_v2h.c        |  6 ++---
+ 11 files changed, 78 insertions(+), 32 deletions(-)
+
+diff --git a/kernel_driver/la9310demo/la9310_v2h_callback_test.c b/kernel_driver/la9310demo/la9310_v2h_callback_test.c
+index 0ef2912..383e3cc 100644
+--- a/kernel_driver/la9310demo/la9310_v2h_callback_test.c
++++ b/kernel_driver/la9310demo/la9310_v2h_callback_test.c
+@@ -26,6 +26,8 @@ volatile int received_data = 0;
+ volatile int last_received_data = 0;
+ volatile long long int last_print_time = 0;
+ 
++void sdr_callback_func(struct sk_buff *skb_ptr, void *cookie);
++void callback_func(struct sk_buff *skb_ptr, void *cookie);
+ 
+ void sdr_callback_func(struct sk_buff *skb_ptr, void *cookie)
+ {
+diff --git a/kernel_driver/la9310shiva/la9310_base.c b/kernel_driver/la9310shiva/la9310_base.c
+index 7471b50..7edce09 100644
+--- a/kernel_driver/la9310shiva/la9310_base.c
++++ b/kernel_driver/la9310shiva/la9310_base.c
+@@ -284,7 +284,7 @@ la9310_create_ipc_hugepage_outbound(struct la9310_dev *la9310_dev,
+ 		 phys_addr, LA9310_USER_HUGE_PAGE_PHYS_ADDR, size);
+ }
+ 
+-void
++static void
+ la9310_create_rfnm_iqflood_outbound(struct la9310_dev *la9310_dev)
+ {
+ 	struct la9310_mem_region_info *ccsr_region;
+@@ -345,7 +345,7 @@ la9310_get_dma_region(struct la9310_dev *la9310_dev,
+ 	return ep_buf;
+ }
+ 
+-void
++static void
+ la9310_init_subdrv_dma_buf(struct la9310_dev *la9310_dev)
+ {
+ 
+@@ -671,7 +671,7 @@ la9310_register_ep_stats_ops(struct la9310_dev *la9310_dev)
+ 	return la9310_host_add_stats(la9310_dev, &stats_ops);
+ }
+ 
+-void
++static void
+ la9310_init_msg_unit_ptrs(struct la9310_dev *la9310_dev)
+ {
+ 	struct la9310_msg_unit *msg_unit;
+@@ -1100,7 +1100,7 @@ int  __attribute__((weak)) remove_tti_dev(void)
+ }
+ 
+ int  __attribute__((weak)) tti_dev_start(struct la9310_dev *la9310_dev,
+-		int virq_count, struct virq_evt_map *virq_map)
++               int virq_count, struct virq_evt_map *virq_map)
+ {
+ 	dev_dbg(la9310_dev->dev, "[%s]Dummy TTI probe\n", la9310_dev->name);
+ 	return 0;
+diff --git a/kernel_driver/la9310shiva/la9310_base.h b/kernel_driver/la9310shiva/la9310_base.h
+index 4e9d42e..d7aafbb 100644
+--- a/kernel_driver/la9310shiva/la9310_base.h
++++ b/kernel_driver/la9310shiva/la9310_base.h
+@@ -455,4 +455,27 @@ ssize_t la9310_show_global_status(char *buf);
+ int la9310_modinfo_init(struct la9310_dev *dev);
+ int la9310_modinfo_exit(struct la9310_dev *dev);
+ void la9310_modinfo_get(struct la9310_dev *la9310_dev, modinfo_t *mi);
++
++ssize_t la9310_ep_show_stats(void *stats_args, char *buf,struct la9310_dev *la9310_dev);
++void la9310_ep_reset_stats(void *stats_args);
++int la9310_register_ep_stats_ops(struct la9310_dev *la9310_dev);
++
++int __attribute__ ((weak)) la9310_ipc_probe(struct la9310_dev *la9310_dev,int virq_count,struct virq_evt_map *virq_map);
++int __attribute__ ((weak)) la9310_ipc_remove(struct la9310_dev *la9310_dev);
++int __attribute__ ((weak)) la9310_ipc_init(void);
++int __attribute__ ((weak)) la9310_ipc_exit(void);
++
++int  __attribute__((weak)) wdog_init(void);
++int  __attribute__((weak)) wdog_exit(void);
++int  __attribute__((weak)) tvd_init(void);
++int  __attribute__((weak)) tvd_exit(void);
++int  __attribute__((weak)) tvd_probe(struct la9310_dev *la9310_dev,int virq_count, struct virq_evt_map *virq_map);
++int  __attribute__((weak)) tvd_remove(struct la9310_dev *la9310_dev);
++int  __attribute__((weak)) init_tti_dev(void);
++int  __attribute__((weak)) remove_tti_dev(void);
++int  __attribute__((weak)) tti_dev_start(struct la9310_dev *la9310_dev,int virq_count, struct virq_evt_map *virq_map);
++int  __attribute__((weak)) tti_dev_stop(struct la9310_dev *la9310_dev);
++
++int register_rfnm_callback(void * callbackfunc, int irqid);
++int unregister_rfnm_callback(void);
+ #endif
+diff --git a/kernel_driver/la9310shiva/la9310_boot.c b/kernel_driver/la9310shiva/la9310_boot.c
+index 61c924d..c15633d 100644
+--- a/kernel_driver/la9310shiva/la9310_boot.c
++++ b/kernel_driver/la9310shiva/la9310_boot.c
+@@ -22,7 +22,7 @@
+ #include "la9310_base.h"
+ #include "la9310_sync_timing_device.h"
+ 
+-int check_file(const char *filename)
++static int check_file(const char *filename)
+ {
+ 	struct file *file;
+ 	char path[FIRMWARE_NAME_SIZE];
+diff --git a/kernel_driver/la9310shiva/la9310_ipc.c b/kernel_driver/la9310shiva/la9310_ipc.c
+index 3e649e6..9d5610f 100644
+--- a/kernel_driver/la9310shiva/la9310_ipc.c
++++ b/kernel_driver/la9310shiva/la9310_ipc.c
+@@ -94,7 +94,7 @@ ipc_release(struct inode *inode, struct file *filp)
+ 	return 0;
+ }
+ 
+-int la9310_dev_get_ipc_msi(int ipc_ch_num)
++static int la9310_dev_get_ipc_msi(int ipc_ch_num)
+ {
+ 	if (ipc_ch_num == 0)
+ 		return MSI_IRQ_IPC_1;
+@@ -110,13 +110,17 @@ static irqreturn_t ipc_irq_handler(int irq, void *data)
+ 
+ 	/* Send signal to IPC Channel Listner */
+ 	if (ipc_chan)
+-		eventfd_signal(ipc_chan->evt_fd_ctxt,
+-				SIGNAL_TO_CHANNEL_LISTENER);
++		#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0)
++		eventfd_signal(ipc_chan->evt_fd_ctxt);
++		#else
++                eventfd_signal(ipc_chan->evt_fd_ctxt,
++                                SIGNAL_TO_CHANNEL_LISTENER);
++		#endif
+ 
+ 	return IRQ_HANDLED;
+ }
+ 
+-int register_ipc_channel_irq(struct la9310_dev *la9310_dev, int ipc_ch_num,
++static int register_ipc_channel_irq(struct la9310_dev *la9310_dev, int ipc_ch_num,
+ 				uint32_t fd)
+ {
+ 	int ret = 0, irq_num = 0, index = 0;
+@@ -158,7 +162,9 @@ int register_ipc_channel_irq(struct la9310_dev *la9310_dev, int ipc_ch_num,
+ 	userspace_task = current;
+ 
+ 	rcu_read_lock();
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
++        efd_file = lookup_fdget_rcu(fd);
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+ 	efd_file = files_lookup_fd_rcu(userspace_task->files, fd);
+ #else
+ 	efd_file = fcheck_files(userspace_task->files, fd);
+@@ -193,7 +199,7 @@ err:
+ 	return ret;
+ }
+ 
+-void deregister_ipc_channel_irq(struct la9310_dev *la9310_dev, int ipc_ch_num)
++static void deregister_ipc_channel_irq(struct la9310_dev *la9310_dev, int ipc_ch_num)
+ {
+ 	struct ipc_chan *ipc_chan = &((struct ipc_dev *)
+ 			(la9310_dev->ipc_priv))->asyn_chans[ipc_ch_num];
+diff --git a/kernel_driver/la9310shiva/la9310_irq_mux.c b/kernel_driver/la9310shiva/la9310_irq_mux.c
+index fbe1c01..94a9b5f 100644
+--- a/kernel_driver/la9310shiva/la9310_irq_mux.c
++++ b/kernel_driver/la9310shiva/la9310_irq_mux.c
+@@ -18,7 +18,7 @@
+ #define la9310_mem_r(addr) readl(addr)
+ #define la9310_mem_w(val, addr) writel(val, addr)
+ 
+-int la9310_init_irq_mux(struct irq_evt_regs *irq_evt_regs,
++static int la9310_init_irq_mux(struct irq_evt_regs *irq_evt_regs,
+ 		     struct la9310_irq_mux_pram *irq_mux)
+ {
+ 	u32 num_irq_words = la9310_mem_r(&irq_evt_regs->irq_evt_cfg) &
+@@ -66,7 +66,7 @@ static void la9310_reset_irq_mux_stats(void *irq_mux_stats)
+ }
+ 
+ /* -------------------- IRQ chip functions -------------------- */
+-void la9310_set_imask(struct la9310_irq_mux_pram *irq_mux, int irq, u32 set_flg)
++static void la9310_set_imask(struct la9310_irq_mux_pram *irq_mux, int irq, u32 set_flg)
+ {
+ 	int irq_bit = irq - irq_mux->irq_base;
+ 	unsigned long irq_evt_en_reg;
+@@ -104,7 +104,7 @@ static struct irq_chip la9310_irq_chip = {
+ 	.irq_unmask		= la9310_irq_unmask,
+ };
+ 
+-void la9310_set_irq_chip(struct la9310_irq_mux_pram *irq_mux)
++static void la9310_set_irq_chip(struct la9310_irq_mux_pram *irq_mux)
+ {
+ 	int i;
+ 	int irq;
+diff --git a/kernel_driver/la9310shiva/la9310_main_vspa.c b/kernel_driver/la9310shiva/la9310_main_vspa.c
+index 8f7d5d8..b3b53ac 100644
+--- a/kernel_driver/la9310shiva/la9310_main_vspa.c
++++ b/kernel_driver/la9310shiva/la9310_main_vspa.c
+@@ -35,6 +35,7 @@
+ #include <linux/list.h>
+ #include <linux/delay.h>
+ #include <linux/version.h>
++#include <linux/vmalloc.h>
+ 
+ #include "la9310_vspa.h"
+ #include "la9310_pci.h"
+@@ -453,7 +454,7 @@ get_lma(uint8_t *file_start, uint32_t pg_hd_off,
+ 	return -LIBVSPA_ERR_INVALID_FILE;
+ }
+ 
+-int _strncmp( const char * s1, const char * s2, size_t n )
++static int _strncmp( const char * s1, const char * s2, size_t n )
+ {
+     while ( n && *s1 && ( *s1 == *s2 ) )
+     {
+@@ -507,7 +508,7 @@ getsectiontype(uint8_t *string_table, int sec_name_offset)
+ 	return -1;
+ }
+ 
+-int
++static int
+ vspa_fw_dma_write(struct la9310_dev *la9310_dev, struct dma_param *linfo,
+ 		  uint32_t flags, int overlay_enable)
+ {
+@@ -956,8 +957,6 @@ vspa_probe(struct la9310_dev *la9310_dev, int vspa_irq_count,
+ 	uint32_t val;
+ 	char name[50];
+ 
+-	sprintf(name, "%s%s", la9310_dev->name, VSPA_DEVICE_NAME);
+-
+ 	/* Allocating space vspa device structure */
+ 	vspadev = kzalloc(sizeof(struct vspa_device), GFP_KERNEL);
+ 	if (!vspadev) {
+@@ -1001,7 +1000,7 @@ vspa_probe(struct la9310_dev *la9310_dev, int vspa_irq_count,
+ 	/* Struct vspa_device fields initialization */
+ 	vspadev->vspa_dma_region = vspa_dma_region;
+ 
+-	sprintf(name, "%s%d", name, vspadev->id);
++        sprintf(name, "%s%s%d", la9310_dev->name, VSPA_DEVICE_NAME, vspadev->id);
+ 
+ 	vspadev->state = VSPA_STATE_UNKNOWN;
+ 	vspadev->debug = DEBUG_MESSAGES;
+diff --git a/kernel_driver/la9310shiva/la9310_pci.c b/kernel_driver/la9310shiva/la9310_pci.c
+index 2859e0d..033c321 100644
+--- a/kernel_driver/la9310shiva/la9310_pci.c
++++ b/kernel_driver/la9310shiva/la9310_pci.c
+@@ -167,7 +167,7 @@ static int pci_current_link_speed(struct pci_dev *pci_dev)
+ 	 (speed) == PCI_EXP_LNKSTA_CLS_2_5GB ? "2.5 GT/s" : \
+ 	 "Unknown speed")
+ 
+-ssize_t la9310_device_dump(struct la9310_dev *dev, char *buf)
++static ssize_t la9310_device_dump(struct la9310_dev *dev, char *buf)
+ {
+ 	int i = 0, adc_dac_hw_rate, adc_dac_hw_mask;
+ 	struct vspa_device *vspadev = (struct vspa_device *)dev->vspa_priv;
+@@ -268,7 +268,7 @@ ssize_t la9310_show_global_status(char *buf)
+ }
+ EXPORT_SYMBOL_GPL(la9310_show_global_status);
+ 
+-void la9310_dev_reset_interrupt_capability(struct la9310_dev *la9310_dev)
++static void la9310_dev_reset_interrupt_capability(struct la9310_dev *la9310_dev)
+ {
+ 	if (LA9310_CHK_FLG(la9310_dev->flags, LA9310_FLG_PCI_MSI_EN)) {
+ 		pci_disable_msi(la9310_dev->pdev);
+@@ -276,7 +276,7 @@ void la9310_dev_reset_interrupt_capability(struct la9310_dev *la9310_dev)
+ 	}
+ }
+ 
+-void enable_all_msi(struct la9310_dev *la9310_dev)
++static void enable_all_msi(struct la9310_dev *la9310_dev)
+ {
+ 	u32 __iomem *pcie_vaddr, *pcie_msi_control;
+ 	u32 val;
+@@ -305,7 +305,7 @@ void enable_all_msi(struct la9310_dev *la9310_dev)
+  * Attempt to configure interrupts using the best available
+  * capabilities of the hardware and kernel.
+  */
+-int la9310_dev_set_interrupt_capability(struct la9310_dev *la9310_dev, int mode)
++static int la9310_dev_set_interrupt_capability(struct la9310_dev *la9310_dev, int mode)
+ {
+ 	int ret = 0, i = 0;
+ 	/* Check whether the device has MSIx cap */
+diff --git a/kernel_driver/la9310shiva/la9310_tti.c b/kernel_driver/la9310shiva/la9310_tti.c
+index d393315..6267246 100644
+--- a/kernel_driver/la9310shiva/la9310_tti.c
++++ b/kernel_driver/la9310shiva/la9310_tti.c
+@@ -40,6 +40,12 @@
+ #define AVG_TIME 500000
+ char tti_dev_name[20];
+ 
++void tti_irq_api(void);
++void set_tti_irq_status(u8 irq_status);
++int tti_register_irq(struct tti_priv *tti_priv_t, struct tti *tti_t);
++void tti_deregister_irq(struct tti_priv *tti_priv_t, struct tti *tti_t);
++ssize_t tti_device_dump(int id, char *buf);
++
+ static struct tti_priv *tti_priv_g;
+ #ifdef DEBUG_TTI
+ static ktime_t time_cur = 0, time_prev = 0;
+@@ -79,7 +85,7 @@ static void get_time(void) {
+ }
+ #endif
+ 
+-void tti_swake_up_all_locked(struct swait_queue_head *q)
++static void tti_swake_up_all_locked(struct swait_queue_head *q)
+ {
+ 	while (!list_empty(&q->task_list))
+ #if ( LINUX_VERSION_CODE >= KERNEL_VERSION( 6, 4, 0 ) )
+@@ -103,8 +109,12 @@ static irqreturn_t tti_irq_handler(int irq, void *data)
+ 		tti_swake_up_all_locked(&tti_priv_t->tti_wq);
+ 		raw_spin_unlock(&tti_priv_t->wq_lock);
+ 		if (tti_priv_t->evt_fd_ctxt) {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0)
++                        eventfd_signal(tti_priv_t->evt_fd_ctxt);
++#else
+ 			eventfd_signal(tti_priv_t->evt_fd_ctxt,
+ 				SIGNAL_TO_USERSPACE);
++#endif
+ 		}
+ 	}
+ 	return IRQ_HANDLED;
+@@ -121,8 +131,12 @@ void tti_irq_api(void)
+ 		tti_swake_up_all_locked(&tti_priv_g->tti_wq);
+ 		raw_spin_unlock(&tti_priv_g->wq_lock);
+ 		if (tti_priv_g->evt_fd_ctxt) {
+-			eventfd_signal(tti_priv_g->evt_fd_ctxt,
+-				SIGNAL_TO_USERSPACE);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0)
++                        eventfd_signal(tti_priv_g->evt_fd_ctxt);
++#else
++                        eventfd_signal(tti_priv_g->evt_fd_ctxt,
++                                SIGNAL_TO_USERSPACE);
++#endif
+ 		}
+ 	}
+ 	return;
+@@ -171,7 +185,9 @@ int tti_register_irq(struct tti_priv *tti_priv_t, struct tti *tti_t)
+ 	if (tti_t->tti_eventfd > 0) {
+ 		userspace_task = current;
+ 		rcu_read_lock();
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
++		efd_file = lookup_fdget_rcu(tti_t->tti_eventfd);
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+ 		efd_file = files_lookup_fd_rcu(userspace_task->files,
+ 				tti_t->tti_eventfd);
+ #else
+@@ -341,7 +357,7 @@ int tti_dev_stop(struct la9310_dev *dev)
+ 	return 0;
+ }
+ 
+-int tti_dev_start(struct la9310_dev *dev)
++int tti_dev_start(struct la9310_dev *dev,int virq_count, struct virq_evt_map *virq_map)
+ {
+ 	struct device_node *la9310_tti;
+ 	struct tti_priv *tti_dev = NULL;
+diff --git a/kernel_driver/la9310shiva/la9310_tvd.c b/kernel_driver/la9310shiva/la9310_tvd.c
+index 8423b29..fad1fdd 100644
+--- a/kernel_driver/la9310shiva/la9310_tvd.c
++++ b/kernel_driver/la9310shiva/la9310_tvd.c
+@@ -75,7 +75,7 @@ struct la9310_tvd_device_data {
+ 
+ char tvd_dev_name[TVD_DEVICE_NAME_LEN];
+ 
+-void mtd_get_temp(struct tvd_dev *tvd_dev, uint32_t tvdid, struct mtdTemp *mtd_temp)
++static void mtd_get_temp(struct tvd_dev *tvd_dev, uint32_t tvdid, struct mtdTemp *mtd_temp)
+ {
+ 	int retry = 0, valid = 0, index = 0, temp = 0, ret = 0;
+ 	struct la9310_dev *la9310_dev = NULL;
+diff --git a/kernel_driver/la9310shiva/la9310_v2h.c b/kernel_driver/la9310shiva/la9310_v2h.c
+index 3195459..7b3156c 100644
+--- a/kernel_driver/la9310shiva/la9310_v2h.c
++++ b/kernel_driver/la9310shiva/la9310_v2h.c
+@@ -193,7 +193,7 @@ EXPORT_SYMBOL_GPL(unregister_v2h_callback);
+ *      SUCCESS - 64 bit physical address of the newly allocated buffer
+ *      Negative value - -ENOMEM
+ ****************************************************************************/
+-int
++static int
+ allocate_frame_buffer(struct la9310_dev *la9310_dev, phys_addr_t *phys_addr)
+ {
+ 	struct sk_buff *skb;
+@@ -245,7 +245,7 @@ allocate_frame_buffer(struct la9310_dev *la9310_dev, phys_addr_t *phys_addr)
+ *      SUCCESS - pci istart address of the indexed memory
+ *      Fail - 0
+  ****************************************************************************/
+-uint32_t
++static uint32_t
+ get_v2h_pci_addr(int index)
+ {
+ 	if (index >= V2H_MAX_BD)
+@@ -266,7 +266,7 @@ get_v2h_pci_addr(int index)
+  *	SUCCESS - 0
+  *	Negative value - -ENOMEM / -EINVAL
+  ****************************************************************************/
+-int
++static int
+ init_rxpkt_ring_buff(struct la9310_dev *la9310_dev, struct v2h_ring *ring_ptr)
+ {
+ 	uint32_t cnt, ctr;
+-- 
+2.34.1
+

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright 2024-2025 NXP
 ####################################################################
@@ -67,4 +67,18 @@ devmem $[$phytimer_base + 0x5c] w 0x0000000a
 #  00010303 -> 61.44Mhz
 #  00000000 -> 122.88Mhz
 
+ddrh=`dmesg |grep "IQ Flood Buffer"|cut -f 7 -d ":"|cut -f 1 -d " "| head -1`
+maxsize=`dmesg |grep IQFLOOD |cut -f 2 -d "z"|cut -f 2 -d " "| head -1`
+if [[ "$ddrh" -eq "" ]];then
+        echo can not retrieve IQFLOOD region, is LA9310 shiva started ?
+        exit 1
+fi
+
+proxy_addr=`printf "0x%X\n" $[$ddrh + $maxsize - 1024]`
+proxy_offset=`printf "0x%X\n" $[$maxsize - 1024]`
+iqflood_size=`printf "0x%X\n" $maxsize`
+echo iqflood_addr $ddrh 
+echo iqflood_size $iqflood_size
+echo proxy_addr $proxy_addr
+./set-proxy-offset.sh $proxy_offset
 

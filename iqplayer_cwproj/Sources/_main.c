@@ -35,6 +35,7 @@ t_tx_ch_host_proxy tx_vspa_proxy __attribute__((section(".dmem_proxy_tx"))) __at
 t_rx_ch_host_proxy rx_vspa_proxy[RX_NUM_MAX_CHAN] __attribute__((section(".dmem_proxy_rx"))) __attribute__((aligned(32)));
 uint32_t tx_proxy_updated = 0;
 uint32_t rx_proxy_updated = 0;
+uint32_t g_iqflood_proxy_offset = 0;
 
 uint32_t TX_SingleT_start_bit_update = 0, RX_SingleT_start_bit_update = 0, RX_SingleT_continue = 0;
 
@@ -471,6 +472,19 @@ __attribute__((noreturn)) void main(void) {
 
                 break;
 
+            case MBOX_OPC_PROXY_OFFSET:
+                uint32_t proxy_offset_read_only = ((mailbox_in_msg_0_MSB & 0x00100000) >> 20); /* bit 52 */
+                if(!proxy_offset_read_only){
+            	    g_iqflood_proxy_offset = mailbox_in_msg_0_LSB;
+                    tx_proxy_updated = 1;
+                    rx_proxy_updated = 1;
+                    tx_vspa_proxy.gbl_stats_fetch = 1;
+                }
+                mailbox_out_msg_0_MSB = g_iqflood_proxy_offset;
+                mailbox_out_msg_0_LSB = 0x1;
+                host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+                break;
+                
             default:
                 // not a valid command, NACK
                 mailbox_out_msg_0_MSB = 0x0;
