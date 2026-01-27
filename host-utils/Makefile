@@ -9,12 +9,13 @@ PROJ_DIR ?= $(CURDIR)
 DEST_DIR ?= ${PROJ_DIR}/install
 
 LA9310_COMMON_HEADERS ?= $(CURDIR)/../../la93xx_freertos/common_headers
+UAPI_DIR ?= $(CURDIR)/../../la93xx_host_sw/uapi
 
 CROSS_COMPILE?=aarch64-linux-gnu-
 
 DEST_DIR ?= ${PROJ_DIR}/install
 
-export FSVSPAIncludes DEST_DIR PROJ_DIR LA9310_COMMON_HEADERS 
+export FSVSPAIncludes DEST_DIR PROJ_DIR LA9310_COMMON_HEADERS UAPI_DIR 
 
 DIRS := iq_monitor lib_iqplayer iq_app iq_trace vspa_mbox 
 

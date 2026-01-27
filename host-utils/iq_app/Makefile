@@ -4,11 +4,12 @@
 PROJ_DIR ?= $(CURDIR)
 DEST_DIR ?= ${PROJ_DIR}/install
 LA9310_COMMON_HEADERS ?= $(CURDIR)/../../../la93xx_freertos/common_headers
+UAPI_DIR ?= $(CURDIR)/../../../la93xx_host_sw/uapi
 LA9310_IQPLAYER_LIB_HEADERS ?= $(CURDIR)/../lib_iqplayer
 
 CFLAGS  += -g -O3 -Wall -D_GNU_SOURCE -Werror -Wno-unused-variable 
-CFLAGS  += -I../common -I../lib_iqplayer -I../../include -I. -I${LA9310_COMMON_HEADERS} -I{LA9310_IQPLAYER_LIB_HEADERS}
-LDFLAGS += -pthread -lpthread -lrt ../lib_iqplayer/lib_iqplayer.a
+CFLAGS  += -I../common -I../lib_iqplayer -I../../include -I. -I${LA9310_COMMON_HEADERS} -I{LA9310_IQPLAYER_LIB_HEADERS} -I${UAPI_DIR}
+LDFLAGS += -L$(CURDIR)/../lib_iqplayer -pthread -lpthread -lrt -liqplayer
 
 CC=gcc
 CROSS_COMPILE?=aarch64-linux-gnu-
@@ -22,7 +23,7 @@ BIN_TEST := iq_app
 all: $(BIN_TEST)
 
 $(BIN_TEST): ${OBJS_TEST}
-	$(CROSS_COMPILE)${CC} ${CFLAGS} ${LDFLAGS} -o $(BIN_TEST) ${OBJS_TEST} $(INCLUDES)
+	$(CROSS_COMPILE)${CC} ${CFLAGS} -o $(BIN_TEST) ${OBJS_TEST} $(INCLUDES) ${LDFLAGS}
 
 %.o: %.c
 	$(CROSS_COMPILE)${CC} -c ${CFLAGS} ${INCLUDES}  $< -o $@

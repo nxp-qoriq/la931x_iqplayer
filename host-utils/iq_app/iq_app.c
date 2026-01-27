@@ -39,9 +39,9 @@ void *process_ant_rx_streaming_app(void *arg);
 
 volatile uint32_t running;
 
-uint32_t *v_iqflood_ddr_addr;
-uint32_t *v_scratch_ddr_addr;
-uint32_t *v_la9310_bar2;
+static uint32_t *v_iqflood_ddr_addr;
+static uint32_t *v_scratch_ddr_addr;
+static uint32_t *v_la9310_bar2;
 
 uint32_t RxChanID;
 

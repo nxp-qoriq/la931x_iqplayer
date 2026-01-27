@@ -14,20 +14,20 @@ CROSS_COMPILE?=aarch64-linux-gnu-
 
 SRCS_TEST := libiqplayer.c imx8-host.c l1-trace-host.c
 OBJS_TEST := libiqplayer.o imx8-host.o l1-trace-host.o
-BIN_TEST := lib_iqplayer.a
+BIN_TEST := libiqplayer.a
 
 .PHONY: all
 
 all: $(BIN_TEST)
 
 $(BIN_TEST): ${OBJS_TEST}
-	$(CROSS_COMPILE)${AR} rcs  -o $(BIN_TEST) ${OBJS_TEST} $(INCLUDES)
+	$(CROSS_COMPILE)${AR} rcs  $(BIN_TEST) ${OBJS_TEST} $(INCLUDES)
 
 %.o: %.c
 	$(CROSS_COMPILE)${CC} -c ${CFLAGS} ${INCLUDES}  $< -o $@
 
 clean:
-	rm -rf *.o $(BIN_TEST)
+	rm -rf *.o *.a $(BIN_TEST)
 
 install:
 	install -D $(BIN_TEST) ${DEST_DIR}/usr/lib/$(BIN_TEST)

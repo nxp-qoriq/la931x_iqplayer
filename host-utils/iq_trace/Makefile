@@ -6,10 +6,10 @@ DEST_DIR ?= ${PROJ_DIR}/install
 LA9310_COMMON_HEADERS ?= $(CURDIR)/../../../la93xx_freertos/common_headers
 LA9310_IQPLAYER_VSPA_CWPROJ ?= $(CURDIR)/../../iqplayer_cwproj
 LA9310_IQPLAYER_LIB_HEADERS ?= $(CURDIR)/../lib_iqplayer
-
+UAPI_DIR  ?= $(CURDIR)/../../../la93xx_host_sw/uapi
 
 CFLAGS_COMMON  = -g -O3 -Wall -D_GNU_SOURCE -Werror -Wno-unused-variable 
-CFLAGS_COMMON  += -I../common -I../../include -I. -I${LA9310_COMMON_HEADERS} -I$(LA9310_IQPLAYER_LIB_HEADERS) -I${LA9310_IQPLAYER_VSPA_CWPROJ}/include 
+CFLAGS_COMMON  += -I../common -I../../include -I. -I${LA9310_COMMON_HEADERS} -I$(LA9310_IQPLAYER_LIB_HEADERS) -I${LA9310_IQPLAYER_VSPA_CWPROJ}/include -I${UAPI_DIR} 
 LDFLAGS_COMMON += -pthread -lpthread -lrt
 ifeq ($(IMX8DXL),1)
 	CFLAGS_COMMON  += -DIMX8DXL

@@ -7,10 +7,11 @@ VSPA_TOOL ?= /opt/VSPA_Tools_vbeta_14_00_781
 FSVSPAIncludes = $(VSPA_TOOL)/include
 
 LA9310_COMMON_HEADERS ?= $(CURDIR)/../la93xx_freertos/common_headers
+UAPI_DIR ?= $(CURDIR)/../la93xx_host_sw/uapi
 
 DEST_DIR ?= ${CURDIR}/install
 
-export FSVSPAIncludes DEST_DIR LA9310_COMMON_HEADERS VSPA_TOOL 
+export FSVSPAIncludes DEST_DIR LA9310_COMMON_HEADERS VSPA_TOOL UAPI_DIR
 
 DIRS := iqplayer_cwproj host-utils
 
