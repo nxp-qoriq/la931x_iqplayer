@@ -6,18 +6,21 @@
 
 print_usage()
 {
-echo "usage: iq-start-app-rx.sh"
+echo "usage: ./iq-app-rx.sh <output iq sample file> <File size> [FIFO Size]"
+echo "ex : ./iq-app-rx.sh ./iqdata.bin 4915200"
 }
 
 # check parameters
-if [ $# -gt 1 ];then
+if [ $# -lt 2 ];then
         echo Arguments wrong.
         print_usage
         exit 1
 fi
 
-if [ $# -eq 0 ];then
+if [ $# -eq 2 ];then
         fifo=131072
+else
+        fifo=$3
 fi
 
 fifo4k=$[$fifo / 4096]
@@ -37,10 +40,10 @@ if [ $fifo -gt $[$maxsize/2] ];then
         exit 1
 fi
 
- taskset 0x4 iq_app -r -c 0 -a $buff 4915200 -f $[$maxsize/2] $fifo &
- ./iq-start-rxfifo.sh $fifo4k
+# Use second half of iqflood region for TX FIFO i.e. 128KB fifo at offset iqfloodSize/2 
+taskset 0x4 iq_app -r -c 0 -f $1 -s $2 -F $[$maxsize/2] $fifo &
+./iq-start-rxfifo.sh $fifo4k
  
  
-echo bin2mem -f iqdata.bin -a $buff -r 4915200
 
 

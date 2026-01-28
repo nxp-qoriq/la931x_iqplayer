@@ -177,8 +177,10 @@ Streaming via lib_iqplayer / iq_app
 -----------------------------------
  
 The lib_iqplayer library demonstrates host-driven streaming using DDR as TX/RX FIFOs, with VSPA DMA transferring data to and from DMEM FIFOs.
+iq_app will stream data from/to standard malloc() buffer using intermediate FIFOs located in iqflood region.
 
-Default examples use 32 KB FIFOs and perform best when:
+Default examples use 32KB TX FIFO ans 128KB RX FIFO in DDR 
+iq_app application will perform best when host is configured for real time operation :
 - CPU isolation is enabled
 - Architectural timer interrupts are reduced
 
@@ -187,21 +189,23 @@ To enable host-side flow control and operate DDR buffers as FIFO :
 - iq-start-txfifo.sh
 
 ::
- 
- # iqflood_addr 0x13a000000
- # source file at iqflood_addr + 0x00100000 = 0x13a100000
- 
- bin2mem  -f ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin -a 0x13a100000
- taskset 0x8 iq_app -t -a 0x00100000 4915200 -f 0x00000000 32768 &
- ./iq-start-txfifo.sh 8
- ./iq-stop.sh
+
+ # Use first half of iqflood region for TX FIFO i.e. 32KB fifo at offset 0 
+ ./iq-app-tx.sh <input iq sample file> [FIFO Size]
  
 ::
- 
- taskset 0x4 iq_app -r -c 0 -a 0x6900000 4915200 -f 0x6800000 32768 &
- ./iq-start-rxfifo.sh 8
- ./iq-stop.sh
- bin2mem -f iqdata.bin -a 0x9CD00000 -r 4915200
+
+ # Use second half of iqflood region for TX FIFO i.e. 128KB fifo at offset iqfloodSize/2  
+ ./iq-app-rx.sh <output iq sample file> <File size> [FIFO Size]
+
+::
+
+ get iq_app trace
+  kill -USR1 <iq_streamer PID>
+
+ to stop app
+  kill <iq_streamer PID>
+  ./iq-stop.sh
 
 Performance 
 ***********

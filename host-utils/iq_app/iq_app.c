@@ -34,8 +34,11 @@
 #include "l1-trace-host.h"
 #include "lib_iqplayer_api.h"
 
-void *process_ant_tx_streaming_app(void *arg);
-void *process_ant_rx_streaming_app(void *arg);
+int process_ant_tx_streaming_app(void *arg);
+int process_ant_rx_streaming_app(void *arg);
+
+static const char *FilePath;
+uint32_t file_size=0;
 
 volatile uint32_t running;
 
@@ -44,9 +47,6 @@ static uint32_t *v_scratch_ddr_addr;
 static uint32_t *v_la9310_bar2;
 
 uint32_t RxChanID;
-
-uint32_t app_ddr_file_start;
-uint32_t app_ddr_file_size;
 
 uint32_t modem_ddr_fifo_start;
 uint32_t modem_ddr_fifo_size;
@@ -148,7 +148,7 @@ void print_cmd_help(void) {
 int main(int argc, char *argv[]) {
     int32_t c, i, ret;
     command_e command = 0;
-    struct stat buffer;
+    struct stat status;
     int32_t forceFifoSize = 0;
 
     if (argc <= 1) {
@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
     signal(SIGUSR1, sigusr1_process);
 
     /* command line parser */
-    while ((c = getopt(argc, argv, "htra:f:c:")) != EOF) {
+    while ((c = getopt(argc, argv, "htrF:f:c:s:")) != EOF) {
         switch (c) {
         case 'h':
             print_cmd_help();
@@ -172,16 +172,18 @@ int main(int argc, char *argv[]) {
         case 'r':
             command = OP_RX_ONLY;
             break;
-        case 'a':
-            app_ddr_file_start = strtoull(argv[optind - 1], 0, 0);
-            app_ddr_file_size = strtoul(argv[optind], 0, 0);
-            break;
-        case 'f':
+        case 'F':
             modem_ddr_fifo_start = strtoull(argv[optind - 1], 0, 0);
             modem_ddr_fifo_size = strtoul(argv[optind], 0, 0);
             break;
+        case 's':
+            file_size = strtoull(argv[optind - 1], 0, 0);
+            break;
         case 'c':
             RxChanID = strtoull(argv[optind - 1], 0, 0);
+            break;
+        case 'f':
+            FilePath = argv[optind - 1];
             break;
         default:
             print_cmd_help();
@@ -191,7 +193,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Check modem is on */
-    if (stat("/sys/shiva/shiva_status", &buffer) != 0) {
+    if (stat("/sys/shiva/shiva_status", &status) != 0) {
         perror("la9310 shiva driver not started");
         exit(EXIT_FAILURE);
     }
@@ -238,66 +240,143 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void *process_ant_tx_streaming_app(void *arg) {
+int process_ant_tx_streaming_app(void *arg) {
     uint32_t ddr_rd_offset = 0, size_sent = 0;
+    void *buffer;
+    int ret=0;
+    FILE *ptr;
     void *ddr_src;
-    int ret;
 
+    // Load input file into local buffer
+    FILE *fp = fopen(FilePath, "rb");
+    if (!fp) {
+        fprintf(stderr, "Error opening '%s': %s\n", FilePath, strerror(errno));
+        ret = EXIT_FAILURE;
+        goto out0;
+    }
+
+    // Determine file size (portable way using fseek/ftell).
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fprintf(stderr, "fseek(SEEK_END) failed: %s\n", strerror(errno));
+        ret=EXIT_FAILURE;
+        goto out1;
+    }
+    file_size = ftell(fp);
+    if (file_size <= 0) {
+        fprintf(stderr, "ftell failed: %s\n", strerror(errno));
+        ret=EXIT_FAILURE;
+        goto out1;
+    }
+
+    buffer = (uint8_t *)malloc(file_size);
+    if (!buffer) {
+        fprintf(stderr, "malloc(%x) failed\n", file_size);
+        ret=EXIT_FAILURE;
+        goto out1;
+   }
+
+    ret = fread(buffer, 1 , file_size , fp);
+    if (ret == 0) {
+        if (ferror(fp)) {
+            fprintf(stderr, "Error reading file: %s\n", strerror(errno));
+ 			ret=EXIT_FAILURE;
+			goto out2;
+        }
+    }
+	
     // init tx channel
     ret = iq_player_init_tx(modem_ddr_fifo_start, modem_ddr_fifo_size);
     if (!ret) {
         printf("\n TX : iq_player_init_tx failed\n");
         fflush(stdout);
-        return 0;
+		ret=EXIT_FAILURE;
+		goto out2;
     }
 
     // start feeding tx fifo
+	ddr_rd_offset = 0;
     while (running) {
         // prepare next transmit
-        ddr_src = (void *)((uint64_t)v_iqflood_ddr_addr + app_ddr_file_start + ddr_rd_offset);
-        if (app_ddr_file_size - ddr_rd_offset > modem_ddr_fifo_size) {
+        ddr_src = (void *)((uint64_t)buffer + ddr_rd_offset);
+        if (file_size - ddr_rd_offset > modem_ddr_fifo_size) {
             size_sent = iq_player_send_data(ddr_src, modem_ddr_fifo_size);
         } else {
-            size_sent = iq_player_send_data(ddr_src, app_ddr_file_size - ddr_rd_offset);
+            size_sent = iq_player_send_data(ddr_src, file_size - ddr_rd_offset);
         }
         // update pointers
         ddr_rd_offset += size_sent;
-        if (ddr_rd_offset >= app_ddr_file_size) {
+        if (ddr_rd_offset >= file_size) {
             ddr_rd_offset = 0;
         }
     }
 
-    return 0;
+out2:	
+	free(buffer);
+out1:
+	fclose(fp);
+out0:
+    return ret;
 }
 
-void *process_ant_rx_streaming_app(void *arg) {
+int process_ant_rx_streaming_app(void *arg) {
     uint32_t ddr_wr_offset = 0, size_received = 0;
     void *ddr_dst;
-    int ret;
+    int ret=0;
+    void *buffer;
+
+    buffer = (uint8_t *)malloc(file_size);
+    if (!buffer) {
+        fprintf(stderr, "malloc(%d) failed\n", file_size);
+        ret= EXIT_FAILURE;
+        goto out0;
+    }
 
     // init tx channel
     ret = iq_player_init_rx(RxChanID, modem_ddr_fifo_start, modem_ddr_fifo_size);
     if (!ret) {
         printf("\n RX : iq_player_init_rx failed\n");
         fflush(stdout);
-        return 0;
+        ret=EXIT_FAILURE;
+        goto out1;
     }
 
     // start emptying rx fifo
     while (running) {
         // prepare next transmit
-        ddr_dst = (void *)((uint64_t)v_iqflood_ddr_addr + app_ddr_file_start + ddr_wr_offset);
-        if (app_ddr_file_size - ddr_wr_offset > modem_ddr_fifo_size) {
+        ddr_dst = (void *)((uint64_t)buffer + ddr_wr_offset);
+        if (file_size - ddr_wr_offset > modem_ddr_fifo_size) {
             size_received = iq_player_receive_data(RxChanID, ddr_dst, modem_ddr_fifo_size);
         } else {
-            size_received = iq_player_receive_data(RxChanID, ddr_dst, app_ddr_file_size - ddr_wr_offset);
+            size_received = iq_player_receive_data(RxChanID, ddr_dst, file_size - ddr_wr_offset);
         }
         // update pointers
         ddr_wr_offset += size_received;
-        if (ddr_wr_offset >= app_ddr_file_size) {
+        if (ddr_wr_offset >= file_size) {
             ddr_wr_offset = 0;
         }
     }
+	
+	// write buffer to File
+    FILE *fp = fopen(FilePath, "wb");
+    if (!fp) {
+        fprintf(stderr, "Error opening '%s': %s\n", FilePath, strerror(errno));
+        ret=EXIT_FAILURE;
+        goto out1;
+    }
 
-    return 0;
+	ret = fwrite(buffer, 1 , file_size , fp);
+    if (ret == 0) {
+        if (ferror(fp)) {
+            fprintf(stderr, "Error reading file: %s\n", strerror(errno));
+			ret=EXIT_FAILURE;
+			goto out2;
+        }
+    }
+
+out2:	
+	fclose(fp);
+out1:
+	free(buffer);
+out0:
+    return ret;
 }

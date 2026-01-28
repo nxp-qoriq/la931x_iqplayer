@@ -6,15 +6,24 @@
 
 print_usage()
 {
-echo "usage: iq-start-app-tx.sh"
+echo "usage: ./iq-app-tx.sh <input iq sample file> [FIFO Size]"
+echo "ex : ./iq-app-tx.sh ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin "
 }
 
 # check parameters
-if [ $# -ne 0 ];then
+if [ $# -lt 1 ];then
         echo Arguments wrong.
         print_usage
         exit 1
 fi
+
+fifo=$2
+if [ $# -eq 1 ];then
+	fifo=32768
+fi
+
+fifo4k=$[$fifo / 4096]
+fifo=$[$fifo4k * 4096]
 
 # check la9310 shiva driver and retrieve iqsample info i.e. iqflood in scratch buffer (non cacheable)
 
@@ -24,13 +33,11 @@ if [[ "$ddrh" -eq "" ]];then
         echo can not retrieve IQFLOOD region, is LA9310 shiva started ?
         exit 1
 fi
-if [ 32768 -gt $[$maxsize/2] ];then
+if [ $fifo -gt $[$maxsize/2] ];then
         echo fifo too large to fit in IQFLOOD region $maxsize bytes
         exit 1
 fi
 
-# use first half of iqflood region, 32KB fifo in first 1M, then source file for the app. 
-
-bin2mem -f ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin -a $[$ddrh + 0x00100000]
-taskset 0x8 iq_app -t -a 0x00100000 4915200 -f 0x00000000 32768 &
-./iq-start-txfifo.sh 8
+# Use first half of iqflood region for TX FIFO i.e. 32KB fifo at offset 0 
+taskset 0x8 iq_app -t -f $1 -F 0x00000000 $fifo &
+./iq-start-txfifo.sh $fifo4k

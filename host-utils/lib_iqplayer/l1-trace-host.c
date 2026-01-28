@@ -34,8 +34,7 @@ l1_trace_host_code_t l1_trace_host_code[] = { { 0x100, "L1_TRACE_MSG_DMA_XFR " }
 uint64_t rte_get_tsc_cycles(void) {
     uint64_t time;
 
-// fails on imx95 , need to be fixed
-//    asm volatile("isb;mrs %0, pmccntr_el0" : "=r"(time));
+    asm volatile("isb;mrs %0, pmccntr_el0" : "=r"(time));
     time=0xdeadbeef;
     return time;
 }
