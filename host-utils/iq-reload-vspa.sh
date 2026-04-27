@@ -24,7 +24,7 @@ fi
 # NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff800030000000, EP Phys 0xa0000000, size 2097152
 
 ep_scratch=0xa0000000
-scratch_addr=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/reg |cut -f 7-10 -d " " |sed 's/ //g'|cut -f 1 -d " " |head -1`
+scratch_addr=0x`la9310_modem_info | grep "Scratch buf phys" |cut -f 2 -d "x"|cut -f 1 -d " "`
 
 # load eld at beginning of scratch region
 echo bin2mem -f $1 -a $scratch_addr -c 128
