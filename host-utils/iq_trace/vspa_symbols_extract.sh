@@ -9,7 +9,10 @@
 echo "### exporting vspa symbols from apm.eld"
 grep VSPA_EXPORT *.c|cut -f 2 -d "(" |cut -f 1 -d ")"> ./vspa_exported_symbols0.txt
 sed 's/\r$//' vspa_exported_symbols0.txt > ./vspa_exported_symbols.txt
-/home/nxp/Freescale/VSPA/VSPA_Tools_vbeta_14_00_781/bin/vspa-elfdump -y $1 > $1.symbol.txt
+if [ -z ${VSPA_TOOL+x} ]; then
+        VSPA_TOOL="/opt/VSPA_Tools_vbeta_14_00_781";
+fi
+${VSPA_TOOL}/bin/vspa-elfdump -y $1 > $1.symbol.txt
 touch $1_vspa_exported_symbols_addr.txt
 while read in; do
 	grep "$in" $1.symbol.txt|grep GLOBAL >> $1_vspa_exported_symbols_addr.txt
