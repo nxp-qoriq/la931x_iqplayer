@@ -4,6 +4,7 @@
 ####################################################################
 #set -x
 
+# scratch_addr and scratch_size are deprecated parameters for la9310shiva, keeping it for backward compatibility
 scratch_addr=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/reg |cut -f 7-10 -d " " |sed 's/ //g'|cut -f 1 -d " " |head -1`
 scratch_size=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/reg |cut -f 16-19 -d " " |sed 's/ //g'|head -1`
 
@@ -42,6 +43,7 @@ insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko scratch_buf_size=$scratch_s
 insmod /lib/modules/$(uname -r)/extra/pmu_el0_cycle_counter.ko
 
 # enable ADC/DAC always on
+sleep 1
 ./fdd-start.sh
 
 #

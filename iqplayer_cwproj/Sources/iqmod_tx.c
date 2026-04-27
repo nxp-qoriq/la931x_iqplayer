@@ -177,7 +177,8 @@ void TX_IQ_DATA_FROM_DDR(void) {
         // stop single tone
         TX_SingleT_start_bit_update = 0;
 
-        // Disable Tx and reset fifo
+        // Ensure enable to disable transition to enter AXIQ FIFO Flush mode
+        axiq_tx_enable();
         axiq_tx_disable();
 
         // Disable Tx and reset fifo
