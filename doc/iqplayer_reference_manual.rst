@@ -192,11 +192,13 @@ To enable host-side flow control and operate DDR buffers as FIFO :
 
  # Use first half of iqflood region for TX FIFO i.e. 32KB fifo at offset 0 
  ./iq-app-tx.sh <input iq sample file> [FIFO Size]
- 
+ ex : ./iq-app-tx.sh ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin
+
 ::
 
  # Use second half of iqflood region for TX FIFO i.e. 128KB fifo at offset iqfloodSize/2  
  ./iq-app-rx.sh <output iq sample file> <File size> [FIFO Size]
+ ex : ./iq-app-rx.sh ./iqdata.bin 4915200
 
 ::
 
