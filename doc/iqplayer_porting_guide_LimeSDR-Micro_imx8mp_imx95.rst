@@ -301,23 +301,6 @@ copy la9310shiva.ko to:
 
  /lib/modules/$(uname -r)/extra/  
 
-pmu_el0_cycle_counter
-.....................
-
-iq_mon is relying on standard ARMv8 linux kernel allowing access to CPU perf counter. 
-It is deployed by default in our BSP images. Otherwise here how to  compile it
-::
-
- git clone https://github.com/jerinjacobk/armv8_pmu_cycle_counter_el0
- cd armv8_pmu_cycle_counter_el0/
- make CROSS_COMPILE=aarch64-linux-gnu-   ARCH=arm64 KDIR=<PATH_TO_LINUX_KERNEL>
-
-copy pmu_el0_cycle_counter.ko to:
-::
-
- /lib/modules/$(uname -r)/extra/ 
-
-
 IQ Player
 .........
 

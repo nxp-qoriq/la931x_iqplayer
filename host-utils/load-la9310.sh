@@ -40,7 +40,6 @@ insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko scratch_buf_size=$scratch_s
 [ -f /lib/modules/$(uname -r)/extra/sdr_daughterboard.ko ] && insmod /lib/modules/$(uname -r)/extra/sdr_daughterboard.ko
 [ -f /lib/modules/$(uname -r)/extra/sdr_lime.ko ] && insmod /lib/modules/$(uname -r)/extra/sdr_lime.ko
 [ -f /lib/modules/$(uname -r)/extra/sdr_granita.ko ] && insmod /lib/modules/$(uname -r)/extra/sdr_granita.ko
-insmod /lib/modules/$(uname -r)/extra/pmu_el0_cycle_counter.ko
 
 # enable ADC/DAC always on
 sleep 1
