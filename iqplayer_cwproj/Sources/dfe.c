@@ -29,7 +29,8 @@ structTXIQCompParams txiqcompcfg_struct _VSPA_VECTOR_ALIGN;
 
 #ifdef RXIQCOMP2
 structTXIQCompParams2 iq_comp_params2_rx _VSPA_VECTOR_ALIGN;
-#else
+#elif !defined(IQMOD_RX_NO_QEC)
+/* Omitted when IQMOD_RX_NO_QEC: frees 512 B of IPPU DRAM for the larger input_buffer */
 structTXIQCompParams rxiqcompcfg_struct _VSPA_VECTOR_ALIGN;
 #endif
 
@@ -67,7 +68,7 @@ void rf_iq_comp_params_init(void) {
 
 #endif
 
-#ifndef RXIQCOMP2
+#if !defined(RXIQCOMP2) && !defined(IQMOD_RX_NO_QEC)
     // IQImb_ftaps = [0 f2 f1 f4];
     // to ignore static IQ imbalance (make it full passthrough): f1=f4=1; f2=0;
     rxiqcompcfg_struct.dcOffset.real = 0.0;
@@ -76,7 +77,7 @@ void rf_iq_comp_params_init(void) {
     rxiqcompcfg_struct.IQImb_ftaps[1] = 0.0;
     rxiqcompcfg_struct.IQImb_ftaps[2] = 1.0;
     rxiqcompcfg_struct.IQImb_ftaps[3] = 1.0;
-#else
+#elif defined(RXIQCOMP2)
     // IQImb_ftaps = [0 f2 0 0 0 0 0 0 0 0 f1 f4];
     // to ignore timing skew: IQImb_delay = 1;
     // to ignore static IQ imbalance (make it full passthrough): f1=f4=1; f2=0;
@@ -166,7 +167,12 @@ void stream_write_ptr_rst(uint32_t dma_channel_wr, uint32_t axi_wr) {
     uint32_t ctrl = DMAC_FIFO_RESET | DMAC_WRC | dma_channel_wr;
     uint32_t vsp = 2 * (uint32_t)(output_buffer);
 
-    dmac_enable(ctrl, TX_DMA_TXR_size << 2, axi_wr, vsp);
+    /* PRST_REQ DMA size must be small and fixed -- it just issues the pointer
+     * reset and confirms completion.  64 bytes (16 samples) matches
+     * la12xx_iqplayer dfe.c and completes immediately without waiting for
+     * the TX AXIQ FIFO to drain a full TX_DMA_TXR_size transfer, which would
+     * stall indefinitely at init before the AXIQ is streaming. */
+    dmac_enable(ctrl, 64, axi_wr, vsp);
 }
 
 void stream_write(uint32_t dma_channel_wr, uint32_t axi_wr, uint32_t vsp) {
@@ -183,13 +189,16 @@ void stream_read_ptr_rst(uint32_t dma_channel_rd, uint32_t axi_rd) {
     uint32_t ctrl = DMAC_FIFO_RESET | DMAC_RD | DMAC_WRC | dma_channel_rd;
     uint32_t vsp = 2 * (uint32_t)(input_buffer);
 
-    dmac_enable(ctrl, RX_DMA_TXR_size << 2, axi_rd, vsp);
+    /* PRST_REQ DMA size must be small and fixed -- same rationale as
+     * stream_write_ptr_rst: 64 bytes completes immediately without
+     * waiting for the RX AXIQ FIFO to fill a full RX_DMA_TXR_size
+     * transfer when the FIFO is being reset/disabled. */
+    dmac_enable(ctrl, 64, axi_rd, vsp);
 }
 
 void stream_read(uint32_t dma_channel_rd, uint32_t axi_rd, uint32_t vsp) {
     // convert from 2c out of the ADC/DAC to SM for local VSPA work
-    // uint32_t ctrl = DMAC_RDC | DMAC_FIFO | DMAC_TRIG_VCPU | dma_channel_rd;
-    uint32_t ctrl = DMAC_RDC | DMAC_FIFO | dma_channel_rd;
+    uint32_t ctrl = DMAC_RDC | DMAC_FIFO | DMAC_TRIG_VCPU | dma_channel_rd;
     // l1_trace(L1_TRACE_MSG_DMA_AXIQ_RX,(uint32_t)(dma_channel_rd<<24) +(uint32_t)vsp);
     dmac_enable(ctrl, RX_DMA_TXR_size << 2, axi_rd, vsp);
 }

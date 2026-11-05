@@ -18,5 +18,6 @@
 
 void invalidate_region(void *region, uint32_t size);
 void flush_region(void *region, uint32_t size);
+void invalidate_copy_region(void *dst, void *src, uint32_t size);
 
 #endif

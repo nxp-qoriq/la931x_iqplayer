@@ -23,6 +23,27 @@
 #include "iqmod_rx.h"
 #include "stats.h"
 #include "vspa_dmem_proxy.h"
+#include "ccnt.h"
+
+/* Cycle meter for the streaming pass (same layout as iqmod_rx_2R_decx2x4.c):
+ * g_stats.unused[0..5] = max pass, pass count, passes > RX_PASS_BUDGET,
+ * sum(pass)/16, max gap between pass starts, last pass start.
+ * Build with -DRX_CYCLE_METER_OFF to remove it. */
+#ifndef RX_CYCLE_METER_OFF
+#define RX_CYCLE_METER 1
+#endif
+/* One AXIQ buffer time: 2560 cy at 61.44 MSPS, 1280 cy at 122.88 MSPS. */
+#ifndef RX_PASS_BUDGET
+#define RX_PASS_BUDGET 2560u
+#endif
+
+/* Per-buffer traces in the streaming loop are compiled out unless
+ * -DRX_HOT_TRACE; error traces are kept. */
+#ifdef RX_HOT_TRACE
+#define RX_TRACE(m, p) l1_trace((m), (p))
+#else
+#define RX_TRACE(m, p) do { } while (0)
+#endif
 
 vspa_complex_fixed16 input_buffer[RX_NUM_BUF * RX_DMA_TXR_size] __attribute__((section(".vcpu_dmem")))
 __attribute__((aligned(64))) = { 0x00000000, 0x00010001, 0x00020002, 0x00030003 };
@@ -45,10 +66,22 @@ uint32_t ddr_wr_dma_ch_mask = 0;
 static uint32_t RX_total_axiq_enqueued_size = 0;                                 /* 0: Axiq rx in fifo cmd	*/
 static uint32_t RX_total_axiq_received_size = 0;                                 /* 1: Axiq rx dma completed	*/
 volatile uint32_t RX_total_dmem_QECed_size = 0;                                  /* 2: Rx data QECed			*/
-#define RX_total_dmem_CMPed_size (rx_vspa_proxy[0].la9310_fifo_produced_size)    /* 4: compressed            */
+/* Private VSPA counters.  la9310_fifo_consumed_size is written by the host
+ * (directly in DMEM through rx_fc_addr) and is only read here for flow
+ * control.  la9310_fifo_produced_size is published to the host and follows
+ * RX_total_dmem_consumed_size (data actually landed in DDR). */
+static uint32_t RX_total_dmem_CMPed_size = 0;                                    /* 4: compressed            */
 static uint32_t RX_total_ddr_enqueued_size = 0;                                  /* 5: DDR wr cmd fifo 		*/
-#define RX_total_dmem_consumed_size (rx_vspa_proxy[0].la9310_fifo_consumed_size) /* 6: xfer to DDR complete 	*/
-#define RX_total_ddr_consumed_size (tx_vspa_proxy.host_consumed_size[0])         /* 7: DDR data ready */
+static uint32_t RX_total_dmem_consumed_size = 0;                                 /* 6: xfer to DDR complete */
+#define RX_total_ddr_consumed_size (rx_vspa_proxy[0].la9310_fifo_consumed_size)  /* 7: host consumed (RO) */
+#ifndef RX_DDR_LEGACY_CMPL
+/* DDR write completion from DMA state: the completion flag is a single
+ * sticky bit, two queued writes can complete between passes and merge.
+ * in_flight = no free entry ? 2 : (running ? 1 : 0), done = enqueued -
+ * in_flight * step, min() over two passes, never moving back. */
+#define RX_DDR_STATE_CMPL 1
+static uint32_t rx_ddr_cand = 0;
+#endif
 
 static vspa_complex_fixed16 *p_rx_axiq_enqueued = &input_buffer[0];
 static vspa_complex_fixed16 *p_rx_axiq_received = &input_buffer[0];
@@ -87,6 +120,10 @@ void DDR_write_multi_dma(uint32_t DDR_wr_dma_channel, uint32_t nb_dma, uint32_t 
     for (i = 0; i < nb_dma; i++) {
 #pragma loop_count(1, 16, 2, 0)
         uint32_t ctrl = DMAC_WRC | (DDR_wr_dma_channel + i);
+        /* DMAC_TRIG_VCPU on last channel: fires a GO wakeup when the last
+         * sub-transfer completes so main() re-enters without polling. */
+        if (i == nb_dma - 1)
+            ctrl |= DMAC_TRIG_VCPU;
         dmac_enable(ctrl, size, DDR_address + i * size, vsp_address + i * size);
     }
 }
@@ -115,17 +152,20 @@ void rx_qec_correction(vspa_complex_fixed16 *dataIn, vspa_complex_fixed16 *dataO
 
 //__attribute__(( section(".text.opcode_6") ))
 void RX_IQ_DATA_TO_DDR(void) {
-    uint64_t msg64 = host_mbox0_read();
-    uint32_t cmd_start = (HIWORD(msg64)) & 0x00100000;
+    /* Use the globals decoded by main() -- do NOT call host_mbox0_read() again
+     * here; main() already consumed the mailbox before dispatching to this
+     * function so a second read returns 0, cmd_start becomes 0, and the STOP
+     * path fires instead of START. */
+    uint32_t cmd_start = mailbox_in_msg_0_MSB & 0x00100000;
 
     if ((cmd_start) && (!DDR_wr_start_bit_update)) {
         DDR_wr_start_bit_update = 1;
-        DDR_wr_load_start_bit_update = (HIWORD(msg64)) & 0x00200000;
-        DDR_wr_continuous = (HIWORD(msg64)) & 0x00800000;
-        // DDR_wr_QEC_enable= 				(HIWORD(msg64)) & 0x00400000;
-        // DDR_wr_CMP_enable=  			(HIWORD(msg64)) & 0x00080000;
-        ddr_wr_dma_ch_nb = ((HIWORD(msg64)) & 0x00070000) >> 16;
-        host_flow_control_disable = (HIWORD(msg64)) & 0x00400000;
+        DDR_wr_load_start_bit_update = mailbox_in_msg_0_MSB & 0x00200000;
+        DDR_wr_continuous = mailbox_in_msg_0_MSB & 0x00800000;
+        // DDR_wr_QEC_enable= mailbox_in_msg_0_MSB & 0x00400000;
+        // DDR_wr_CMP_enable= mailbox_in_msg_0_MSB & 0x00080000;
+        ddr_wr_dma_ch_nb = (mailbox_in_msg_0_MSB & 0x00070000) >> 16;
+        host_flow_control_disable = mailbox_in_msg_0_MSB & 0x00400000;
 
         if (!DDR_wr_continuous)
             host_flow_control_disable = 0;
@@ -155,6 +195,28 @@ void RX_IQ_DATA_TO_DDR(void) {
         RX_total_dmem_CMPed_size = 0;
         RX_total_ddr_enqueued_size = 0;
         RX_total_dmem_consumed_size = 0;
+
+        rx_vspa_proxy[0].la9310_fifo_produced_size = 0;
+        rx_vspa_proxy[0].la9310_fifo_consumed_size = 0;
+#ifdef RX_DDR_STATE_CMPL
+        rx_ddr_cand = 0;
+#endif
+        /* abort any DDR write left from a previous run */
+        dmac_abort(ddr_wr_dma_ch_mask);
+        dmac_clear_complete(ddr_wr_dma_ch_mask);
+
+        /* Flush zeroed proxy counters to DDR synchronously before the mbox ACK.
+         * Host calls iq_player_init_rx() immediately on ACK; a deferred flush
+         * via VSPA_PROXY_update() arrives after the ACK and leaves stale
+         * produced_size in DDR, causing a false underrun on the first
+         * iq_player_receive_data() call. */
+        rx_proxy_updated = 0;
+        DDR_write_VSPA_PROXY(DDR_WR_DMA_CHANNEL_5,
+            VSPA_DMEM_PROXY_ADDR + offsetof(struct s_vspa_dmem_proxy, rx_state_readonly) * 2,
+            2 * (uint32_t)&(rx_vspa_proxy[0]),
+            sizeof(t_rx_ch_host_proxy) * 2 * RX_NUM_CHAN);
+        while (!dmac_is_complete(0x1 << DDR_WR_DMA_CHANNEL_5)) {}
+        dmac_clear_complete(0x1 << DDR_WR_DMA_CHANNEL_5);
 
         DDR_wr_size = ((mailbox_in_msg_0_MSB & 0x0000FFFF) * SIZE_4K); // send chunks of 4KB can be sent
         DDR_wr_base_address = mailbox_in_msg_0_LSB;
@@ -188,11 +250,15 @@ void RX_IQ_DATA_TO_DDR(void) {
         // Disable Rx and reset fifo
         axiq_fifo_rx_disable(AXIQ_BANK_0, Rx_Antenna2fifo_index[RX_index]);
         stream_read_ptr_rst(dma_channel_rd, axi_rd);
+        /* Wait for the 64-byte ptr_rst transfer to complete.
+         * Original code used '|| !dmac_errxfr(...)' which requires BOTH complete
+         * AND errxfr simultaneously -- errxfr never fires on a clean reset so the
+         * loop spins forever.  Wait on complete only, then clear. */
         do {
 #ifndef IQMOD_RX_0T1R
             PUSH_TX_DATA();
 #endif
-        } while (!dmac_is_complete(0x1 << dma_channel_rd) || !dmac_errxfr(0x1 << dma_channel_rd));
+        } while (!dmac_is_complete(0x1 << dma_channel_rd));
         dmac_clear_complete(0x1 << dma_channel_rd);
 
         if (DDR_wr_continuous) {
@@ -208,6 +274,31 @@ void RX_IQ_DATA_TO_DDR(void) {
 
         dmac_clear_errxfr(0x1 << dma_channel_rd);
 
+        /* Prime the 2-deep AXIQ RX DMAC FIFO before returning to main().
+         * Without initial stream_read calls the pipeline never starts:
+         * PUSH_RX_DATA() waits on dmac_is_complete() which never fires
+         * because no DMA was ever started. */
+        {
+            uint32_t prime_busy;
+        while (dmac_is_available(0x1 << dma_channel_rd)) {
+            prime_busy = RX_total_axiq_enqueued_size - RX_total_dmem_QECed_size;
+            if ((RX_NUM_BUF * RX_DDR_STEP) - prime_busy < RX_DDR_STEP)
+                break;
+            stream_read(dma_channel_rd, axi_rd, 2 * (uint32_t)(p_rx_axiq_enqueued));
+            INCR_RX_BUFF(p_rx_axiq_enqueued);
+            RX_total_axiq_enqueued_size += RX_DDR_STEP;
+            RX_TRACE(L1_TRACE_MSG_DMA_AXIQ_RX_START, (uint32_t)p_rx_axiq_enqueued);
+        }
+        }
+#ifdef RX_CYCLE_METER
+        /* restart cycle meter: 0 in unused[5] marks "no previous pass" */
+        {
+            uint32_t k;
+            for (k = 0; k < 6; k++) g_stats.unused[k] = 0;
+            g_stats.meter[METER_RX_BUDGET] = RX_PASS_BUDGET;
+        }
+#endif
+
         return;
     }
 
@@ -219,6 +310,11 @@ void RX_IQ_DATA_TO_DDR(void) {
             axiq_fifo_rx_disable(AXIQ_BANK_0, Rx_Antenna2fifo_index[RX_index]);
         }
 
+        if (ddr_wr_dma_ch_mask) {
+            dmac_abort(ddr_wr_dma_ch_mask);
+            dmac_clear_complete(ddr_wr_dma_ch_mask);
+        }
+        rx_vspa_proxy[0].la9310_fifo_produced_size = 0;
         DDR_wr_base_address = 0xdeadbeef;
         RX_total_dmem_CMPed_size = 0;
         RX_total_dmem_consumed_size = 0;
@@ -312,13 +408,28 @@ void PUSH_RX_DATA(void) {
 
     // Stream waveform to DDR
     if (DDR_wr_start_bit_update) {
-        // check axiq dma completion (received new samples) and QEC them
-        if (dmac_is_complete(0x1 << dma_channel_rd)) {
+#ifdef RX_CYCLE_METER
+        uint32_t cm_t0 = (uint32_t)ccnt_read();
+        {
+            uint32_t gap = cm_t0 - g_stats.unused[5];
+            if (g_stats.unused[5] != 0 && gap < 0x00100000u && gap > g_stats.unused[4])
+                g_stats.unused[4] = gap;
+            g_stats.unused[5] = cm_t0 | 1u;
+        }
+#endif
+        /* Use while not if: back-to-back AXIQ DMAs complete in ~79 cycles so
+         * the second completion may already be pending when PUSH_RX_DATA runs.
+         * A plain 'if' misses it: __builtin_done() finds no pending channel and
+         * the VCPU sleeps until the next DDR WR DMAC_TRIG_VCPU wakeup (~several
+         * thousand cycles at 122.88 MSPS) -- long enough for an AXIQ FIFO
+         * overrun.  The while loop processes all back-to-back completions
+         * immediately (at most 2 for the 2-deep FIFO). */
+        while (dmac_is_complete(0x1 << dma_channel_rd)) {
             dmac_clear_complete(0x1 << dma_channel_rd);
             dmac_clear_event(0x1 << dma_channel_rd);
             RX_total_axiq_received_size += RX_DDR_STEP;
             g_stats.rx_stats[0][STAT_DMA_AXIQ_READ]++;
-            l1_trace(L1_TRACE_MSG_DMA_AXIQ_RX_COMP, (uint32_t)g_stats.rx_stats[0][STAT_DMA_AXIQ_READ]);
+            RX_TRACE(L1_TRACE_MSG_DMA_AXIQ_RX_COMP, (uint32_t)g_stats.rx_stats[0][STAT_DMA_AXIQ_READ]);
             // check axiq dma error
             if (dmac_errxfr(0x1 << dma_channel_rd)) {
                 dmac_clear_errxfr(0x1 << dma_channel_rd);
@@ -334,7 +445,7 @@ void PUSH_RX_DATA(void) {
                 stream_read(dma_channel_rd, axi_rd, 2 * (uint32_t)(p_rx_axiq_enqueued));
                 INCR_RX_BUFF(p_rx_axiq_enqueued);
                 RX_total_axiq_enqueued_size += RX_DDR_STEP;
-                l1_trace(L1_TRACE_MSG_DMA_AXIQ_RX_START, (uint32_t)p_rx_axiq_enqueued);
+                RX_TRACE(L1_TRACE_MSG_DMA_AXIQ_RX_START, (uint32_t)p_rx_axiq_enqueued);
             } else {
                 // overflow no more dmem buffer to arm new axiq DMA
                 g_stats.rx_stats[0][ERROR_DMA_DDR_WR_OVERRUN]++;
@@ -347,41 +458,67 @@ void PUSH_RX_DATA(void) {
             rx_empty_size = (RX_NUM_QEC_BUF * RX_DDR_STEP) - rx_busy_size;
             if (rx_empty_size >= RX_DDR_STEP) {
                 // QEC buffer just received
-                l1_trace(L1_TRACE_L1APP_RX_QEC_START, (uint32_t)p_rx_dmem_QECed_in);
+                RX_TRACE(L1_TRACE_L1APP_RX_QEC_START, (uint32_t)p_rx_dmem_QECed_in);
                 rx_qec_correction((vspa_complex_fixed16 *)p_rx_dmem_QECed_in, (vspa_complex_fixed16 *)p_rx_dmem_QECed_out);
                 INCR_RX_BUFF(p_rx_dmem_QECed_in);
                 INCR_RX_QEC_BUFF(p_rx_dmem_QECed_out);
                 RX_total_dmem_QECed_size += RX_DDR_STEP;
-                l1_trace(L1_TRACE_L1APP_RX_QEC_COMP, (uint32_t)RX_total_dmem_QECed_size);
+                RX_TRACE(L1_TRACE_L1APP_RX_QEC_COMP, (uint32_t)RX_total_dmem_QECed_size);
             }
         }
         if ((RX_total_dmem_QECed_size - RX_total_dmem_CMPed_size) >= RX_DDR_STEP) {
             // Compress buffer
-            l1_trace(L1_TRACE_L1APP_RX_CMP_START, (uint32_t)p_rx_dmem_CMPed);
+            RX_TRACE(L1_TRACE_L1APP_RX_CMP_START, (uint32_t)p_rx_dmem_CMPed);
             // rx_compress((vspa_complex_fixed16 *)p_rx_dmem_CMPed);
             INCR_RX_QEC_BUFF(p_rx_dmem_CMPed);
             RX_total_dmem_CMPed_size += RX_DDR_STEP;
-            l1_trace(L1_TRACE_L1APP_RX_CMP_COMP, (uint32_t)RX_total_dmem_QECed_size);
-
-            // update host vspa_dmem_proxy
-            rx_proxy_updated = 1;
+            RX_TRACE(L1_TRACE_L1APP_RX_CMP_COMP, (uint32_t)RX_total_dmem_QECed_size);
         }
         // Push data to DDR if standalone mode
         if (!RX_ext_dma_enabled) {
             // check DDR dma completion
+#ifdef RX_DDR_STATE_CMPL
+            if (RX_total_ddr_enqueued_size != RX_total_dmem_consumed_size) {
+                uint32_t r, f, n, cand, prev;
+                dmac_clear_complete(ddr_wr_dma_ch_mask);
+                r = dmac_is_running(ddr_wr_dma_ch_mask);
+                f = (dmac_is_available(ddr_wr_dma_ch_mask) == ddr_wr_dma_ch_mask);
+                n = !f ? 2u : (r ? 1u : 0u);
+                cand = RX_total_ddr_enqueued_size - n * RX_DDR_STEP;
+                /* glitch filter: use min(this pass, previous pass) */
+                prev = rx_ddr_cand;
+                rx_ddr_cand = cand;
+                if ((int32_t)(prev - cand) < 0)
+                    cand = prev;
+                if ((int32_t)(cand - RX_total_dmem_consumed_size) > 0) {
+                    g_stats.rx_stats[0][STAT_DMA_DDR_WR] += (cand - RX_total_dmem_consumed_size) / RX_DDR_STEP;
+                    RX_total_dmem_consumed_size = cand;
+                    rx_vspa_proxy[0].la9310_fifo_produced_size = cand;
+                    rx_proxy_updated = 1;
+                    if (DDR_wr_buff_wrap_equeued && cand == RX_total_ddr_enqueued_size) {
+                        DDR_wr_buff_wrap_equeued = 0;
+                        DDR_wr_buff_loop_count++;
+                    }
+                }
+            }
+#else
             if (dmac_is_complete(ddr_wr_dma_ch_mask) == ddr_wr_dma_ch_mask) {
                 dmac_clear_complete(ddr_wr_dma_ch_mask);
                 RX_total_dmem_consumed_size += RX_DDR_STEP;
+                rx_vspa_proxy[0].la9310_fifo_produced_size = RX_total_dmem_consumed_size;
+                rx_proxy_updated = 1;
                 g_stats.rx_stats[0][STAT_DMA_DDR_WR]++;
-                l1_trace(L1_TRACE_MSG_DMA_DDR_WR_COMP, (uint32_t)g_stats.rx_stats[0][STAT_DMA_DDR_WR]);
+                RX_TRACE(L1_TRACE_MSG_DMA_DDR_WR_COMP, (uint32_t)g_stats.rx_stats[0][STAT_DMA_DDR_WR]);
                 if (DDR_wr_buff_wrap_equeued) {
                     DDR_wr_buff_wrap_equeued = 0;
                     DDR_wr_buff_loop_count++;
                 }
             }
+#endif
 
-            // host flow control
-            if ((RX_total_ddr_enqueued_size - tx_vspa_proxy.host_consumed_size[0] < DDR_wr_size) || host_flow_control_disable) {
+            // host flow control (host-written consumed counter, read only)
+            if (host_flow_control_disable ||
+                (RX_total_ddr_enqueued_size - RX_total_ddr_consumed_size + RX_DDR_STEP <= DDR_wr_size)) {
                 if ((RX_total_dmem_CMPed_size - RX_total_ddr_enqueued_size) >= RX_DDR_STEP) {
                     if (dmac_is_available(ddr_wr_dma_ch_mask) == ddr_wr_dma_ch_mask) {
                         DDR_write_multi_dma(DDR_WR_DMA_CHANNEL_1, ddr_wr_dma_ch_nb, DDR_wr_base_address + DDR_wr_offset,
@@ -393,7 +530,7 @@ void PUSH_RX_DATA(void) {
                             DDR_wr_buff_wrap_equeued = 1;
                             DDR_wr_offset = 0;
                         }
-                        l1_trace(L1_TRACE_MSG_DMA_DDR_WR_START, (uint32_t)p_rx_ddr_enqueued);
+                        RX_TRACE(L1_TRACE_MSG_DMA_DDR_WR_START, (uint32_t)p_rx_ddr_enqueued);
                     }
                 }
             }
@@ -413,6 +550,11 @@ void PUSH_RX_DATA(void) {
             // update host vspa_dmem_proxy
             rx_proxy_updated = 1;
         }
+#ifdef RX_CYCLE_METER
+        {
+            meter_end(&g_stats.unused[0], cm_t0, RX_PASS_BUDGET);
+        }
+#endif
     }
 
 end_rx_push:

@@ -28,6 +28,12 @@
 #include <argp.h>
 #include <la9310_modinfo.h>
 #include <la9310_host_if.h>
+/* LA9310_DEV_NAME_PREFIX is defined in the NXP-tree la9310_host_if.h.
+ * On RFNM builds neither header tree defines it; supply the RFNM driver
+ * device name prefix so host-utils can open /dev/shiva<n>. */
+#ifndef LA9310_DEV_NAME_PREFIX
+#define LA9310_DEV_NAME_PREFIX  "shiva"
+#endif
 
 //#include "kpage_ncache_api.h"
 

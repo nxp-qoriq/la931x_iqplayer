@@ -7,6 +7,8 @@
 print_usage()
 {
 echo "usage: ./iq-replay.sh <iq sample file> <size num 4KB> [half duplex]"
+echo "  default   : VSPA default DDR read config (1 DMA ch + mBurst, full-duplex safe)"
+echo "  3rd arg 1 : 2 DDR read DMA ch + mBurst (cmd 0x055a0000), may overflow RX in full duplex"
 echo "ex : ./iq-replay.sh ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin 1200"
 echo "ex : ./iq-replay.sh ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin 1200 1"
 }

@@ -23,11 +23,46 @@
 #include "cal_signal.h"
 #include "stats.h"
 #include "vspa_dmem_proxy.h"
+#include "ccnt.h"
+
+/* TX cycle meter: measures each streaming PUSH_TX_DATA() pass with ccnt.
+ * g_stats.meter[0..5] = max pass, pass count, passes > TX_PASS_BUDGET,
+ * sum of pass cycles >> 4, max start-to-start gap, last start (|1).
+ * Build with -DTX_CYCLE_METER_OFF to remove it. */
+#ifndef TX_CYCLE_METER_OFF
+#define TX_CYCLE_METER 1
+#endif
+
+#ifndef TX_PASS_BUDGET
+#define TX_PASS_BUDGET 2560u
+#endif
+
+/* TX DMA completion accounting: default derives completed DDR reads and
+ * AXIQ writes from the DMA state (see dma_done_from_state() in _main.c).
+ * -DTX_DDR_LEGACY_CMPL restores the completion-bit counting, which loses
+ * buffers when two transfers complete between two polls. */
+#ifndef TX_DDR_LEGACY_CMPL
+#define TX_DDR_STATE_CMPL 1
+static uint32_t tx_ddr_cand = 0, tx_axiq_cand = 0;
+#endif
+
+/* Per-buffer TX traces are only kept with -DTX_HOT_TRACE. */
+#ifdef TX_HOT_TRACE
+#define TX_TRACE(m, p) l1_trace((m), (p))
+#else
+#define TX_TRACE(m, p) do { } while (0)
+#endif
 
 vspa_complex_fixed16 output_buffer[TX_NUM_BUF * TX_DMA_TXR_size] __attribute__((section(".vcpu_dmem")))
 __attribute__((aligned(64))) = { 0x00000000, 0x00010001, 0x00020002, 0x00030003 };
 
-uint32_t DDR_rd_start_bit_update = 0, DDR_rd_load_start_bit_update = 0;
+/* DDR read load test (start bit 0x00200000) is only built with
+ * -DTX_DDR_LOAD_TEST, to save PRAM. Without it the request is NACKed. */
+uint32_t DDR_rd_load_start_bit_update = 0; /* stays 0, read by signal.c */
+#ifndef TX_DDR_LOAD_TEST
+#define DDR_rd_load_start_bit_update 0
+#endif
+uint32_t DDR_rd_start_bit_update = 0;
 #define DDR_rd_QEC_enable 1
 uint32_t ddr_rd_dma_xfr_size = TX_DDR_STEP;
 
@@ -74,6 +109,10 @@ void DDR_read_multi_dma(uint32_t DDR_rd_dma_channel, uint32_t nb_dma, uint32_t D
         if (ddr_rd_dma_mBurst) {
             ctrl |= DMAC_MBRE;
         }
+        /* Wake VCPU on completion of the last channel so TX AXIQ is refilled in time */
+        if (i == nb_dma - 1) {
+            ctrl |= DMAC_TRIG_VCPU;
+        }
         dmac_enable(ctrl, size, DDR_address + i * size, vsp_address + i * size);
     }
 }
@@ -110,7 +149,21 @@ void TX_IQ_DATA_FROM_DDR(void) {
 
     if ((cmd_start) && (!DDR_rd_start_bit_update)) {
         DDR_rd_start_bit_update = 1;
+#ifdef TX_CYCLE_METER
+        {
+            uint32_t k;
+            for (k = 0; k < 6; k++) g_stats.meter[METER_TX_BASE + k] = 0;
+            g_stats.meter[METER_TX_BUDGET] = TX_PASS_BUDGET;
+        }
+#endif
+#ifdef TX_DDR_LOAD_TEST
         DDR_rd_load_start_bit_update = (HIWORD(msg64)) & 0x00200000;
+#else
+        if ((HIWORD(msg64)) & 0x00200000) {
+            DDR_rd_start_bit_update = 0;
+            goto fail_tx_iq_data;
+        }
+#endif
         // DDR_rd_QEC_enable= (HIWORD(msg64)) & 0x00400000;
         ddr_rd_dma_ch_nb = ((HIWORD(msg64)) & 0x00070000) >> 16;
         ddr_rd_dma_mBurst = ((HIWORD(msg64)) & 0x00080000 ? 1 : 0);
@@ -128,8 +181,12 @@ void TX_IQ_DATA_FROM_DDR(void) {
              *  4x VSPA DMA read	DDR	825MB/s
              * 4 channels will cause AXIQ FIFO read starvation if rx is also running
              */
-            ddr_rd_dma_mBurst = 0;
-            ddr_rd_dma_ch_nb = 2;
+            /* Full-duplex safe default: 1 channel + multi-burst.
+             * Measured on HW: 2ch causes FIFO_RX_OVR in 1T2R when
+             * iq-capture runs; 1ch/mBurst avoids AXI read contention.
+             */
+            ddr_rd_dma_mBurst = 1;
+            ddr_rd_dma_ch_nb = 1;
         }
 
         ddr_rd_dma_ch_mask = dma_chan_mask(DDR_RD_DMA_CHANNEL_1, ddr_rd_dma_ch_nb);
@@ -145,6 +202,10 @@ void TX_IQ_DATA_FROM_DDR(void) {
         TX_total_dmem_QECced_size = 0;
         TX_total_axiq_enqueued_size = 0;
         TX_total_axiq_consumed_size = 0;
+#ifdef TX_DDR_STATE_CMPL
+        tx_ddr_cand = 0;
+        tx_axiq_cand = 0;
+#endif
 
         p_tx_ddr_enqueued = &output_buffer[0];
         p_tx_ddr_fetched = &output_buffer[0];
@@ -155,9 +216,19 @@ void TX_IQ_DATA_FROM_DDR(void) {
         DDR_rd_size = ((mailbox_in_msg_0_MSB & 0x0000FFFF) * SIZE_4K);
         DDR_rd_base_address = mailbox_in_msg_0_LSB;
 
-        // update host vspa_dmem_proxy
-        tx_proxy_updated = 1;
+        /* Push the reset TX proxy (enqueued/consumed = 0) to the host DDR
+         * mirror synchronously, before the mailbox ACK. Otherwise the host
+         * iq_player_init_tx() may read stale counters from a previous run
+         * and report a false TX underrun on restart. */
+        tx_proxy_updated = 0;
+        DDR_write_VSPA_PROXY(DDR_WR_DMA_CHANNEL_5,
+            VSPA_DMEM_PROXY_ADDR + offsetof(struct s_vspa_dmem_proxy, tx_state_readonly) * 2,
+            2 * (uint32_t)&tx_vspa_proxy,
+            sizeof(t_tx_ch_host_proxy) * 2);
+        while (!dmac_is_complete(0x1 << DDR_WR_DMA_CHANNEL_5)) {}
+        dmac_clear_complete(0x1 << DDR_WR_DMA_CHANNEL_5);
 
+#ifdef TX_DDR_LOAD_TEST
         // if simple load test no axiq init
         if (DDR_rd_load_start_bit_update != 0) {
             DDR_rd_load_start_bit_update = 1;
@@ -169,6 +240,7 @@ void TX_IQ_DATA_FROM_DDR(void) {
 
             return;
         }
+#endif
 
         // stop single tone
         TX_SingleT_start_bit_update = 0;
@@ -215,7 +287,9 @@ void TX_IQ_DATA_FROM_DDR(void) {
         TX_total_axiq_consumed_size = 0;
 
         DDR_rd_start_bit_update = 0;
+#ifdef TX_DDR_LOAD_TEST
         DDR_rd_load_start_bit_update = 0;
+#endif
         TX_SingleT_start_bit_update = 0;
 
         // update host vspa_dmem_proxy
@@ -256,6 +330,7 @@ void PUSH_TX_DATA(void) {
         // l1_trace_disable = 1;
     }
 
+#ifdef TX_DDR_LOAD_TEST
     // DDR DMA load test , just fetch DDR as fast as possible
     if (DDR_rd_load_start_bit_update) {
         if (!TX_ext_dma_enabled) {
@@ -278,6 +353,7 @@ void PUSH_TX_DATA(void) {
             }
         }
     }
+#endif
 
     // Single Tone
     if (TX_SingleT_start_bit_update) {
@@ -305,7 +381,23 @@ void PUSH_TX_DATA(void) {
 
     // Stream waveform from DDR buffer
     if (DDR_rd_start_bit_update) {
+#ifdef TX_CYCLE_METER
+        uint32_t cm_t0 = ccnt_read();
+        meter_gap(&g_stats.meter[METER_TX_BASE], cm_t0);
+#endif
         // Check transmit complete (write to axiq DAC)
+#ifdef TX_DDR_STATE_CMPL
+        {
+            uint32_t d = dma_done_from_state(0x1 << DMA_CHANNEL_WR, TX_total_axiq_enqueued_size,
+                                             TX_total_axiq_consumed_size, &tx_axiq_cand, TX_DDR_STEP);
+            while (TX_total_axiq_consumed_size != d) {
+                INCR_TX_BUFF(p_tx_axiq_consumed);
+                TX_total_axiq_consumed_size += TX_DDR_STEP;
+                g_stats.tx_stats[STAT_DMA_AXIQ_WRITE]++;
+                tx_proxy_updated = 1;
+            }
+        }
+#else
         if (dmac_is_complete(0x1 << DMA_CHANNEL_WR)) {
             dmac_clear_complete(0x1 << DMA_CHANNEL_WR);
             // dmac_clear_event(0x1<<DMA_CHANNEL_WR);
@@ -313,10 +405,11 @@ void PUSH_TX_DATA(void) {
             INCR_TX_BUFF(p_tx_axiq_consumed);
             TX_total_axiq_consumed_size += TX_DDR_STEP;
             g_stats.tx_stats[STAT_DMA_AXIQ_WRITE]++;
-            l1_trace(L1_TRACE_MSG_DMA_AXIQ_TX_COMP, (uint32_t)g_stats.tx_stats[STAT_DMA_AXIQ_WRITE]);
+            TX_TRACE(L1_TRACE_MSG_DMA_AXIQ_TX_COMP, (uint32_t)g_stats.tx_stats[STAT_DMA_AXIQ_WRITE]);
             // update host vspa_dmem_proxy
             tx_proxy_updated = 1;
         }
+#endif
         if (dmac_errxfr(0x1 << DMA_CHANNEL_WR)) {
             dmac_clear_errxfr(0x1 << DMA_CHANNEL_WR);
             g_stats.gbl_stats[ERROR_DMA_XFER_ERROR]++;
@@ -325,13 +418,29 @@ void PUSH_TX_DATA(void) {
 
         if (!TX_ext_dma_enabled) {
             // Check transfer from DDR completed
+#ifdef TX_DDR_STATE_CMPL
+            {
+                uint32_t d = dma_done_from_state(ddr_rd_dma_ch_mask, TX_total_ddr_enqueued_size,
+                                                 TX_total_ddr_fetched_size, &tx_ddr_cand, TX_DDR_STEP);
+                if (TX_total_ddr_fetched_size != d) {
+                    while (TX_total_ddr_fetched_size != d) {
+                        INCR_TX_BUFF(p_tx_ddr_fetched);
+                        TX_total_ddr_fetched_size += TX_DDR_STEP;
+                        g_stats.tx_stats[STAT_DMA_DDR_RD]++;
+                    }
+                    TX_TRACE(L1_TRACE_MSG_DMA_DDR_RD_COMP, (uint32_t)TX_total_ddr_fetched_size);
+                    tx_proxy_updated = 1;
+                }
+            }
+#else
             if (dmac_is_complete(ddr_rd_dma_ch_mask) == ddr_rd_dma_ch_mask) {
                 dmac_clear_complete(ddr_rd_dma_ch_mask);
                 INCR_TX_BUFF(p_tx_ddr_fetched);
                 TX_total_ddr_fetched_size += TX_DDR_STEP;
                 g_stats.tx_stats[STAT_DMA_DDR_RD]++;
-                l1_trace(L1_TRACE_MSG_DMA_DDR_RD_COMP, (uint32_t)g_stats.tx_stats[STAT_DMA_DDR_RD]);
+                TX_TRACE(L1_TRACE_MSG_DMA_DDR_RD_COMP, (uint32_t)g_stats.tx_stats[STAT_DMA_DDR_RD]);
             }
+#endif
 
             // host flow control
             if ((TX_total_ddr_ready_size - TX_total_ddr_enqueued_size >= TX_DDR_STEP) || host_flow_control_disable) {
@@ -346,7 +455,7 @@ void PUSH_TX_DATA(void) {
                         DDR_read_multi_dma(DDR_RD_DMA_CHANNEL_1, ddr_rd_dma_ch_nb, rd_ddr_src_ptr, rd_dmem_dst_byte_ptr,
                                            ddr_rd_dma_xfr_size);
                         DDR_rd_counter = (DDR_rd_counter + ddr_rd_dma_xfr_size) % DDR_rd_size;
-                        l1_trace(L1_TRACE_MSG_DMA_DDR_RD_START, (uint32_t)p_tx_ddr_enqueued);
+                        TX_TRACE(L1_TRACE_MSG_DMA_DDR_RD_START, (uint32_t)p_tx_ddr_enqueued);
                         INCR_TX_BUFF(p_tx_ddr_enqueued);
                         TX_total_ddr_enqueued_size += TX_DDR_STEP;
                     }
@@ -356,26 +465,35 @@ void PUSH_TX_DATA(void) {
 
         // QEC data before transmission
         if ((TX_total_ddr_fetched_size - TX_total_dmem_QECced_size) >= TX_DDR_STEP) {
-            l1_trace(L1_TRACE_L1APP_TX_QEC_START, (uint32_t)p_tx_dmem_QECed);
+            TX_TRACE(L1_TRACE_L1APP_TX_QEC_START, (uint32_t)p_tx_dmem_QECed);
             tx_qec_correction(p_tx_dmem_QECed, p_tx_dmem_QECed);
             INCR_TX_BUFF(p_tx_dmem_QECed);
             TX_total_dmem_QECced_size += TX_DDR_STEP;
-            l1_trace(L1_TRACE_L1APP_TX_QEC_COMP, (uint32_t)TX_total_dmem_QECced_size);
+            TX_TRACE(L1_TRACE_L1APP_TX_QEC_COMP, (uint32_t)TX_total_dmem_QECced_size);
         }
 
-        // start new transfer to DAC is possible
-        if (dmac_is_available(0x1 << DMA_CHANNEL_WR)) {
+        /* Start new transfers to DAC: use while so all free DMAC queue
+         * slots are filled, keeping the AXIQ TX FIFO continuously fed. */
+        while (dmac_is_available(0x1 << DMA_CHANNEL_WR)) {
             if ((TX_total_dmem_QECced_size - TX_total_axiq_enqueued_size) >= TX_DDR_STEP) {
                 stream_write(DMA_CHANNEL_WR, axi_wr, 2 * (uint32_t)(p_tx_axiq_enqueued));
-                l1_trace(L1_TRACE_MSG_DMA_AXIQ_TX_START, (uint32_t)p_tx_axiq_enqueued);
+                TX_TRACE(L1_TRACE_MSG_DMA_AXIQ_TX_START, (uint32_t)p_tx_axiq_enqueued);
                 INCR_TX_BUFF(p_tx_axiq_enqueued);
                 TX_total_axiq_enqueued_size += TX_DDR_STEP;
             } else {
-                g_stats.tx_stats[ERROR_DMA_DDR_RD_UNDERRUN]++;
-                l1_trace(L1_TRACE_MSG_DMA_DDR_RD_UNDERRUN, (uint32_t)g_stats.tx_stats[ERROR_DMA_DDR_RD_UNDERRUN]);
-                // l1_trace_disable = 1;
+                if (TX_total_axiq_enqueued_size == TX_total_axiq_consumed_size) {
+                    /* nothing in flight and no data ready: real underrun */
+                    g_stats.tx_stats[ERROR_DMA_DDR_RD_UNDERRUN]++;
+                    l1_trace(L1_TRACE_MSG_DMA_DDR_RD_UNDERRUN, (uint32_t)g_stats.tx_stats[ERROR_DMA_DDR_RD_UNDERRUN]);
+                }
+                break;
             }
         }
+#ifdef TX_CYCLE_METER
+        g_stats.meter[METER_TX_DDR_INFL] = (TX_total_ddr_enqueued_size - TX_total_ddr_fetched_size) / TX_DDR_STEP;
+        g_stats.meter[METER_TX_AXIQ_INFL] = (TX_total_axiq_enqueued_size - TX_total_axiq_consumed_size) / TX_DDR_STEP;
+        meter_end(&g_stats.meter[METER_TX_BASE], cm_t0, TX_PASS_BUDGET);
+#endif
     }
 
 end_tx_push:

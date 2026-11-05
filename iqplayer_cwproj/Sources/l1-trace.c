@@ -15,8 +15,8 @@
 
 #if L1_TRACE
 
-l1_trace_data_t l1_trace_data[L1_TRACE_SIZE] __attribute__((aligned(64)));
-uint32_t l1_trace_index;
+volatile l1_trace_data_t l1_trace_data[L1_TRACE_SIZE] __attribute__((aligned(64)));
+volatile uint32_t l1_trace_index;
 volatile uint32_t l1_trace_disable;
 
 void l1_trace_clear(void) {
@@ -40,6 +40,9 @@ void l1_trace(uint32_t msg) {
 
     if (l1_trace_index >= L1_TRACE_SIZE) {
         l1_trace_index = 0;
+#if L1_TRACE_NOWRAP
+        l1_trace_disable = 1;
+#endif
     }
 }
 
@@ -54,6 +57,9 @@ void l1_trace(uint32_t msg, uint32_t param) {
 
     if (l1_trace_index >= L1_TRACE_SIZE) {
         l1_trace_index = 0;
+#if L1_TRACE_NOWRAP
+        l1_trace_disable = 1;
+#endif
     }
 }
 // no repeat version
@@ -78,6 +84,9 @@ void l1_trace_nr(uint32_t msg) {
 
         if (l1_trace_index >= L1_TRACE_SIZE) {
             l1_trace_index = 0;
+#if L1_TRACE_NOWRAP
+            l1_trace_disable = 1;
+#endif
         }
 
         new_index = l1_trace_index;
@@ -102,6 +111,9 @@ void l1_trace_nr(uint32_t msg, uint32_t param) {
 
         if (l1_trace_index >= L1_TRACE_SIZE) {
             l1_trace_index = 0;
+#if L1_TRACE_NOWRAP
+            l1_trace_disable = 1;
+#endif
         }
 
         new_index = l1_trace_index;

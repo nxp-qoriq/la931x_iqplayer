@@ -27,8 +27,6 @@ else
 	cmd=0x05100000
 fi
 
-(ls $1 >> /dev/null 2>&1)||echo $1 file not found
-
 # check la9310 shiva driver and retrieve iqsample info i.e. iqflood in scratch buffer (non cacheable)
 
 ddrh=`la9310_modem_info | grep FLOOD |cut -f 2 -d "|" |sed 's/	//g'|sed 's/ //g'`

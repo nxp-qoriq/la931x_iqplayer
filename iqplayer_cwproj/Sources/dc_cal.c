@@ -67,7 +67,7 @@ __attribute__((section(".text.opcode_3"))) void RX_DCOC_CAL(void) __attribute__(
 	iq_comp_params2_rx.dcOffset.real = output_buffer_1[FFT_SIZE/2].real;
 	iq_comp_params2_rx.dcOffset.imag = output_buffer_1[FFT_SIZE/2].imag;
 	mailbox_out_msg_0_MSB =  *(uint32_t *) &iq_comp_params2_rx.dcOffset;
-#else
+#elif !defined(IQMOD_RX_NO_QEC)
 	rxiqcompcfg_struct.dcOffset.real = output_buffer_1[FFT_SIZE/2].real;
 	rxiqcompcfg_struct.dcOffset.imag = output_buffer_1[FFT_SIZE/2].imag;
 	mailbox_out_msg_0_MSB =  *(uint32_t *) &rxiqcompcfg_struct.dcOffset;

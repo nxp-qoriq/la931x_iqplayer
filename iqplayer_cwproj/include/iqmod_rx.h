@@ -51,6 +51,25 @@
 #define RX_DECIM 2
 #endif
 
+/* 0T4R: 4-channel RX only (no TX).  Same RX parameters as 1T4R.
+ * Define IQMOD_RX_0T1R as an alias so that all TX-gating guards
+ * (#ifndef IQMOD_RX_0T1R) in _main.c fire and no TX code is compiled. */
+#ifdef IQMOD_RX_0T4R
+#define RX_NUM_CHAN 4
+#define RX_COMPRESS_RATIO_PCT 100
+#define RX_DMA_TXR_size (256)
+#define RX_DECIM 2
+/* NOQEC: no rxiqcompcfg in IPPU so input_buffer(4ch*4buf*256smp*4B=16384B) fits exactly */
+#ifdef IQMOD_RX_NO_QEC
+#define RX_NUM_BUF 4
+#define RX_NUM_DEC_BUF 4
+#else
+#define RX_NUM_BUF 3
+#define RX_NUM_DEC_BUF 3
+#endif
+#define IQMOD_RX_0T1R
+#endif
+
 #define RX_DMA_TXR_STEP (4 * RX_DMA_TXR_size)
 #define RX_DDR_STEP (RX_DMA_TXR_STEP / RX_DECIM)
 
@@ -58,7 +77,7 @@
 
 #include "txiqcomp.h"
 
-#if defined(IQMOD_RX_1T1R) || defined(IQMOD_RX_0T1R)
+#if defined(IQMOD_RX_1T1R) || (defined(IQMOD_RX_0T1R) && !defined(IQMOD_RX_0T4R))
 
 extern vspa_complex_fixed16 input_buffer[RX_NUM_BUF * RX_DMA_TXR_size] __attribute__((section(".vcpu_dmem")))
 __attribute__((aligned(64)));
@@ -113,6 +132,7 @@ typedef struct s_rx_ch_context {
     uint32_t RX_total_dmem_QECed_size;
     uint32_t RX_total_dmem_input_Decimated_size;
     //	uint32_t RX_total_dmem_output_Decimated_size; /* RX_total_produced_size : moved to host proxy (write by vspa in dmem)*/
+    uint32_t RX_total_decimated_size;   /* decimated but not yet DMA'd to DDR */
     uint32_t RX_total_ddr_enqueued_size;
     //	uint32_t RX_total_ddr_consumed_size;          /* RX_total_consumed_size : moved to host proxy (write by host in dmem)*/
     vspa_complex_fixed16 *p_rx_axiq_enqueued;
@@ -126,7 +146,9 @@ typedef struct s_rx_ch_context {
     //	uint32_t DDR_wr_base_address; /* moved to host proxy */
 } t_rx_ch_context;
 
+#ifndef IQMOD_RX_NO_QEC
 extern structTXIQCompParams rxiqcompcfg_struct _VSPA_VECTOR_ALIGN;
+#endif
 
 void DDR_write(uint32_t DDR_wr_dma_channel, uint32_t DDR_address, uint32_t vsp_address);
 void rx_qec_correction(vspa_complex_fixed16 *dataIn, vspa_complex_fixed16 *dataOut);

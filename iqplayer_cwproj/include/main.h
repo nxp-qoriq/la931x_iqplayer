@@ -93,8 +93,13 @@ typedef enum {
     MBOX_OPC_RX_DCO_CORR,     // 0xE
     MBOX_OPC_GET_STATS_COUNT, // 0xF
     MBOX_OPC_DONE_SWRESET,    // 0x10
-    MBOX_OPC_PROXY_OFFSET     // 0x11
-   
+    MBOX_OPC_PROXY_OFFSET,    // 0x11
+    /* mbox1 flow-control wakeup opcodes sent by libiqplayer.
+     * The host writes the updated produced/consumed counter into the
+     * BAR2 proxy BEFORE posting on mbox1.  The firmware only needs to
+     * wake up (so PUSH_TX/RX_DATA runs) -- no ACK is required. */
+    MBOX_OPC_TX_GO = 0xF2,    // TX produced_size update from host
+    MBOX_OPC_RX_GO = 0xF3,    // RX consumed_size update from host
 } mbox_opc_e;
 
 void PUSH_TX_DATA(void);

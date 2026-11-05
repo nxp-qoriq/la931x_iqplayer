@@ -7,6 +7,16 @@
 #ifndef __IQ_APP_H__
 #define __IQ_APP_H__
 
-typedef enum { OP_TX_ONLY = 0, OP_RX_ONLY, OP_STATS, OP_DUMP_TRACE, OP_DMA_PERF, OP_CLEAR_STATS, OP_MAX } command_e;
+typedef enum {
+    OP_TX_ONLY = 0,
+    OP_RX_ONLY,
+    OP_STATS,
+    OP_DUMP_TRACE,
+    OP_DMA_PERF,
+    OP_CLEAR_STATS,
+    OP_SPECTRUM,   /* live FFT spectrum display (-X flag) */
+    OP_TONE_TX,    /* software tone generator TX (-T flag) */
+    OP_MAX
+} command_e;
 
 #endif

@@ -9,12 +9,12 @@ scratch_addr=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/
 scratch_size=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/reg |cut -f 16-19 -d " " |sed 's/ //g'|head -1`
 
 [ -f /lib/firmware/la9310_dfe.bin ] || { echo "***ERROR: missing /lib/firmware/la9310_dfe.bin. You are using old BSP, upgrade to BSP 0.4 or above, or rename la9310.bin to la9310_dfe.bin. Boot failed"; exit 1; }
-[ -f /lib/firmware/apm-iqplayer.eld ] || { echo "***ERROR: missing /lib/firmware/apm-iqplayer.eld. You are using old BSP, upgrade to BSP 0.4.3 or above, or rename la9310.bin to la9310_dfe.bin. Boot failed"; exit 1; }
+[ -f /lib/firmware/apm-iqplayer-1T1R.eld ] || { echo "***ERROR: missing /lib/firmware/apm-iqplayer-1T1R.eld. You are using old BSP, upgrade to BSP 0.4.3 or above, or rename la9310.bin to la9310_dfe.bin. Boot failed"; exit 1; }
 
-eld_md5sum="$(md5sum /lib/firmware/apm-iqplayer.eld | cut -f 1 -d " ")"
+eld_md5sum="$(md5sum /lib/firmware/apm-iqplayer-1T1R.eld | cut -f 1 -d " ")"
 iq_trace_version="$(iq_trace -v|cut -f 1 -d " ")"
 if [[ "$eld_md5sum" != "$iq_trace_version" ]]; then
-        echo "***WARNING: mismatch between apm-iqplayer.eld md5sum and iq_trace :" $eld_md5sum "!=" $iq_trace_version
+        echo "***WARNING: mismatch between apm-iqplayer-1T1R.eld md5sum and iq_trace :" $eld_md5sum "!=" $iq_trace_version
 fi
 adcm=0xf
 dacm=0x1
@@ -31,8 +31,8 @@ fi
 
 # load la9310
 echo 7 > /proc/sys/kernel/printk
-echo insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko scratch_buf_size=$scratch_size scratch_buf_phys_addr=$scratch_addr adc_mask=0xf adc_rate_mask=$adcm dac_mask=0x1 dac_rate_mask=$dacm alt_firmware_name=la9310_dfe.bin alt_vspa_fw_name=apm-iqplayer.eld
-insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko scratch_buf_size=$scratch_size scratch_buf_phys_addr=$scratch_addr adc_mask=0xf adc_rate_mask=$adcm dac_mask=0x1 dac_rate_mask=$dacm alt_firmware_name=la9310_dfe.bin alt_vspa_fw_name=apm-iqplayer.eld
+echo insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko scratch_buf_size=$scratch_size scratch_buf_phys_addr=$scratch_addr adc_mask=0xf adc_rate_mask=$adcm dac_mask=0x1 dac_rate_mask=$dacm alt_firmware_name=la9310_dfe.bin alt_vspa_fw_name=apm.eld
+insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko scratch_buf_size=$scratch_size scratch_buf_phys_addr=$scratch_addr adc_mask=0xf adc_rate_mask=$adcm dac_mask=0x1 dac_rate_mask=$dacm alt_firmware_name=la9310_dfe.bin alt_vspa_fw_name=apm.eld
 
 # insert rf modules kernel modules
 [ -f /lib/modules/$(uname -r)/extra/sdr_gpio.ko ] && insmod /lib/modules/$(uname -r)/extra/sdr_gpio.ko

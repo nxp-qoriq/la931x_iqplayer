@@ -28,6 +28,17 @@
 #include "stats.h"
 #include "vspa_dmem_proxy.h"
 
+/* Main loop meter: cycles from GO wakeup (top of loop body) to __idle(),
+ * so idle time is excluded. g_stats.meter[6..9] = max, count,
+ * passes > LOOP_PASS_BUDGET, sum >> 4. Build with -DLOOP_CYCLE_METER_OFF
+ * to remove it. */
+#ifndef LOOP_CYCLE_METER_OFF
+#define LOOP_CYCLE_METER 1
+#endif
+#ifndef LOOP_PASS_BUDGET
+#define LOOP_PASS_BUDGET 2560u
+#endif
+
 volatile int dbg_gbl = 0xdeadbeef;
 
 volatile t_stats g_stats __attribute__((aligned(64)));
@@ -46,7 +57,7 @@ uint32_t TX_SingleT_start_bit_update = 0, RX_SingleT_start_bit_update = 0, RX_Si
  * chanID                  0           1           2           3            >  mbx API chanID
  * RFNM slot_chan          RBA_RX1     RBA_RX2     RBB_RX1     RBB_RX2      >  RFNM slot mapping
  * LA9310 chan             RO1         RX1         RO0         RX0
- * VSPA DMA chanID 		   2           4           1           3
+ * VSPA DMA chanID         2           4           1           3
  * axi_ADC_FIFI_addr[4] = {0x44002000, 0x44004000, 0x44001000, 0x44003000};
  */
 
@@ -75,7 +86,7 @@ vspa_complex_float32 *pgain;
 
 int i, tone_index, image_tone_index;
 
-bool first_run = true;
+bool first_run_done = false;
 
 //======================================================================================================
 // Main local variables and types  (variables should be declared static)
@@ -85,27 +96,84 @@ bool first_run = true;
 // Public (externally visible) functions
 //======================================================================================================
 
+/* Cycle meter helpers shared by the TX pass meter and the loop meter.
+ * Kept out of line to save PRAM (1T2R has little headroom). */
+__attribute__((noinline)) void meter_gap(volatile uint32_t *m, uint32_t t0) {
+    uint32_t gap = t0 - m[5];
+    if (m[5] != 0 && gap < 0x00100000u && gap > m[4])
+        m[4] = gap;
+    m[5] = t0 | 1u;
+}
+
+__attribute__((noinline)) void meter_end(volatile uint32_t *m, uint32_t t0, uint32_t budget) {
+    uint32_t dt = ccnt_read() - t0;
+    if (dt >= 0x00100000u)
+        return;
+    if (dt > m[0])
+        m[0] = dt;
+    m[1]++;
+    if (dt > budget)
+        m[2]++;
+    m[3] += dt >> 4;
+}
+
+/* DMA-state completion accounting for FIFO-mode channels (2 command slots,
+ * one sticky completion bit). Two completions between two polls merge into
+ * one bit, so counting completion bits loses buffers for good. Instead the
+ * number of transfers still in flight is derived from the channel state:
+ *   no FIFO slot free -> 2, slot free and running -> 1, idle -> 0
+ * and done = enq - in_flight * step. done never moves back and advances to
+ * min(this pass, previous pass) so a single transient read cannot
+ * overestimate it. Same method as RX_DDR_STATE_CMPL. */
+__attribute__((noinline)) uint32_t dma_done_from_state(uint32_t mask, uint32_t enq, uint32_t done, uint32_t *cand,
+                                                       uint32_t step) {
+    uint32_t n, c, prev;
+
+    if (enq == done)
+        return done;
+    dmac_clear_complete(mask);
+    if (dmac_is_available(mask) != mask)
+        n = 2;
+    else
+        n = dmac_is_running(mask) ? 1 : 0;
+    c = enq - n * step;
+    prev = *cand;
+    *cand = c;
+    if ((int32_t)(prev - c) < 0)
+        c = prev;
+    if ((int32_t)(c - done) > 0)
+        return c;
+    return done;
+}
+
 // update host proxy if needed
 
 void VSPA_PROXY_update(void) {
+    /* Proxy DMAs on channel 5 are fire-and-forget: clear any stale
+     * completion bit so later synchronous waits on channel 5 do not
+     * exit early on an old completion. */
+    if (dmac_is_complete(0x1 << DDR_WR_DMA_CHANNEL_5)) {
+        dmac_clear_complete(0x1 << DDR_WR_DMA_CHANNEL_5);
+    }
+    /* Clear the dirty flag only once the proxy DMA is actually launched.
+     * If channel 5 is busy (e.g. RX and TX both dirty in the same call),
+     * keep the flag set and retry on the next iteration. Dropping the
+     * update leaves a stale TX enqueued counter in the host mirror, which
+     * stalls host flow control and causes periodic AXIQ TX UDR/OVR bursts. */
     if (rx_proxy_updated) {
-        rx_proxy_updated = 0;
         if (dmac_is_available(0x1 << DDR_WR_DMA_CHANNEL_5)) {
+            rx_proxy_updated = 0;
             DDR_write_VSPA_PROXY(DDR_WR_DMA_CHANNEL_5,
                                  VSPA_DMEM_PROXY_ADDR + offsetof(struct s_vspa_dmem_proxy, rx_state_readonly) * 2,
                                  2 * (uint32_t) & (rx_vspa_proxy[0]), sizeof(t_rx_ch_host_proxy) * 2 * RX_NUM_CHAN);
-        } else {
-            g_stats.gbl_stats[ERROR_DMA_XFER_ERROR]++;
         }
     }
     if (tx_proxy_updated) {
-        tx_proxy_updated = 0;
         if (dmac_is_available(0x1 << DDR_WR_DMA_CHANNEL_5)) {
+            tx_proxy_updated = 0;
             DDR_write_VSPA_PROXY(DDR_WR_DMA_CHANNEL_5,
                                  VSPA_DMEM_PROXY_ADDR + offsetof(struct s_vspa_dmem_proxy, tx_state_readonly) * 2,
                                  2 * (uint32_t)&tx_vspa_proxy, sizeof(t_tx_ch_host_proxy) * 2);
-        } else {
-            g_stats.gbl_stats[ERROR_DMA_XFER_ERROR]++;
         }
     }
 }
@@ -113,13 +181,21 @@ void VSPA_PROXY_update(void) {
 void DDR_write_VSPA_PROXY(uint32_t DDR_wr_dma_channel, uint32_t DDR_address, uint32_t vsp_address, uint32_t size) {
     uint32_t ctrl = DMAC_WR | DDR_wr_dma_channel;
     dmac_enable(ctrl, size, DDR_address, vsp_address);
+#ifdef RX_HOT_TRACE
     l1_trace(L1_TRACE_MSG_DMA_XFR, (uint32_t)DDR_address);
+#endif
+    #ifdef DBG_SPIN_ON
     while (dbg_gbl == 4) {
     };
+    #endif
 }
 
 void setup(void) {
     uint64_t msg64 = 0, i = 0, j = 0;
+
+    /* First trace entry: build version for post-mortem identification.
+     * ELD_BUILD_VERSION is injected by the Makefile as MMDDHHmm decimal. */
+    l1_trace(L1_TRACE_MSG_BUILD_VER, ELD_BUILD_VERSION);
 
     vcpu_swver(0x00020002);
     ccnt_enable();
@@ -129,7 +205,7 @@ void setup(void) {
         mailbox_in_0_status = (vspa_mbox0_is_valid() | vspa_mbox1_is_valid());
     } while (mailbox_in_0_status == 0);
 #endif
-    if (mailbox_in_0_status | 0x4) {
+    if (mailbox_in_0_status & 0x4) {
         msg64 = host_mbox0_read();
         mailbox_in_msg_0_MSB = HIWORD(msg64);
         mailbox_in_msg_0_LSB = LOWORD(msg64);
@@ -138,7 +214,7 @@ void setup(void) {
         }
     }
 
-    if (mailbox_in_0_status | 0x8) {
+    if (mailbox_in_0_status & 0x8) {
         msg64 = host_mbox1_read();
         mailbox_in_msg_1_MSB = HIWORD(msg64);
         mailbox_in_msg_1_LSB = LOWORD(msg64);
@@ -151,7 +227,7 @@ void setup(void) {
 
     axi_wr = 0x4400B000;
 
-#ifndef IQMOD_RX_0T1R
+#if !defined(IQMOD_RX_0T1R) && !defined(IQMOD_RX_0T4R)
     stream_write_ptr_rst(DMA_CHANNEL_WR, axi_wr);
     WAIT(dmac_is_complete(0x1 << DMA_CHANNEL_WR));
     dmac_clear_complete(0x1 << DMA_CHANNEL_WR);
@@ -163,7 +239,12 @@ void setup(void) {
 
     ippu_arg_base(0x1F80); // need a check!!!
 
-    first_run = false;
+    /* Redirect GO wakeup entry point to main() directly so subsequent
+     * GO events (mailbox, DMA) skip _start/_init_bss and do not zero
+     * .bss again (which would reset first_run_done to false). */
+    entry(main);
+
+    first_run_done = true;
 
     memclr((void *)&g_stats, sizeof(g_stats));
 }
@@ -172,7 +253,7 @@ void setup(void) {
 void wait_for_pending_transfers(uint32_t ch) {
     // clear done transfers if there are any
     while (dmac_is_complete(0x1 << ch)) {
-#ifndef IQMOD_RX_0T1R
+#if !defined(IQMOD_RX_0T1R) && !defined(IQMOD_RX_0T4R)
         PUSH_TX_DATA();
 #endif
         dmac_clear_complete(0x1 << ch);
@@ -187,7 +268,7 @@ void wait_for_pending_transfers(uint32_t ch) {
     while (dmac_is_running(0x1 << ch)) {
         // wait for transfer to finish
         do {
-#ifndef IQMOD_RX_0T1R
+#if !defined(IQMOD_RX_0T1R) && !defined(IQMOD_RX_0T4R)
             PUSH_TX_DATA();
 #endif
         } while (!dmac_is_complete(0x1 << ch));
@@ -218,12 +299,12 @@ __attribute__((noreturn)) void main(void) {
     uint64_t msg64 = 0, i = 0;
 
     l1_trace(L1_TRACE_MSG_ENTRY_MAIN, (uint32_t)iord(CONTROL));
-    l1_trace(L1_TRACE_MSG_ENTRY_MAIN, (uint32_t)iord(DMA_GO_STAT));
-    l1_trace(L1_TRACE_MSG_ENTRY_MAIN, (uint32_t)iord(DMA_CFGERR_STAT));
+    //l1_trace(L1_TRACE_MSG_ENTRY_MAIN, (uint32_t)iord(DMA_GO_STAT));
+    //l1_trace(L1_TRACE_MSG_ENTRY_MAIN, (uint32_t)iord(DMA_CFGERR_STAT));
     l1_trace(L1_TRACE_MSG_ENTRY_MAIN, (uint32_t)iord(DMA_COMP_STAT));
 
-    if (first_run) {
-// !! this workaround is needed otherwise VSPA gets stuck ( dmac_is_available()/dmac_is_complete() doesn't work)
+    if (!first_run_done) {
+// !! this workaround is needed otherwise VSPA gets stuck (dmac_is_available()/dmac_is_complete() doesn't work)
 // !! unless issue "ccs::config_chain {la9310 dap}" on ccs
 #define HOST_VCPU_A011455 (0x024 >> 2)
         iowr(HOST_VCPU_A011455, 0x10, 0x10);
@@ -245,6 +326,10 @@ __attribute__((noreturn)) void main(void) {
         tx_vspa_proxy.rx_ddr_step = RX_DDR_STEP;
         tx_vspa_proxy.tx_ddr_step = TX_DDR_STEP;
         tx_vspa_proxy.rx_num_chan = RX_NUM_CHAN;
+        for (i = 0; i < RX_NUM_CHAN; i++)
+            /* VSPA addresses are in 2-byte units; multiply by 2 to get AHB byte offset */
+            tx_vspa_proxy.rx_fc_addr[i] = BASE_VSPA_VCPU(0) +
+                2u * (uint32_t)&rx_vspa_proxy[i].la9310_fifo_consumed_size;
         tx_proxy_updated = 1;
         for (i = 0; i < RX_NUM_MAX_CHAN; i++) {
             rx_vspa_proxy[i].DDR_wr_base_address = 0xdeadbeef;
@@ -252,291 +337,329 @@ __attribute__((noreturn)) void main(void) {
         }
         rx_proxy_updated = 1;
         tx_vspa_proxy.gbl_stats_fetch = 1;
+
     }
 
     while (1) {
-
-        if (tx_vspa_proxy.gbl_stats_fetch) {
-            if (dmac_is_available(0x1 << DDR_WR_DMA_CHANNEL_5)) {
-                tx_vspa_proxy.gbl_stats_fetch = 0;
-                DDR_write_VSPA_PROXY(DDR_WR_DMA_CHANNEL_5,
-                                     VSPA_DMEM_PROXY_ADDR + offsetof(struct s_vspa_dmem_proxy, vspa_stats) * 2,
-                                     2 * (uint32_t)&g_stats, sizeof(t_stats) * 2);
-            } else {
-                g_stats.gbl_stats[ERROR_DMA_XFER_ERROR]++;
-            }
-        }
-
+    /* On each entry — including re-entry after __idle() GO wakeup — read the
+     * wakeup cause and pending mbox status first.  __idle() = __builtin_done()
+     * is __noreturn: the VSPA re-enters main() from the top on every GO event,
+     * so any code placed after __idle() in the loop body is dead code. */
+#ifdef LOOP_CYCLE_METER
+    uint32_t lm_t0 = ccnt_read();
+#endif
+#ifdef RX_HOT_TRACE
+    l1_trace(L1_TRACE_MSG_ENTRY_MAIN_DMASTAT, (uint32_t)iord(DMA_GO_STAT));
+#endif
 #ifndef IS_SIMULATOR
-        mailbox_in_0_status = (vspa_mbox0_is_valid() | vspa_mbox1_is_valid());
+    mailbox_in_0_status = (vspa_mbox0_is_valid() | vspa_mbox1_is_valid());
 #else
-        // No mailbox but debugger/tcl script init
-        mailbox_in_0_status = 0x4;
+    mailbox_in_0_status = 0x4;
 #endif
 
-        if (mailbox_in_0_status & 0x4) {
-#ifndef IS_SIMULATOR
-            msg64 = host_mbox0_read();
-            mailbox_in_msg_0_MSB = HIWORD(msg64);
-            mailbox_in_msg_0_LSB = LOWORD(msg64);
+    if (tx_vspa_proxy.gbl_stats_fetch) {
+        if (dmac_is_available(0x1 << DDR_WR_DMA_CHANNEL_5)) {
+            tx_vspa_proxy.gbl_stats_fetch = 0;
+            DDR_write_VSPA_PROXY(DDR_WR_DMA_CHANNEL_5,
+                                 VSPA_DMEM_PROXY_ADDR + offsetof(struct s_vspa_dmem_proxy, vspa_stats) * 2,
+                                 2 * (uint32_t)&g_stats, sizeof(t_stats) * 2);
+        } else {
+            g_stats.gbl_stats[ERROR_DMA_XFER_ERROR]++;
+        }
+    }
 
-            host_mbox0_clear();
-            op_mode = (mbox_opc_e)((mailbox_in_msg_0_MSB & 0xFF000000) >> 24);
-            fft_bin = (mailbox_in_msg_0_LSB & 0x000000FF);
-            BW_index = ((mailbox_in_msg_0_MSB & 0x000C0000) >> 18);
-            DCOC_direction = ((mailbox_in_msg_0_MSB & 0x00200000) >> 21);
+    if (mailbox_in_0_status & 0x4) {
+#ifndef IS_SIMULATOR
+        msg64 = host_mbox0_read();
+        mailbox_in_msg_0_MSB = HIWORD(msg64);
+        mailbox_in_msg_0_LSB = LOWORD(msg64);
+
+        host_mbox0_clear();
+        op_mode = (mbox_opc_e)((mailbox_in_msg_0_MSB & 0xFF000000) >> 24);
+        fft_bin = (mailbox_in_msg_0_LSB & 0x000000FF);
+        BW_index = ((mailbox_in_msg_0_MSB & 0x000C0000) >> 18);
+        DCOC_direction = ((mailbox_in_msg_0_MSB & 0x00200000) >> 21);
 #else
-            // No mailbox but debugger/tcl script init
-            mailbox_in_msg_0_MSB = 0;
-            mailbox_in_msg_0_LSB = 0;
-            op_mode = MBOX_OPC_SINGLE_TONE_TX;
-            fft_bin = 0x21;
-            BW_index = 0;
-            DCOC_direction = 0;
-            __swbreak();
+        // No mailbox but debugger/tcl script init
+        mailbox_in_msg_0_MSB = 0;
+        mailbox_in_msg_0_LSB = 0;
+        op_mode = MBOX_OPC_SINGLE_TONE_TX;
+        fft_bin = 0x21;
+        BW_index = 0;
+        DCOC_direction = 0;
+        __swbreak();
 #endif // #ifndef IS_SIMULATOR
 
-            tone_index = FFT_SIZE / 2 + fft_bin;
-            image_tone_index = FFT_SIZE / 2 - fft_bin;
+        tone_index = FFT_SIZE / 2 + fft_bin;
+        image_tone_index = FFT_SIZE / 2 - fft_bin;
 
-            axi_wr = axi_DAC_FIFO_addr;
+        axi_wr = axi_DAC_FIFO_addr;
 
-            //   __swbreak();
-            while (dbg_gbl == 1) {
-            };
+        //   __swbreak();
+        #ifdef DBG_SPIN_ON
+        while (dbg_gbl == 1) {
+        };
+        #endif
 
-            switch (op_mode) {
+        switch (op_mode) {
 #ifndef IQMOD_RX_0T1R
-            case MBOX_OPC_SINGLE_TONE_TX:
-                TX_single_tone();
-                break;
+        case MBOX_OPC_SINGLE_TONE_TX:
+            TX_single_tone();
+            break;
 
-            case MBOX_OPC_SINGLE_TONE_RX:
-                RX_single_tone_measurement();
-                break;
+        case MBOX_OPC_SINGLE_TONE_RX:
+            RX_single_tone_measurement();
+            break;
 
-            case MBOX_OPC_DCOC:
-                if (DCOC_direction == 0) {
-                    RX_DCOC_CAL();
-                } else {
-                    TX_DCOC_CAL();
-                }
-                break;
+        case MBOX_OPC_DCOC:
+            if (DCOC_direction == 0) {
+                RX_DCOC_CAL();
+            } else {
+                TX_DCOC_CAL();
+            }
+            break;
 
-            case MBOX_OPC_BW_CAL:
-                BW_CAL();
-                break;
+        case MBOX_OPC_BW_CAL:
+            BW_CAL();
+            break;
 
-            case MBOX_OPC_IQ_MOD_TX:
-                TX_IQ_DATA_FROM_DDR();
-                break;
+        case MBOX_OPC_IQ_MOD_TX:
+            TX_IQ_DATA_FROM_DDR();
+            break;
 #endif
 
 #ifndef IQMOD_RX_1T0R
-            case MBOX_OPC_IQ_MOD_RX:
-                RX_IQ_DATA_TO_DDR();
-                break;
+        case MBOX_OPC_IQ_MOD_RX:
+            RX_IQ_DATA_TO_DDR();
+            break;
 
-            case MBOX_OPC_MSI: {
-                uint32_t msi_reg = mailbox_in_msg_0_LSB;
+        case MBOX_OPC_MSI: {
+            uint32_t msi_reg = mailbox_in_msg_0_LSB;
 
-                ((vspa_complex_fixed16 *)input_buffer)->real = 0x0b0b;
-                ((vspa_complex_fixed16 *)input_buffer)->imag = 0x0b0b;
-                dmac_abort(0x1 << DDR_WR_DMA_CHANNEL_1);
-                dmac_clear_complete(0x1 << DDR_WR_DMA_CHANNEL_1);
-                DDR_write_MSI(DDR_WR_DMA_CHANNEL_1, 0xB0000000 + msi_reg * 0x100, 2 * (uint32_t)(input_buffer));
-                WAIT(dmac_is_complete(0x1 << DDR_WR_DMA_CHANNEL_1));
+            ((vspa_complex_fixed16 *)input_buffer)->real = 0x0b0b;
+            ((vspa_complex_fixed16 *)input_buffer)->imag = 0x0b0b;
+            dmac_abort(0x1 << DDR_WR_DMA_CHANNEL_1);
+            dmac_clear_complete(0x1 << DDR_WR_DMA_CHANNEL_1);
+            DDR_write_MSI(DDR_WR_DMA_CHANNEL_1, 0xB0000000 + msi_reg * 0x100, 2 * (uint32_t)(input_buffer));
+            WAIT(dmac_is_complete(0x1 << DDR_WR_DMA_CHANNEL_1));
 
-                //*(uint32_t *)(&input_buffer[1])=0xB0000008 + msi_reg*0x100;
-                dmac_abort(0x1 << DDR_WR_DMA_CHANNEL_1);
-                dmac_clear_complete(0x1 << DDR_WR_DMA_CHANNEL_1);
-                DDR_write_MSI(DDR_WR_DMA_CHANNEL_1, 0xA0000000, 2 * (uint32_t)(input_buffer));
-                WAIT(dmac_is_complete(0x1 << DDR_WR_DMA_CHANNEL_1));
+            //*(uint32_t *)(&input_buffer[1])=0xB0000008 + msi_reg*0x100;
+            dmac_abort(0x1 << DDR_WR_DMA_CHANNEL_1);
+            dmac_clear_complete(0x1 << DDR_WR_DMA_CHANNEL_1);
+            DDR_write_MSI(DDR_WR_DMA_CHANNEL_1, 0xA0000000, 2 * (uint32_t)(input_buffer));
+            WAIT(dmac_is_complete(0x1 << DDR_WR_DMA_CHANNEL_1));
 
-            } break;
+        } break;
 #endif
 
-            case MBOX_OPC_IQ_CORR: {
-                // QEC param update
-                uint32_t iq_channel_id = ((mailbox_in_msg_0_MSB & 0x00030000) >> 16); /* bit49-48 */
-                uint32_t iq_tx_rx = ((mailbox_in_msg_0_MSB & 0x00200000) >> 21);      /* bit 53 */
-                uint32_t iq_rst = ((mailbox_in_msg_0_MSB & 0x00100000) >> 20);        /* bit 52 */
-                uint32_t iq_idx = mailbox_in_msg_0_MSB & 0x0000FFFF;                  /* bit 47-32*/
-                uint32_t iq_val = mailbox_in_msg_0_LSB;                               /* bit 31-0 */
+        case MBOX_OPC_IQ_CORR: {
+            // QEC param update
+            uint32_t iq_channel_id = ((mailbox_in_msg_0_MSB & 0x00030000) >> 16); /* bit49-48 */
+            uint32_t iq_tx_rx = ((mailbox_in_msg_0_MSB & 0x00200000) >> 21);      /* bit 53 */
+            uint32_t iq_rst = ((mailbox_in_msg_0_MSB & 0x00100000) >> 20);        /* bit 52 */
+            uint32_t iq_idx = mailbox_in_msg_0_MSB & 0x0000FFFF;                  /* bit 47-32*/
+            uint32_t iq_val = mailbox_in_msg_0_LSB;                               /* bit 31-0 */
 
-                if (iq_tx_rx) {
+            if (iq_tx_rx) {
 #ifdef TXIQCOMP2
-                    rf_update_iq_comp_params2(&iq_comp_params2_tx, iq_rst, iq_idx, iq_val);
+                rf_update_iq_comp_params2(&iq_comp_params2_tx, iq_rst, iq_idx, iq_val);
 #else
-                    rf_update_iq_comp_params(&txiqcompcfg_struct, iq_rst, iq_idx, iq_val);
+                rf_update_iq_comp_params(&txiqcompcfg_struct, iq_rst, iq_idx, iq_val);
 #endif
 #ifndef IQMOD_RX_0T1R
-                    // update single tone pattern
-                    if (TX_SingleT_start_bit_update) {
-                        gen_nco_single_tone(TX_SingleT_buffer);
-                    }
-#endif
-                } else {
-#ifdef RXIQCOMP2
-                    rf_update_iq_comp_params2(&iq_comp_params2_rx, iq_rst, iq_idx, iq_val);
-#else
-                    rf_update_iq_comp_params(&rxiqcompcfg_struct, iq_rst, iq_idx, iq_val);
-#endif
-                }
-
-                mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
-                mailbox_out_msg_0_LSB = 0x1;
-                host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
-                break;
-            }
-
-#ifndef IQMOD_RX_0T1R
-            case MBOX_OPC_TX_DCO_CORR:
-#ifdef TXIQCOMP2
-                iq_comp_params2_tx.dcOffset.real = (mailbox_in_msg_0_LSB & 0x0000FFFF);
-                iq_comp_params2_tx.dcOffset.imag = ((mailbox_in_msg_0_LSB & 0xFFFF0000) >> 16);
-#else
-                txiqcompcfg_struct.dcOffset.real = (mailbox_in_msg_0_LSB & 0x0000FFFF);
-                txiqcompcfg_struct.dcOffset.imag = ((mailbox_in_msg_0_LSB & 0xFFFF0000) >> 16);
-#endif
-
                 // update single tone pattern
                 if (TX_SingleT_start_bit_update) {
                     gen_nco_single_tone(TX_SingleT_buffer);
                 }
-
-                mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
-                mailbox_out_msg_0_LSB = 0x1;
-                host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
-                break;
 #endif
-
-#ifndef IQMOD_RX_1T0R
-            case MBOX_OPC_RX_DCO_CORR:
+            } else {
 #ifdef RXIQCOMP2
-                iq_comp_params2_rx.dcOffset.real = (mailbox_in_msg_0_LSB & 0x0000FFFF);
-                iq_comp_params2_rx.dcOffset.imag = ((mailbox_in_msg_0_LSB & 0xFFFF0000) >> 16);
-#else
-                rxiqcompcfg_struct.dcOffset.real = (mailbox_in_msg_0_LSB & 0x0000FFFF);
-                rxiqcompcfg_struct.dcOffset.imag = ((mailbox_in_msg_0_LSB & 0xFFFF0000) >> 16);
+                rf_update_iq_comp_params2(&iq_comp_params2_rx, iq_rst, iq_idx, iq_val);
+#elif !defined(IQMOD_RX_NO_QEC)
+                rf_update_iq_comp_params(&rxiqcompcfg_struct, iq_rst, iq_idx, iq_val);
 #endif
-                mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
-                mailbox_out_msg_0_LSB = 0x1;
-                host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
-                break;
-
-            case MBOX_OPC_RX_CHAN_SELECT:
-                dmac_abort(0x1 << dma_channel_rd);
-                dmac_clear_complete(0x1 << dma_channel_rd);
-                DDR_wr_start_bit_update = 0;
-                axiq_rx_disable();
-                RX_index = (mailbox_in_msg_0_LSB & 0xf);
-
-                axi_rd = axi_ADC_FIFO_addr[RX_index];
-                dma_channel_rd = Rx_Antenna2axiq_dma_chan[RX_index];
-
-                mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
-                mailbox_out_msg_0_LSB = 0x1;
-                host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
-                break;
-#endif
-
-            case MBOX_OPC_EMPTY_2:
-                // does nothing but ACK, mailbox, AVI test
-                mailbox_out_msg_0_MSB = 0x0;
-                mailbox_out_msg_0_LSB = 0x1;
-                host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
-                break;
-
-            case MBOX_OPC_GET_STATS_COUNT:
-                uint32_t counter_rst = ((mailbox_in_msg_0_MSB & 0x00100000) >> 20); /* bit 52 */
-                uint32_t counter_idx = mailbox_in_msg_0_MSB & 0x0000FFFF;           /* bit 47-32*/
-                if (counter_idx >= sizeof(g_stats) * 4)
-                    break;
-                mailbox_out_msg_0_MSB = *((uint32_t *)&g_stats + counter_idx);
-                mailbox_out_msg_0_LSB = 0x1;
-                host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
-                if (counter_rst) {
-                    memclr((void *)&g_stats, sizeof(g_stats));
-                }
-                break;
-
-            case MBOX_OPC_DONE_SWRESET:
-                extern void start(void);
-                entry(start);
-                host_clear();
-                mailbox_out_msg_0_MSB = 0x0;
-                mailbox_out_msg_0_LSB = 0x1;
-                host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
-                __idle();
-
-                break;
-
-            case MBOX_OPC_PROXY_OFFSET:
-                uint32_t proxy_offset_read_only = ((mailbox_in_msg_0_MSB & 0x00100000) >> 20); /* bit 52 */
-                if(!proxy_offset_read_only){
-            	    g_iqflood_proxy_offset = mailbox_in_msg_0_LSB;
-                    tx_proxy_updated = 1;
-                    rx_proxy_updated = 1;
-                    tx_vspa_proxy.gbl_stats_fetch = 1;
-                }
-                mailbox_out_msg_0_MSB = g_iqflood_proxy_offset;
-                mailbox_out_msg_0_LSB = 0x1;
-                host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
-                break;
-                
-            default:
-                // not a valid command, NACK
-                mailbox_out_msg_0_MSB = 0x0;
-                mailbox_out_msg_0_LSB = 0x0;
-                host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
-                break;
             }
-        }
 
-        if (mailbox_in_0_status & 0x8) {
-            msg64 = host_mbox1_read();
-            mailbox_in_msg_1_MSB = HIWORD(msg64);
-            mailbox_in_msg_1_LSB = LOWORD(msg64);
-            host_mbox1_clear(); //(host_sent_msg1_go)
-            op_mode = (mbox_opc_e)((mailbox_in_msg_1_MSB & 0xFF000000) >> 24);
-            switch (op_mode) {
-            case MBOX_OPC_EMPTY_2:
-                // does nothing but ACK, mailbox, AVI test
-                mailbox_out_msg_1_MSB = 0x0;
-                mailbox_out_msg_1_LSB = 0x1;
-                host_mbox1_post(MAKEDWORD(mailbox_out_msg_1_MSB, mailbox_out_msg_1_LSB));
-                break;
-            default:
-                // not a valid command, NACK
-                mailbox_out_msg_1_MSB = 0x0;
-                mailbox_out_msg_1_LSB = 0x0;
-                host_mbox1_post(MAKEDWORD(mailbox_out_msg_1_MSB, mailbox_out_msg_1_LSB));
-                break;
-            }
+            mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
+            mailbox_out_msg_0_LSB = 0x1;
+            host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+            break;
         }
 
 #ifndef IQMOD_RX_0T1R
-        PUSH_TX_DATA();
+        case MBOX_OPC_TX_DCO_CORR:
+#ifdef TXIQCOMP2
+            iq_comp_params2_tx.dcOffset.real = (mailbox_in_msg_0_LSB & 0x0000FFFF);
+            iq_comp_params2_tx.dcOffset.imag = ((mailbox_in_msg_0_LSB & 0xFFFF0000) >> 16);
+#else
+            txiqcompcfg_struct.dcOffset.real = (mailbox_in_msg_0_LSB & 0x0000FFFF);
+            txiqcompcfg_struct.dcOffset.imag = ((mailbox_in_msg_0_LSB & 0xFFFF0000) >> 16);
+#endif
+
+            // update single tone pattern
+            if (TX_SingleT_start_bit_update) {
+                gen_nco_single_tone(TX_SingleT_buffer);
+            }
+
+            mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
+            mailbox_out_msg_0_LSB = 0x1;
+            host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+            break;
+#endif
+
+#ifndef IQMOD_RX_1T0R
+        case MBOX_OPC_RX_DCO_CORR:
+#ifdef RXIQCOMP2
+            iq_comp_params2_rx.dcOffset.real = (mailbox_in_msg_0_LSB & 0x0000FFFF);
+            iq_comp_params2_rx.dcOffset.imag = ((mailbox_in_msg_0_LSB & 0xFFFF0000) >> 16);
+#elif !defined(IQMOD_RX_NO_QEC)
+            rxiqcompcfg_struct.dcOffset.real = (mailbox_in_msg_0_LSB & 0x0000FFFF);
+            rxiqcompcfg_struct.dcOffset.imag = ((mailbox_in_msg_0_LSB & 0xFFFF0000) >> 16);
+#endif
+            mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
+            mailbox_out_msg_0_LSB = 0x1;
+            host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+            break;
+
+        case MBOX_OPC_RX_CHAN_SELECT:
+            dmac_abort(0x1 << dma_channel_rd);
+            dmac_clear_complete(0x1 << dma_channel_rd);
+            DDR_wr_start_bit_update = 0;
+            axiq_rx_disable();
+            RX_index = (mailbox_in_msg_0_LSB & 0xf);
+
+            axi_rd = axi_ADC_FIFO_addr[RX_index];
+            dma_channel_rd = Rx_Antenna2axiq_dma_chan[RX_index];
+
+            mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
+            mailbox_out_msg_0_LSB = 0x1;
+            host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+            break;
+#endif
+
+        case MBOX_OPC_EMPTY_2:
+            // does nothing but ACK, mailbox, AVI test
+            mailbox_out_msg_0_MSB = 0x0;
+            mailbox_out_msg_0_LSB = 0x1;
+            host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+            break;
+
+        case MBOX_OPC_GET_STATS_COUNT:
+            uint32_t counter_rst = ((mailbox_in_msg_0_MSB & 0x00100000) >> 20); /* bit 52 */
+            uint32_t counter_idx = mailbox_in_msg_0_MSB & 0x0000FFFF;           /* bit 47-32*/
+            if (counter_idx >= sizeof(g_stats) * 4)
+                break;
+            mailbox_out_msg_0_MSB = *((uint32_t *)&g_stats + counter_idx);
+            mailbox_out_msg_0_LSB = 0x1;
+            host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+            if (counter_rst) {
+                memclr((void *)&g_stats, sizeof(g_stats));
+            }
+            break;
+
+        case MBOX_OPC_DONE_SWRESET:
+            extern void start(void);
+            entry(start);
+            host_clear();
+            mailbox_out_msg_0_MSB = 0x0;
+            mailbox_out_msg_0_LSB = 0x1;
+            host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+            __idle();
+
+            break;
+
+        case MBOX_OPC_PROXY_OFFSET:
+            uint32_t proxy_offset_read_only = ((mailbox_in_msg_0_MSB & 0x00100000) >> 20); /* bit 52 */
+            if (!proxy_offset_read_only) {
+                g_iqflood_proxy_offset = mailbox_in_msg_0_LSB;
+                tx_proxy_updated = 1;
+                rx_proxy_updated = 1;
+                tx_vspa_proxy.gbl_stats_fetch = 1;
+            }
+            mailbox_out_msg_0_MSB = g_iqflood_proxy_offset;
+            mailbox_out_msg_0_LSB = 0x1;
+            host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+            break;
+
+        case 0x70:
+            /* modem_info init ping (same handshake as setup()): ACK with 0xF0700000 */
+            host_mbox0_post(MAKEDWORD(0xF0700000, 0x0));
+            break;
+
+        default:
+            // not a valid command, NACK
+            mailbox_out_msg_0_MSB = 0x0;
+            mailbox_out_msg_0_LSB = 0x0;
+            host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+            break;
+        }
+    }
+
+    if (mailbox_in_0_status & 0x8) {
+        msg64 = host_mbox1_read();
+        mailbox_in_msg_1_MSB = HIWORD(msg64);
+        mailbox_in_msg_1_LSB = LOWORD(msg64);
+        host_mbox1_clear(); //(host_sent_msg1_go)
+        op_mode = (mbox_opc_e)((mailbox_in_msg_1_MSB & 0xFF000000) >> 24);
+        switch (op_mode) {
+        case MBOX_OPC_EMPTY_2:
+            /* does nothing but ACK, mailbox/AVI test */
+            mailbox_out_msg_1_MSB = 0x0;
+            mailbox_out_msg_1_LSB = 0x1;
+            host_mbox1_post(MAKEDWORD(mailbox_out_msg_1_MSB, mailbox_out_msg_1_LSB));
+            break;
+        case MBOX_OPC_TX_GO:
+        case MBOX_OPC_RX_GO:
+            /* Flow-control wakeup from libiqplayer.  The host has already
+             * written the updated produced/consumed counter into the BAR2
+             * proxy before posting this mbox1 message.  No ACK is needed;
+             * fall through to PUSH_TX/RX_DATA() at the bottom of the loop. */
+            break;
+        default:
+            /* not a valid command, NACK */
+            mailbox_out_msg_1_MSB = 0x0;
+            mailbox_out_msg_1_LSB = 0x0;
+            host_mbox1_post(MAKEDWORD(mailbox_out_msg_1_MSB, mailbox_out_msg_1_LSB));
+            break;
+        }
+    }
+
+#if !defined(IQMOD_RX_0T1R) && !defined(IQMOD_RX_0T4R)
+    PUSH_TX_DATA();
 #endif
 #ifndef IQMOD_RX_1T0R
-        PUSH_RX_DATA();
+    PUSH_RX_DATA();
 #endif
-    }
 
-    if (host_event()) {
-        // Ignore host gos
-        host_clear();
-    }
+#ifdef LOOP_CYCLE_METER
+    meter_end(&g_stats.meter[METER_LOOP_BASE], lm_t0, LOOP_PASS_BUDGET);
+    g_stats.meter[METER_LOOP_BUDGET] = LOOP_PASS_BUDGET;
+#endif
 
+    /* Trace idle entry then halt VCPU until a GO event (mailbox or DMA).
+     * Without __idle() the loop spins and floods the trace buffer with
+     * ENTRY_IDLE every ~300 cycles even with no traffic. */
+#ifdef RX_HOT_TRACE
     l1_trace(L1_TRACE_MSG_ENTRY_IDLE, (uint32_t)iord(DMA_FIFO_STAT));
-
-    __asm volatile("fnop .asmvol");
-    __asm volatile("fnop .asmvol");
-    __asm volatile("fnop .asmvol");
+#endif
+#ifndef IS_SIMULATOR
+#ifdef RX_FC_POLL
+    {
+        extern uint32_t rx_work_pending;
+        extern uint32_t DDR_wr_start_bit_update;
+        /* RX data waits for the FC gate or a DDR DMA slot, neither of which
+         * reliably raises a GO event: re-poll instead of sleeping. */
+        if (rx_work_pending && DDR_wr_start_bit_update)
+            continue;
+    }
+#endif
+    __idle();
+#endif
 
     //	__swbreak();
+    #ifdef DBG_SPIN_ON
     while (dbg_gbl == 2) {
     };
-    __builtin_done();
+    #endif
+    } /* while(1) */
 }
