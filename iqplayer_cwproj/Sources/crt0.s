@@ -64,7 +64,7 @@ _start
 	mv          sp, __stack;    // Initialize stack pointer.
 	
 	mv		 	a0, sp;              /* clear stack */
-    mv		 	g0, ___stack_size/2;
+    mv		 	g0, ___stack_size/4;  /* 4 B per store: fill exactly the stack */
     set.loop 	g0, 1;
     mv		 	g2, 0xdeadbeef;
     st       	[a0]+2, g2;	loop_begin; loop_end;

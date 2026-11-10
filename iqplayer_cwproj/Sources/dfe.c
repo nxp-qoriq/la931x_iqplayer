@@ -29,9 +29,61 @@ structTXIQCompParams txiqcompcfg_struct _VSPA_VECTOR_ALIGN;
 
 #ifdef RXIQCOMP2
 structTXIQCompParams2 iq_comp_params2_rx _VSPA_VECTOR_ALIGN;
-#elif !defined(IQMOD_RX_NO_QEC)
-/* Omitted when IQMOD_RX_NO_QEC: frees 512 B of IPPU DRAM for the larger input_buffer */
-structTXIQCompParams rxiqcompcfg_struct _VSPA_VECTOR_ALIGN;
+#else
+/* One QEC set per RX channel. */
+rx_qec_ch_t rxiqcompcfg_ch[QEC_RX_NCH];
+#endif
+
+/* Apply a QEC mailbox message to the RX channel(s) it selects. dc != 0:
+ * MBOX_OPC_RX_DCO_CORR (val = I16 | Q16 << 16), else MBOX_OPC_IQ_CORR.
+ * Returns 0 (NACK) when the channel is out of range. */
+uint32_t rx_qec_mbox_apply(uint32_t msb, uint32_t val, uint32_t dc) {
+#ifndef RXIQCOMP2
+    uint32_t ch = (msb & QEC_MBOX_CH_MASK) >> QEC_MBOX_CH_SHIFT;
+    uint32_t last = ch;
+
+    if (msb & QEC_MBOX_ALL) {
+        ch = 0;
+        last = QEC_RX_NCH - 1;
+    } else if (ch >= QEC_RX_NCH) {
+        return 0;
+    }
+    for (; ch <= last; ch++) {
+        structTXIQCompParams *p = RX_QEC_CFG(ch);
+        if (dc) {
+            p->dcOffset.real = val & 0x0000FFFF;
+            p->dcOffset.imag = val >> 16;
+        } else {
+            rf_update_iq_comp_params(p, (msb >> 20) & 1, msb & 0x0000FFFF, val);
+        }
+        rx_fused_cfg_refresh(ch);
+    }
+#elif defined(RXIQCOMP2)
+    if ((msb & (QEC_MBOX_CH_MASK | QEC_MBOX_ALL)) && !(msb & QEC_MBOX_ALL))
+        return 0;
+    if (dc) {
+        iq_comp_params2_rx.dcOffset.real = val & 0x0000FFFF;
+        iq_comp_params2_rx.dcOffset.imag = val >> 16;
+    } else {
+        rf_update_iq_comp_params2(&iq_comp_params2_rx, (msb >> 20) & 1, msb & 0x0000FFFF, val);
+    }
+#endif
+    return 1;
+}
+
+#ifndef RXIQCOMP2
+static void rx_qec_ch_init(uint32_t ch) {
+    // IQImb_ftaps = [0 f2 f1 f4];
+    // to ignore static IQ imbalance (make it full passthrough): f1=f4=1; f2=0;
+    structTXIQCompParams *p = RX_QEC_CFG(ch);
+
+    p->dcOffset.real = 0.0;
+    p->dcOffset.imag = 0.0;
+    p->IQImb_ftaps[0] = 0.0;
+    p->IQImb_ftaps[1] = 0.0;
+    p->IQImb_ftaps[2] = 1.0;
+    p->IQImb_ftaps[3] = 1.0;
+}
 #endif
 
 void rf_iq_comp_params_init(void) {
@@ -68,15 +120,12 @@ void rf_iq_comp_params_init(void) {
 
 #endif
 
-#if !defined(RXIQCOMP2) && !defined(IQMOD_RX_NO_QEC)
-    // IQImb_ftaps = [0 f2 f1 f4];
-    // to ignore static IQ imbalance (make it full passthrough): f1=f4=1; f2=0;
-    rxiqcompcfg_struct.dcOffset.real = 0.0;
-    rxiqcompcfg_struct.dcOffset.imag = 0.0;
-    rxiqcompcfg_struct.IQImb_ftaps[0] = 0.0;
-    rxiqcompcfg_struct.IQImb_ftaps[1] = 0.0;
-    rxiqcompcfg_struct.IQImb_ftaps[2] = 1.0;
-    rxiqcompcfg_struct.IQImb_ftaps[3] = 1.0;
+#ifndef RXIQCOMP2
+    {
+        uint32_t ch;
+        for (ch = 0; ch < QEC_RX_NCH; ch++)
+            rx_qec_ch_init(ch);
+    }
 #elif defined(RXIQCOMP2)
     // IQImb_ftaps = [0 f2 0 0 0 0 0 0 0 0 f1 f4];
     // to ignore timing skew: IQImb_delay = 1;

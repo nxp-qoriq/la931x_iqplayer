@@ -36,7 +36,7 @@
 #define LOOP_CYCLE_METER 1
 #endif
 #ifndef LOOP_PASS_BUDGET
-#define LOOP_PASS_BUDGET 2560u
+#define LOOP_PASS_BUDGET 2048u
 #endif
 
 volatile int dbg_gbl = 0xdeadbeef;
@@ -124,7 +124,7 @@ __attribute__((noinline)) void meter_end(volatile uint32_t *m, uint32_t t0, uint
  *   no FIFO slot free -> 2, slot free and running -> 1, idle -> 0
  * and done = enq - in_flight * step. done never moves back and advances to
  * min(this pass, previous pass) so a single transient read cannot
- * overestimate it. Same method as RX_DDR_STATE_CMPL. */
+ * overestimate it. Same method as the RX DDR accounting. */
 __attribute__((noinline)) uint32_t dma_done_from_state(uint32_t mask, uint32_t enq, uint32_t done, uint32_t *cand,
                                                        uint32_t step) {
     uint32_t n, c, prev;
@@ -184,10 +184,6 @@ void DDR_write_VSPA_PROXY(uint32_t DDR_wr_dma_channel, uint32_t DDR_address, uin
 #ifdef RX_HOT_TRACE
     l1_trace(L1_TRACE_MSG_DMA_XFR, (uint32_t)DDR_address);
 #endif
-    #ifdef DBG_SPIN_ON
-    while (dbg_gbl == 4) {
-    };
-    #endif
 }
 
 void setup(void) {
@@ -396,10 +392,6 @@ __attribute__((noreturn)) void main(void) {
         axi_wr = axi_DAC_FIFO_addr;
 
         //   __swbreak();
-        #ifdef DBG_SPIN_ON
-        while (dbg_gbl == 1) {
-        };
-        #endif
 
         switch (op_mode) {
 #ifndef IQMOD_RX_0T1R
@@ -454,18 +446,22 @@ __attribute__((noreturn)) void main(void) {
 
         case MBOX_OPC_IQ_CORR: {
             // QEC param update
-            uint32_t iq_channel_id = ((mailbox_in_msg_0_MSB & 0x00030000) >> 16); /* bit49-48 */
+            /* bit 50 all channels, bit49-48 channel (see QEC_MBOX_* in dfe.h) */
             uint32_t iq_tx_rx = ((mailbox_in_msg_0_MSB & 0x00200000) >> 21);      /* bit 53 */
             uint32_t iq_rst = ((mailbox_in_msg_0_MSB & 0x00100000) >> 20);        /* bit 52 */
             uint32_t iq_idx = mailbox_in_msg_0_MSB & 0x0000FFFF;                  /* bit 47-32*/
             uint32_t iq_val = mailbox_in_msg_0_LSB;                               /* bit 31-0 */
+            uint32_t iq_ok;
 
             if (iq_tx_rx) {
+                iq_ok = QEC_TX_CH_OK(mailbox_in_msg_0_MSB);
+                if (iq_ok) {
 #ifdef TXIQCOMP2
-                rf_update_iq_comp_params2(&iq_comp_params2_tx, iq_rst, iq_idx, iq_val);
+                    rf_update_iq_comp_params2(&iq_comp_params2_tx, iq_rst, iq_idx, iq_val);
 #else
-                rf_update_iq_comp_params(&txiqcompcfg_struct, iq_rst, iq_idx, iq_val);
+                    rf_update_iq_comp_params(&txiqcompcfg_struct, iq_rst, iq_idx, iq_val);
 #endif
+                }
 #ifndef IQMOD_RX_0T1R
                 // update single tone pattern
                 if (TX_SingleT_start_bit_update) {
@@ -473,15 +469,12 @@ __attribute__((noreturn)) void main(void) {
                 }
 #endif
             } else {
-#ifdef RXIQCOMP2
-                rf_update_iq_comp_params2(&iq_comp_params2_rx, iq_rst, iq_idx, iq_val);
-#elif !defined(IQMOD_RX_NO_QEC)
-                rf_update_iq_comp_params(&rxiqcompcfg_struct, iq_rst, iq_idx, iq_val);
-#endif
+                iq_ok = rx_qec_mbox_apply(mailbox_in_msg_0_MSB, iq_val, 0);
             }
+            (void)iq_rst; (void)iq_idx;
 
             mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
-            mailbox_out_msg_0_LSB = 0x1;
+            mailbox_out_msg_0_LSB = iq_ok;
             host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
             break;
         }
@@ -508,18 +501,14 @@ __attribute__((noreturn)) void main(void) {
 #endif
 
 #ifndef IQMOD_RX_1T0R
-        case MBOX_OPC_RX_DCO_CORR:
-#ifdef RXIQCOMP2
-            iq_comp_params2_rx.dcOffset.real = (mailbox_in_msg_0_LSB & 0x0000FFFF);
-            iq_comp_params2_rx.dcOffset.imag = ((mailbox_in_msg_0_LSB & 0xFFFF0000) >> 16);
-#elif !defined(IQMOD_RX_NO_QEC)
-            rxiqcompcfg_struct.dcOffset.real = (mailbox_in_msg_0_LSB & 0x0000FFFF);
-            rxiqcompcfg_struct.dcOffset.imag = ((mailbox_in_msg_0_LSB & 0xFFFF0000) >> 16);
-#endif
+        case MBOX_OPC_RX_DCO_CORR: {
+            /* bit 50 all channels, bit49-48 channel */
+            uint32_t dc_ok = rx_qec_mbox_apply(mailbox_in_msg_0_MSB, mailbox_in_msg_0_LSB, 1);
             mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
-            mailbox_out_msg_0_LSB = 0x1;
+            mailbox_out_msg_0_LSB = dc_ok;
             host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
             break;
+        }
 
         case MBOX_OPC_RX_CHAN_SELECT:
             dmac_abort(0x1 << dma_channel_rd);
@@ -643,23 +632,9 @@ __attribute__((noreturn)) void main(void) {
     l1_trace(L1_TRACE_MSG_ENTRY_IDLE, (uint32_t)iord(DMA_FIFO_STAT));
 #endif
 #ifndef IS_SIMULATOR
-#ifdef RX_FC_POLL
-    {
-        extern uint32_t rx_work_pending;
-        extern uint32_t DDR_wr_start_bit_update;
-        /* RX data waits for the FC gate or a DDR DMA slot, neither of which
-         * reliably raises a GO event: re-poll instead of sleeping. */
-        if (rx_work_pending && DDR_wr_start_bit_update)
-            continue;
-    }
-#endif
     __idle();
 #endif
 
     //	__swbreak();
-    #ifdef DBG_SPIN_ON
-    while (dbg_gbl == 2) {
-    };
-    #endif
     } /* while(1) */
 }

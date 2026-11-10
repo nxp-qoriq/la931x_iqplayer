@@ -96,8 +96,10 @@ static t_stats local_vspa_stats[2];
  * recognisable by TX stats 5..7 staying zero together with rx_num_chan==4. */
 /* tx_stats[6] is reused as elapsed-time counter, so only tx[7] is checked. */
 #define N_TX_ZERO_STATS(c) ((c)->tx_stats[7] == 0 && (c)->tx_stats[STAT_DMA_AXIQ_WRITE] == 0 && RX_NUM_CHAN == 4)
-/* VSPA cycles per 1 KB AXIQ buffer (256 samples at 61.44 MSPS, 614.4 MHz). */
-#define VSPA_CY_PER_AXIQ_BUF 2560u
+/* VSPA cycles per 1 KB AXIQ buffer: 256 samples at 61.44 MSPS with the VSPA
+ * at 491.52 MHz, as measured on RFNM (the clock is set by the RFNM FreeRTOS,
+ * not by the insmod rate). */
+#define VSPA_CY_PER_AXIQ_BUF 2048u
 static double g_dt_s = 1.0;
 static t_stats local_hostapp_stats[2];
 uint32_t vspa_stats_tab;
@@ -356,8 +358,8 @@ void print_vspa_stats(void) {
             printf("[VSPA RX loss check] measured VSPA clk %.2f MHz, ch0 %.0f buf/s (nominal 240000, %.4f%%)"
                    ", cy/buf %.0f\n",
                    fclk / 1e6, bps, bps / 2400.0, bps > 0 ? fclk / bps : 0.0);
-            printf(" (legacy 614.4MHz/2560 assumption) expected %llu buf/ch\n",
-                   (unsigned long long)exp_buf);
+            printf(" (%u cy/buf, VSPA 491.52 MHz) expected %llu buf/ch\n",
+                   VSPA_CY_PER_AXIQ_BUF, (unsigned long long)exp_buf);
             printf(" %-13s", "rcvd-expected");
             for (j = 0; j < rx_num_chan; j++)
                 printf("\t%10lld", (long long)vspa_cur->rx_stats[j][STAT_DMA_AXIQ_READ] - (long long)exp_buf);

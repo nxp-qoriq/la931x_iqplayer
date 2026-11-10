@@ -29,6 +29,7 @@
 #include <signal.h>
 #include <argp.h>
 #include <termios.h>
+#include <time.h>
 #include <la9310_modinfo.h>
 #include <la9310_host_if.h>
 /* LA9310_DEV_NAME_PREFIX is defined in the NXP-tree la9310_host_if.h.
@@ -53,8 +54,10 @@
 #ifdef HAVE_ARMRAL
 #include <armral.h>
 typedef armral_cmplx_int16_t iq_cs16_t;
+typedef armral_cmplx_f32_t   iq_cf32_t;
 #else
 typedef struct { int16_t re; int16_t im; } iq_cs16_t;
+typedef struct { float re; float im; } iq_cf32_t;
 #endif
 
 /* -----------------------------------------------------------------------
@@ -82,10 +85,30 @@ static bool     g_n_rx_set = false; /* true when -n was given explicitly */
 /* spectrum / tone parameters */
 static uint32_t g_fft_size    = 512;
 static uint32_t g_bar_cols    = 80;
-static float    g_db_floor    = -80.0f;
+static float    g_db_floor    = -100.0f;
+static float    g_db_top      = 0.0f;   /* -K: top of the bar chart, dBFS */
+static uint32_t g_spec_navg   = 8;      /* -M: FFTs averaged per refresh */
+static bool     g_fft_set     = false;  /* true when -N was given */
+static uint32_t g_spec_rows   = 0;      /* -L: chart rows, 0 = auto (40/16/10 for 1/2/4 ch) */
+static bool     g_tone_dbbar  = false;  /* -l: -T bar in dB (default linear amplitude) */
+static bool     g_spec_hann   = false;  /* -H: Hann window + power average */
+static const char *g_spec_file = NULL;  /* -P: offline spectrum of a file */
+#define SPEC_FFT_DEFAULT 8192u          /* -X/-P default, as compute_tone_params.py */
 static float    g_srate_mhz   = 122.88f;
 static bool     g_srate_set   = false; /* true when -Z was given explicitly */
 static float    g_conv_mhz    = 61.44f; /* ADC/DAC converter rate (-Y), default half rate */
+
+/* QEC config directory (-Q) and load-at-start control (-U disables) */
+static const char *g_qec_dir  = "./qec";
+static bool     g_qec_load    = true;
+
+/* -X snapshot capture ('w' key): base name (-w) and per-channel bytes (-d,
+ * 0 = 1 ms at the RX sample rate) */
+static const char *g_snap_base = "./capture/rx";
+static uint32_t g_snap_bytes   = 0;
+static float    g_snap_ms      = 1.0f; /* used when g_snap_bytes == 0 */
+static volatile int g_snap_req = 0;
+static char     g_snap_msg[160] = "";
 
 /* RX flow-control parameters */
 static uint32_t g_rx_copy_rate     = 100u; /* percent of chunks to memcpy (100 = all) */
@@ -200,10 +223,24 @@ void print_cmd_help(void)
         "|\t-t\t\tTX mode (stream file to VSPA)\n"
         "|\t-r\t\tRX mode (capture VSPA output to file)\n"
         "|\t-X\t\tSpectrum mode (live FFT display; keys: g/G p/P i/I j/J RX QEC,\n"
-        "|\t\t\t  r reset gain/phase, s save ./qec/qec_coeff_rx_ant0.cfg, q quit)\n"
+        "|\t\t\t  c next QEC channel, r reset gain/phase,\n"
+        "|\t\t\t  s save <qecdir>/qec_coeff_rx_ant<ch>.cfg,\n"
+        "|\t\t\t  w write IQ snapshot of all channels, q quit)\n"
+        "|\t-C <ch>\t\tRX QEC channel selected at start in -X mode (default 0)\n"
         "|\t-T\t\tInteractive tone TX (keys: up/dn freq, lt/rt amp, w wave,\n"
         "|\t\t\t  g/G p/P i/I j/J TX QEC, r reset, s save, q quit)\n"
         "|\t-v\t\tVersion\n"
+        "|\n"
+        "| QEC options:\n"
+        "|\t-Q <dir>\tQEC config directory (default ./qec). Saved\n"
+        "|\t\t\t  qec_coeff_rx_ant<ch>.cfg / qec_coeff_tx_ant0.cfg are\n"
+        "|\t\t\t  applied at start (-r -X -t -T)\n"
+        "|\t-U\t\tDo not apply saved QEC at start\n"
+        "|\n"
+        "| Snapshot options (used with -X, key w):\n"
+        "|\t-w <base>\tSnapshot base name (default ./capture/rx), writes\n"
+        "|\t\t\t  <base>_<rate>Msps_ch<N>_<YYYYmmdd_HHMMSS>.bin\n"
+        "|\t-d <size>\tSnapshot size per channel: bytes, or <N>ms (default 1ms)\n"
         "|\n"
         "| Common options:\n"
         "|\t-c <chanID>\tFirst RX channel index (default 0)\n"
@@ -216,14 +253,21 @@ void print_cmd_help(void)
         "|\t-S <pct>\tRX throttle: slow down drain to pct%% of 500 MB/s ref\n"
         "|\n"
         "| Spectrum options (used with -X):\n"
-        "|\t-N <fft_size>\tFFT size, power-of-2 (default 512)\n"
+        "|\t-N <fft_size>\tFFT size, power-of-2 (default 8192 for -X/-P, 512 for -T)\n"
+        "|\t-H\t\tHann window + power average (default: rectangular,\n"
+        "|\t\t\t  mean |X| as host-utils/compute_tone_params.py)\n"
+        "|\t-P <file>\tOffline spectrum of a cs16 capture file, no modem needed\n"
         "|\t-W <cols>\tBar width in terminal columns (default 80)\n"
-        "|\t-B <dbfs>\tdBFS floor, negative (default -80)\n"
+        "|\t-B <dbfs>\tdBFS bottom of the chart, negative (default -100)\n"
+        "|\t-L <rows>\tChart rows per channel, 3-60 (default 40 for 1 ch, 16 for 2, 10 for 3-4)\n"
+        "|\t-K <dbfs>\tdBFS top of the chart (default 0)\n"
+        "|\t-M <navg>\tFFTs averaged per refresh (default 8)\n"
         "|\t-Y <mhz>\tADC/DAC converter rate MHz (default 61.44 half rate, 122.88 full rate)\n"
         "|\t-Z <mhz>\tSample rate MHz override (default: -Y rate / VSPA decim or upsmp)\n"
         "|\n"
         "| Tone options (used with -T):\n"
         "|\t-q <freq_khz>\tTone frequency in kHz (default Fs/8)\n"
+        "|\t-l\t\tTone panel bar in dB (-B floor to 0 dBFS); default linear amplitude\n"
         "|\t-A <amp>\tAmplitude 0.0-1.0 (default 1.0)\n"
         "|\t-V <tone|two_tone|noise>\tWaveform type (default tone)\n"
         "+--------------------------------------------------------------+\n"
@@ -908,21 +952,40 @@ static void *spec_kbd_thread(void *arg)
     return NULL;
 }
 
-/* Simple libm DFT fallback -- used when HAVE_ARMRAL is not defined.
- * Computes in[0..n-1] -> out[0..n-1].  out is a cs16 array scaled by 1/n.
- * Only enabled at compile time to avoid dead-code warnings. */
+/* Radix-2 FFT fallback, used when HAVE_ARMRAL is not defined (for example
+ * an x86 build for -P). Unscaled, same convention as armral_fft_execute_cf32.
+ * n must be a power of 2. */
 #ifndef HAVE_ARMRAL
-static void dft_cs16(const iq_cs16_t *in, iq_cs16_t *out, uint32_t n)
+static void fft_radix2_cf32(const iq_cf32_t *in, iq_cf32_t *out, uint32_t n)
 {
-    for (uint32_t k = 0; k < n; k++) {
-        double re = 0.0, im = 0.0;
-        for (uint32_t j = 0; j < n; j++) {
-            double angle = -2.0 * M_PI * (double)k * (double)j / (double)n;
-            re += (double)in[j].re * cos(angle) - (double)in[j].im * sin(angle);
-            im += (double)in[j].re * sin(angle) + (double)in[j].im * cos(angle);
+    uint32_t bits = 0, i, j, len;
+
+    while ((1u << bits) < n)
+        bits++;
+    for (i = 0; i < n; i++) {
+        uint32_t r = 0, x = i;
+        for (j = 0; j < bits; j++) {
+            r = (r << 1) | (x & 1u);
+            x >>= 1;
         }
-        out[k].re = (int16_t)(re / (double)n);
-        out[k].im = (int16_t)(im / (double)n);
+        out[r] = in[i];
+    }
+    for (len = 2; len <= n; len <<= 1) {
+        double ang = -2.0 * M_PI / (double)len;
+        for (j = 0; j < len / 2u; j++) {
+            float c = (float)cos(ang * (double)j);
+            float sn = (float)sin(ang * (double)j);
+            for (i = 0; i < n; i += len) {
+                iq_cf32_t u = out[i + j];
+                iq_cf32_t v = out[i + j + len / 2u];
+                float vr = v.re * c - v.im * sn;
+                float vi = v.re * sn + v.im * c;
+                out[i + j].re = u.re + vr;
+                out[i + j].im = u.im + vi;
+                out[i + j + len / 2u].re = u.re - vr;
+                out[i + j + len / 2u].im = u.im - vi;
+            }
+        }
     }
 }
 #endif /* !HAVE_ARMRAL */
@@ -966,9 +1029,402 @@ static void spec_print_freq_axis(uint32_t bar_w)
     printf("%s  MHz\n", line);
 }
 
+#ifdef HAVE_ARMRAL
+static armral_fft_plan_t *g_spec_plan;
+#endif
+
+static void spec_fft(iq_cf32_t *in, iq_cf32_t *out, uint32_t n)
+{
+#ifdef HAVE_ARMRAL
+    (void)n;
+    armral_fft_execute_cf32(g_spec_plan, in, out);
+#else
+    fft_radix2_cf32(in, out, n);
+#endif
+}
+
+/* Line end: clear to end of line on a live screen, plain newline for -P. */
+static const char *spec_eol(void)
+{
+    return g_spec_file ? "\n" : "\033[K\n";
+}
+
+/* Add one FFT block to acc[] (natural bin order).
+ * win == NULL (default): rectangular window, acc += |X| / (N * 32768), the
+ *   same scaling as compute_tone_params.py (mean |X| over blocks).
+ * win != NULL (-H): Hann window, acc += |X|^2 / (sum(w)^2 * 32768^2), power
+ *   average normalised so a full-scale on-bin tone reads 0 dBFS.
+ * Also accumulates sum(I), sum(Q) and sum(I^2 + Q^2) for RSSI and DC. */
+static void spec_accum_block(const iq_cs16_t *raw, uint32_t n,
+                             const float *win, float win_sum,
+                             iq_cf32_t *in, iq_cf32_t *out, float *acc,
+                             double *sum_i, double *sum_q, double *sum_p)
+{
+    uint32_t k;
+    double si = 0.0, sq = 0.0, sp = 0.0;
+
+    for (k = 0; k < n; k++) {
+        double re = (double)raw[k].re;
+        double im = (double)raw[k].im;
+        si += re;
+        sq += im;
+        sp += re * re + im * im;
+        if (win) {
+            in[k].re = (float)raw[k].re * win[k];
+            in[k].im = (float)raw[k].im * win[k];
+        } else {
+            in[k].re = (float)raw[k].re;
+            in[k].im = (float)raw[k].im;
+        }
+    }
+    *sum_i += si;
+    *sum_q += sq;
+    *sum_p += sp;
+
+    spec_fft(in, out, n);
+
+    if (win) {
+        float sc = 1.0f / (win_sum * win_sum * 32768.0f * 32768.0f);
+        for (k = 0; k < n; k++)
+            acc[k] += (out[k].re * out[k].re + out[k].im * out[k].im) * sc;
+    } else {
+        float sc = 1.0f / ((float)n * 32768.0f);
+        for (k = 0; k < n; k++)
+            acc[k] += sqrtf(out[k].re * out[k].re + out[k].im * out[k].im) * sc;
+    }
+}
+
+static int spec_cmp_float(const void *a, const void *b)
+{
+    float x = *(const float *)a, y = *(const float *)b;
+    return (x > y) - (x < y);
+}
+
+/* Print one channel: 3 text lines, bar chart and frequency axis.
+ * acc/nblk is the accumulator from spec_accum_block(); pwr and tmp are
+ * scratch arrays of n floats. */
+static void spec_render_channel(uint32_t idx, uint32_t chan_id,
+                                const float *acc, uint32_t nblk,
+                                double sum_i, double sum_q, double sum_p,
+                                uint32_t n, uint32_t bar_rows,
+                                float *pwr, float *tmp)
+{
+    const float fs2 = 32768.0f * 32768.0f;
+    float bin_hz = (g_srate_mhz * 1e6f) / (float)n;
+    double ns = (double)nblk * (double)n;
+    uint32_t k, row, col;
+
+    /* linear power per bin, then dBFS */
+    for (k = 0; k < n; k++) {
+        float v = acc[k] / (float)nblk;
+        if (!g_spec_hann)
+            v = v * v;
+        pwr[k] = 10.0f * log10f(v + 1e-30f);
+    }
+
+    /* floor: median bin level, matches the flat part of the python plot */
+    memcpy(tmp, pwr, n * sizeof(float));
+    qsort(tmp, n, sizeof(float), spec_cmp_float);
+    float floor_db = tmp[n / 2u];
+
+    double mi = sum_i / ns, mq = sum_q / ns;
+    float rssi_db = 10.0f * log10f((float)(sum_p / ns) / fs2 + 1e-30f);
+    float dc_db   = 10.0f * log10f((float)(mi * mi + mq * mq) / fs2 + 1e-30f);
+
+    /* spurs: up to 4 local maxima, 6 dB above the floor, at least 5 bins
+     * apart, DC +-2 bins excluded (LO leakage is reported as DC) */
+    uint32_t sp_bin[4];
+    uint32_t nsp = 0, t;
+    for (t = 0; t < 4u; t++) {
+        float best = floor_db + 6.0f;
+        uint32_t bb = 0;
+        int found = 0;
+        for (k = 3u; k + 3u < n; k++) {
+            float v = pwr[k];
+            uint32_t q;
+            int near = 0;
+            if (v <= best || v < pwr[k - 1u] || v < pwr[k + 1u])
+                continue;
+            for (q = 0; q < nsp; q++) {
+                int32_t d = (int32_t)k - (int32_t)sp_bin[q];
+                if (d > -5 && d < 5)
+                    near = 1;
+            }
+            if (near)
+                continue;
+            best = v;
+            bb = k;
+            found = 1;
+        }
+        if (!found)
+            break;
+        sp_bin[nsp++] = bb;
+    }
+
+    printf("Ch%u (RxChan %u)  Fs %.2f MHz  FFT %u x%u  RBW %.1f kHz  %s%s",
+           idx, chan_id, (double)g_srate_mhz, n, nblk,
+           (double)(bin_hz / 1e3f), g_spec_hann ? "hann/pwr" : "rect/mag",
+           spec_eol());
+    printf("  RSSI %.1f  floor %.1f  DC %.1f dBFS%s",
+           (double)rssi_db, (double)floor_db, (double)dc_db, spec_eol());
+    printf("  spurs:");
+    if (nsp == 0u)
+        printf(" none");
+    for (t = 0; t < nsp; t++) {
+        int32_t sb = (sp_bin[t] >= n / 2u) ?
+                     (int32_t)sp_bin[t] - (int32_t)n : (int32_t)sp_bin[t];
+        printf(" %.1f@%+.2f", (double)pwr[sp_bin[t]],
+               (double)((float)sb * bin_hz / 1e6f));
+    }
+    printf("%s%s", nsp ? " MHz" : "", spec_eol());
+
+    /* chart, DC in the middle: '#' up to the column mean, '|' up to the
+     * column max, so tones and spurs show as spikes over the floor */
+    uint32_t bar_w = g_bar_cols;
+    float db_top = g_db_top, db_bot = g_db_floor;
+    if (bar_w > n)
+        bar_w = n;
+    if (db_top <= db_bot)
+        db_top = db_bot + 10.0f;
+    float db_range = db_top - db_bot;
+
+    for (row = 0; row < bar_rows; row++) {
+        float row_db = db_top - (float)(row + 1u) * db_range / (float)bar_rows;
+        printf("%6.1f |", (double)row_db);
+        for (col = 0; col < bar_w; col++) {
+            uint32_t b0 = col * n / bar_w;
+            uint32_t b1 = (col + 1u) * n / bar_w;
+            float mx = -300.0f;
+            double sum = 0.0;
+            uint32_t b;
+            for (b = b0; b < b1; b++) {
+                float v = pwr[(b + n / 2u) % n];
+                if (v > mx)
+                    mx = v;
+                sum += pow(10.0, (double)v / 10.0);
+            }
+            float mean_db = 10.0f * log10f((float)(sum / (double)(b1 - b0)) + 1e-30f);
+            putchar(mean_db >= row_db ? '#' : (mx >= row_db ? '|' : ' '));
+        }
+        printf("|%s", spec_eol());
+    }
+    printf("       +");
+    for (col = 0; col < bar_w; col++)
+        putchar((col % (bar_w / 4u ? bar_w / 4u : 1u)) == 0u ? '+' : '-');
+    printf("+%s", spec_eol());
+    spec_print_freq_axis(bar_w);
+}
+
+/* -P <file>: offline spectrum of a cs16 capture (same format as iq_app -r /
+ * iq-capture.sh), using all full blocks like compute_tone_params.py. Runs
+ * without the modem, so the same code can be checked on a PC. */
+static int spec_file_app(const char *path)
+{
+    uint32_t n = g_fft_set ? g_fft_size : SPEC_FFT_DEFAULT;
+    FILE *f = fopen(path, "rb");
+    int ret = EXIT_FAILURE;
+
+    if (!g_srate_set)
+        g_srate_mhz = g_conv_mhz;
+    if (!f) {
+        perror(path);
+        return EXIT_FAILURE;
+    }
+    if (n < 64u || (n & (n - 1u)) != 0u) {
+        fprintf(stderr, "-N must be a power of 2 >= 64\n");
+        fclose(f);
+        return EXIT_FAILURE;
+    }
+
+    iq_cs16_t *raw = malloc(n * sizeof(iq_cs16_t));
+    iq_cf32_t *in  = malloc(n * sizeof(iq_cf32_t));
+    iq_cf32_t *out = malloc(n * sizeof(iq_cf32_t));
+    float *win = malloc(n * sizeof(float));
+    float *acc = calloc(n, sizeof(float));
+    float *pwr = malloc(n * sizeof(float));
+    float *tmp = malloc(n * sizeof(float));
+    float win_sum = 0.0f;
+    double si = 0.0, sq = 0.0, sp = 0.0;
+    uint32_t nblk = 0, k;
+
+    if (!raw || !in || !out || !win || !acc || !pwr || !tmp)
+        goto out;
+    for (k = 0; k < n; k++) {
+        win[k] = 0.5f * (1.0f - cosf(2.0f * (float)M_PI * (float)k / (float)(n - 1u)));
+        win_sum += win[k];
+    }
+#ifdef HAVE_ARMRAL
+    if (armral_fft_create_plan_cf32(&g_spec_plan, (int)n, ARMRAL_FFT_FORWARDS) != ARMRAL_SUCCESS)
+        goto out;
+#endif
+    while (fread(raw, sizeof(iq_cs16_t), n, f) == n) {
+        spec_accum_block(raw, n, g_spec_hann ? win : NULL, win_sum,
+                         in, out, acc, &si, &sq, &sp);
+        nblk++;
+    }
+    if (nblk == 0u) {
+        fprintf(stderr, "%s: less than one FFT block\n", path);
+    } else {
+        printf("%s: %u samples (%.2f ms)\n", path, nblk * n,
+               (double)((float)(nblk * n) / (g_srate_mhz * 1e3f)));
+        spec_render_channel(0, 0, acc, nblk, si, sq, sp, n,
+                            g_spec_rows ? g_spec_rows : 40u, pwr, tmp);
+        ret = EXIT_SUCCESS;
+    }
+#ifdef HAVE_ARMRAL
+    if (g_spec_plan)
+        armral_fft_destroy_plan(&g_spec_plan);
+#endif
+out:
+    fclose(f);
+    free(raw); free(in); free(out); free(win);
+    free(acc); free(pwr); free(tmp);
+    return ret;
+}
+
+/* Snapshot ('w' key) helpers. The snapshot copies every new byte of each
+ * channel ring from the moment of the request, so the capture is contiguous
+ * even though the spectrum view itself drops old blocks. */
+#define SNAP_MAX_BYTES (64u * 1024u * 1024u)
+
+typedef struct {
+    int      active;
+    uint32_t bytes;            /* per-channel target size */
+    uint32_t got[RX_NUM_MAX_CHAN];
+    uint64_t pos[RX_NUM_MAX_CHAN];  /* next absolute ring position to copy */
+    uint8_t *buf[RX_NUM_MAX_CHAN];
+    char     stamp[32];
+} spec_snap_t;
+
+/* mkdir -p for the directory part of path */
+static void snap_mkdirs(const char *path)
+{
+    char tmp[256];
+    char *p;
+
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    p = strrchr(tmp, '/');
+    if (!p)
+        return;
+    *p = '\0';
+    for (p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            mkdir(tmp, 0755);
+            *p = '/';
+        }
+    }
+    mkdir(tmp, 0755);
+}
+
+/* Sample rate tag for file names, e.g. 30.72 -> "30p72", 61.44 -> "61p44" */
+static void snap_rate_tag(char *out, size_t len)
+{
+    char *p;
+
+    snprintf(out, len, "%.3f", (double)g_srate_mhz);
+    p = out + strlen(out) - 1;
+    while (p > out && *p == '0')
+        *p-- = '\0';
+    if (*p == '.')
+        *p = '\0';
+    p = strchr(out, '.');
+    if (p)
+        *p = 'p';
+}
+
+static void snap_start(spec_snap_t *sn, rx_chan_ctx_t *ctxs, uint32_t n)
+{
+    uint32_t i, bytes = g_snap_bytes;
+    time_t t = time(NULL);
+    struct tm tmv;
+
+    if (bytes == 0u)  /* default: g_snap_ms (1 ms) at the RX sample rate, cs16 */
+        bytes = (uint32_t)(g_srate_mhz * 1000.0f * g_snap_ms + 0.5f) * (uint32_t)sizeof(iq_cs16_t);
+    if (bytes > SNAP_MAX_BYTES)
+        bytes = SNAP_MAX_BYTES;
+    bytes &= ~3u;
+    memset(sn, 0, sizeof(*sn));
+    sn->bytes = bytes;
+    for (i = 0; i < n && i < RX_NUM_MAX_CHAN; i++) {
+        sn->buf[i] = malloc(bytes);
+        if (!sn->buf[i]) {
+            snprintf(g_snap_msg, sizeof(g_snap_msg), "snapshot: malloc %u failed", bytes);
+            while (i--)
+                free(sn->buf[i]);
+            return;
+        }
+        __asm__ volatile("" ::: "memory");
+        sn->pos[i] = ctxs[i].ring_rpos;
+    }
+    localtime_r(&t, &tmv);
+    strftime(sn->stamp, sizeof(sn->stamp), "%Y%m%d_%H%M%S", &tmv);
+    sn->active = 1;
+    snprintf(g_snap_msg, sizeof(g_snap_msg), "snapshot: capturing %u bytes/ch ...", bytes);
+}
+
+/* Copy new ring bytes [pos, w) of channel i; must run before ring_rpos
+ * is advanced past w. */
+static void snap_feed(spec_snap_t *sn, uint32_t i, rx_chan_ctx_t *ctx, uint64_t w)
+{
+    uint32_t ring_size = ctx->ring_mask + 1u;
+
+    /* drain thread may have overwritten unread data (sink_mode eviction) */
+    if (w - sn->pos[i] > (uint64_t)ring_size) {
+        sn->pos[i] = w - ring_size;
+        snprintf(g_snap_msg, sizeof(g_snap_msg), "snapshot: ch%u ring overrun, data gap", i);
+    }
+    while (sn->got[i] < sn->bytes && sn->pos[i] < w) {
+        uint32_t off   = (uint32_t)(sn->pos[i] & (uint64_t)ctx->ring_mask);
+        uint32_t chunk = ring_size - off;
+        uint64_t avail = w - sn->pos[i];
+        uint32_t left  = sn->bytes - sn->got[i];
+
+        if ((uint64_t)chunk > avail)
+            chunk = (uint32_t)avail;
+        if (chunk > left)
+            chunk = left;
+        memcpy(sn->buf[i] + sn->got[i], ctx->ring_buf + off, chunk);
+        sn->got[i] += chunk;
+        sn->pos[i] += chunk;
+    }
+}
+
+/* Write the files once every channel is complete. */
+static void snap_finish(spec_snap_t *sn, rx_chan_ctx_t *ctxs, uint32_t n)
+{
+    char rate[24], path[320];
+    uint32_t i, nok = 0;
+
+    for (i = 0; i < n && i < RX_NUM_MAX_CHAN; i++)
+        if (sn->got[i] < sn->bytes)
+            return;
+    snap_rate_tag(rate, sizeof(rate));
+    snap_mkdirs(g_snap_base);
+    for (i = 0; i < n && i < RX_NUM_MAX_CHAN; i++) {
+        FILE *fp;
+        snprintf(path, sizeof(path), "%s_%sMsps_ch%u_%s.bin",
+                 g_snap_base, rate, ctxs[i].chan_id, sn->stamp);
+        fp = fopen(path, "wb");
+        if (fp) {
+            if (fwrite(sn->buf[i], 1, sn->bytes, fp) == sn->bytes)
+                nok++;
+            fclose(fp);
+        }
+        free(sn->buf[i]);
+        sn->buf[i] = NULL;
+    }
+    snprintf(g_snap_msg, sizeof(g_snap_msg), "snapshot: %u/%u file(s) %s_%sMsps_ch*_%s.bin (%u bytes/ch)",
+             nok, n, g_snap_base, rate, sn->stamp, sn->bytes);
+    sn->active = 0;
+}
+
 static int process_ant_rx_spectrum_app(void)
 {
+    spec_snap_t snap;
     pin_ui_cores();
+    if (!g_fft_set)
+        g_fft_size = SPEC_FFT_DEFAULT;
     int ret = 0;
     uint32_t n   = g_n_rx;
     uint32_t fft_n = g_fft_size;
@@ -981,6 +1437,9 @@ static int process_ant_rx_spectrum_app(void)
     /* must also hold at least 4 * fft_n samples */
     if (ring_sz < fft_n * 4u * (uint32_t)sizeof(iq_cs16_t))
         ring_sz = fft_n * 4u * (uint32_t)sizeof(iq_cs16_t);
+    /* and g_spec_navg FFT blocks plus slack */
+    if (ring_sz < fft_n * (g_spec_navg + 2u) * (uint32_t)sizeof(iq_cs16_t))
+        ring_sz = fft_n * (g_spec_navg + 2u) * (uint32_t)sizeof(iq_cs16_t);
     {
         uint32_t p = 1;
         while (p < ring_sz)
@@ -1001,26 +1460,33 @@ static int process_ant_rx_spectrum_app(void)
     }
 
     /* FFT scratch buffers (shared across channels -- one FFT at a time) */
-    iq_cs16_t *fft_in  = malloc(fft_n * sizeof(iq_cs16_t));
-    iq_cs16_t *fft_out = malloc(fft_n * sizeof(iq_cs16_t));
+    /* Raw cs16 samples are copied from the ring, then windowed and
+     * transformed in float. A cs16 FFT loses ~50 dB of dynamic range
+     * (internal 1/N scaling plus int16 rounding), which hides the noise
+     * floor and any weak wideband signal. */
+    iq_cs16_t *fft_raw = malloc(fft_n * sizeof(iq_cs16_t));
+    iq_cf32_t *fft_in  = malloc(fft_n * sizeof(iq_cf32_t));
+    iq_cf32_t *fft_out = malloc(fft_n * sizeof(iq_cf32_t));
     /* hann window: w[k] = 0.5*(1 - cos(2*pi*k/(N-1))), pre-computed once */
     float     *hann_win = malloc(fft_n * sizeof(float));
-    if (!fft_in || !fft_out || !hann_win) {
+    float      win_sum  = 0.0f;
+    if (!fft_raw || !fft_in || !fft_out || !hann_win) {
         fprintf(stderr, "spectrum: FFT buffer malloc failed\n");
         ret = EXIT_FAILURE;
         goto out_fft_bufs;
     }
     {
         float n1 = (fft_n > 1u) ? (float)(fft_n - 1u) : 1.0f;
-        for (uint32_t k = 0; k < fft_n; k++)
+        for (uint32_t k = 0; k < fft_n; k++) {
             hann_win[k] = 0.5f * (1.0f - cosf(2.0f * (float)M_PI * (float)k / n1));
+            win_sum += hann_win[k];
+        }
     }
 
 #ifdef HAVE_ARMRAL
-    armral_fft_plan_t *plan = NULL;
-    armral_status ral_ret = armral_fft_create_plan_cs16(&plan, (int)fft_n, ARMRAL_FFT_FORWARDS);
+    armral_status ral_ret = armral_fft_create_plan_cf32(&g_spec_plan, (int)fft_n, ARMRAL_FFT_FORWARDS);
     if (ral_ret != ARMRAL_SUCCESS) {
-        fprintf(stderr, "spectrum: armral_fft_create_plan_cs16 failed (%d)\n", (int)ral_ret);
+        fprintf(stderr, "spectrum: armral_fft_create_plan_cf32 failed (%d)\n", (int)ral_ret);
         ret = EXIT_FAILURE;
         goto out_plan;
     }
@@ -1029,7 +1495,8 @@ static int process_ant_rx_spectrum_app(void)
     /* per-channel EMA display state: disp[ch * fft_n .. (ch+1)*fft_n - 1] */
     float *disp  = malloc(n * fft_n * sizeof(float));
     float *power = malloc(fft_n * sizeof(float));  /* scratch for one channel */
-    if (!disp || !power) {
+    float *sortb = malloc(fft_n * sizeof(float));  /* scratch for the median */
+    if (!disp || !power || !sortb) {
         fprintf(stderr, "spectrum: disp/power malloc failed\n");
         ret = EXIT_FAILURE;
 #ifdef HAVE_ARMRAL
@@ -1038,8 +1505,17 @@ static int process_ant_rx_spectrum_app(void)
         goto out_disp;
 #endif
     }
+    /* disp holds linear power (averaged); converted to dB at render time */
     for (i = 0; i < n * fft_n; i++)
-        disp[i] = g_db_floor;
+        disp[i] = 0.0f;
+    /* averaged time-domain levels per channel: AC power (DC removed) and
+     * DC power, both in LSB^2; -1 = not yet initialised */
+    double   ch_si[RX_NUM_MAX_CHAN], ch_sq[RX_NUM_MAX_CHAN], ch_sp[RX_NUM_MAX_CHAN];
+    uint32_t ch_nb[RX_NUM_MAX_CHAN];
+    for (i = 0; i < RX_NUM_MAX_CHAN; i++) {
+        ch_si[i] = ch_sq[i] = ch_sp[i] = 0.0;
+        ch_nb[i] = 0u;
+    }
 
     /* initialise channels, alloc rings (drain thread spawned after the loop) */
     for (i = 0; i < n; i++) {
@@ -1098,8 +1574,13 @@ static int process_ant_rx_spectrum_app(void)
     /* hide cursor, clear screen */
     printf("\033[?25l\033[2J");
     fflush(stdout);
+    memset(&snap, 0, sizeof(snap));
 
     while (running) {
+        if (g_snap_req && !snap.active) {
+            g_snap_req = 0;
+            snap_start(&snap, ctxs, n);
+        }
         /* wait until at least one channel has fft_n samples available */
         int any_ready = 0;
         while (running && !any_ready) {
@@ -1120,130 +1601,68 @@ static int process_ant_rx_spectrum_app(void)
         printf("\033[H");
         rx_qec_status_line();
 
-        /* rows per channel: fit all channels in ~40 terminal lines (1 header + 1 border).
-         * Maximum 10, minimum 3. */
-        uint32_t bar_rows = (n > 0u) ? (40u / n) : 10u;
-        if (bar_rows > 2u) bar_rows -= 2u; else bar_rows = 3u;
-        if (bar_rows > 10u) bar_rows = 10u;
-        if (bar_rows < 3u)  bar_rows = 3u;
+        /* Each refresh: FFT of up to g_spec_navg newest blocks per channel,
+         * no history kept between refreshes (see spec_accum_block). */
+        uint32_t need_bytes = fft_n * (uint32_t)sizeof(iq_cs16_t);
+        uint32_t bar_rows   = g_spec_rows ? g_spec_rows :
+                              ((n > 2u) ? 10u : ((n > 1u) ? 16u : 40u));
 
-        uint32_t bar_w    = g_bar_cols;
-        if (bar_w > fft_n) bar_w = fft_n;
-        float db_range    = fabsf(g_db_floor);
-        float bin_hz      = (g_srate_mhz * 1e6f) / (float)fft_n;
-        float fs2         = 32767.0f * 32767.0f;
-
-        for (i = 0; i < n; i++) {
+        for (i = 0; i < n && i < RX_NUM_MAX_CHAN; i++) {
             rx_chan_ctx_t *ctx = &ctxs[i];
-            float *ch_disp = disp + i * fft_n;
+            float *acc = disp + i * fft_n;
 
-            /* consume fft_n samples from ring if available */
             __asm__ volatile("" ::: "memory");
-            uint64_t w    = ctx->ring_wpos;
-            uint64_t r    = ctx->ring_rpos;
-            uint64_t avail_bytes = w - r;
-            uint32_t need_bytes  = fft_n * (uint32_t)sizeof(iq_cs16_t);
+            uint64_t w = ctx->ring_wpos;
+            uint64_t r = ctx->ring_rpos;
+            uint64_t nb64 = (w - r) / (uint64_t)need_bytes;
 
-            if (avail_bytes >= (uint64_t)need_bytes) {
-                /* Spectrum mode: always show latest samples.
-                 * If the ring has accumulated a backlog (render slower than
-                 * drain), skip ahead to the most recent fft_n samples.
-                 * This frees the ring space immediately so the drain thread
-                 * can resume calling iq_player_receive_data() and
-                 * rx_fc_notify(), preventing VSPA DDR_WR_OVR. */
-                if (avail_bytes > (uint64_t)need_bytes) {
-                    r = w - (uint64_t)need_bytes;
-                    __asm__ volatile("" ::: "memory");
-                    ctx->ring_rpos = r;
-                    __asm__ volatile("" ::: "memory");
-                }
+            if (snap.active)
+                snap_feed(&snap, i, ctx, w);
+            uint32_t nblk = (nb64 > (uint64_t)g_spec_navg) ?
+                            g_spec_navg : (uint32_t)nb64;
 
-                /* copy fft_n samples, handling ring wrap */
+            if (nblk > 0u) {
+                /* newest nblk blocks; older data is dropped so the drain
+                 * thread never stalls (avoids VSPA DDR_WR_OVR) */
                 uint32_t ring_size_loc = ctx->ring_mask + 1u;
-                uint32_t src_off = (uint32_t)(r & (uint64_t)ctx->ring_mask);
-                uint32_t linear  = ring_size_loc - src_off;
-
-                if (linear >= need_bytes) {
-                    memcpy(fft_in,
-                           (iq_cs16_t *)(ctx->ring_buf + src_off),
-                           need_bytes);
-                } else {
-                    /* wraps: copy in two parts */
-                    memcpy(fft_in,
-                           (iq_cs16_t *)(ctx->ring_buf + src_off),
-                           linear);
-                    memcpy((uint8_t *)fft_in + linear,
-                           ctx->ring_buf,
-                           need_bytes - linear);
+                r = w - (uint64_t)nblk * need_bytes;
+                memset(acc, 0, fft_n * sizeof(float));
+                ch_si[i] = ch_sq[i] = ch_sp[i] = 0.0;
+                for (uint32_t blk = 0; blk < nblk; blk++) {
+                    uint64_t rb = r + (uint64_t)blk * need_bytes;
+                    uint32_t src_off = (uint32_t)(rb & (uint64_t)ctx->ring_mask);
+                    uint32_t linear  = ring_size_loc - src_off;
+                    if (linear >= need_bytes) {
+                        memcpy(fft_raw, ctx->ring_buf + src_off, need_bytes);
+                    } else {
+                        memcpy(fft_raw, ctx->ring_buf + src_off, linear);
+                        memcpy((uint8_t *)fft_raw + linear, ctx->ring_buf,
+                               need_bytes - linear);
+                    }
+                    spec_accum_block(fft_raw, fft_n,
+                                     g_spec_hann ? hann_win : NULL, win_sum,
+                                     fft_in, fft_out, acc,
+                                     &ch_si[i], &ch_sq[i], &ch_sp[i]);
                 }
-                /* advance rpos so drain thread can reuse the space */
+                /* release the consumed ring space */
                 __asm__ volatile("" ::: "memory");
-                ctx->ring_rpos = r + need_bytes;
-
-                /* apply hann window to reduce spectral leakage */
-                for (uint32_t k = 0; k < fft_n; k++) {
-                    fft_in[k].re = (int16_t)((float)fft_in[k].re * hann_win[k]);
-                    fft_in[k].im = (int16_t)((float)fft_in[k].im * hann_win[k]);
-                }
-
-                /* compute FFT */
-#ifdef HAVE_ARMRAL
-                armral_fft_execute_cs16(plan, fft_in, fft_out);
-#else
-                dft_cs16(fft_in, fft_out, fft_n);
-#endif
-
-                /* power spectrum in dBFS */
-                for (uint32_t k = 0; k < fft_n; k++) {
-                    float re  = (float)fft_out[k].re;
-                    float im  = (float)fft_out[k].im;
-                    float pwr = (re * re + im * im) /
-                                ((float)fft_n * (float)fft_n * fs2);
-                    power[k] = 10.0f * log10f(pwr + 1e-30f);
-                }
-
-                /* fast attack / slow decay EMA */
-                for (uint32_t k = 0; k < fft_n; k++) {
-                    if (power[k] > ch_disp[k])
-                        ch_disp[k] = power[k];
-                    else
-                        ch_disp[k] = 0.85f * ch_disp[k] + 0.15f * power[k];
-                }
+                ctx->ring_rpos = w;
+                ch_nb[i] = nblk;
             }
-            /* if not enough data yet, reuse previous ch_disp frame (EMA decays) */
-
-            /* find peak */
-            uint32_t peak_bin = 0;
-            float    peak_db  = g_db_floor;
-            for (uint32_t k = 0; k < fft_n; k++) {
-                if (ch_disp[k] > peak_db) { peak_db = ch_disp[k]; peak_bin = k; }
-            }
-            float peak_mhz = ((float)peak_bin - (float)(fft_n / 2u)) * bin_hz / 1e6f;
-
-            /* render channel header */
-            printf("Ch%u (RxChan %u)  Fs=%.3f MHz  peak=%.2f dBFS @ %+.3f MHz  (q=quit)\n",
-                   i, ctx->chan_id, (double)g_srate_mhz, peak_db, peak_mhz);
-
-            /* bar chart: FFT-shift so DC is in the middle */
-            for (uint32_t row = 0; row < bar_rows; row++) {
-                float row_db = g_db_floor + (float)(bar_rows - row) * db_range / (float)bar_rows;
-                printf("%6.1f |", row_db);
-                for (uint32_t col = 0; col < bar_w; col++) {
-                    uint32_t bin_idx = (col * fft_n / bar_w + fft_n / 2u) % fft_n;
-                    char c = (ch_disp[bin_idx] >= row_db) ? '#' : ' ';
-                    putchar(c);
-                }
-                printf("|\n");
-            }
-            printf("       +");
-            for (uint32_t col = 0; col < bar_w; col++)
-                putchar((col % (bar_w / 4u ? bar_w / 4u : 1u)) == 0u ? '+' : '-');
-            printf("+\n");
-            spec_print_freq_axis(bar_w);
+            /* if no new data, the previous frame is shown again */
+            if (ch_nb[i] > 0u)
+                spec_render_channel(i, ctx->chan_id, acc, ch_nb[i],
+                                    ch_si[i], ch_sq[i], ch_sp[i],
+                                    fft_n, bar_rows, power, sortb);
         }
+        printf("\033[J");
+        if (snap.active)
+            snap_finish(&snap, ctxs, n);
 
         fflush(stdout);
     }
+    for (i = 0; i < RX_NUM_MAX_CHAN; i++)
+        free(snap.buf[i]);
 
     /* stop keyboard thread */
     kbd_ctx.stop = 1;
@@ -1259,17 +1678,19 @@ stop_drains:
         free(ctxs[i].ring_buf);
 
 out_disp:
+    free(sortb);
     free(power);
     free(disp);
 
 #ifdef HAVE_ARMRAL
 out_plan:
-    if (plan)
-        armral_fft_destroy_plan(&plan);
+    if (g_spec_plan)
+        armral_fft_destroy_plan(&g_spec_plan);
 #endif
 
 out_fft_bufs:
     free(hann_win);
+    free(fft_raw);
     free(fft_in);
     free(fft_out);
     free(ctxs);
@@ -1403,15 +1824,15 @@ static void tone_gen_waveform(iq_cs16_t *buf, uint32_t n_samples, float freq_hz,
         memcpy(&buf[i], buf, blk * sizeof(*buf));
 }
 
-/* Write QEC coefficients to ./qec/qec_coeff_<txrx>_ant<N>.cfg (la12xx format). */
+/* Write QEC coefficients to <qecdir>/qec_coeff_<txrx>_ant<N>.cfg (la12xx format). */
 static void qec_save_file(const char *txrx_str, uint32_t ant_id, float f1, float f4,
                           float f2, float dcI, float dcQ)
 {
     char path[256];
     FILE *fp;
 
-    snprintf(path, sizeof(path), "./qec/qec_coeff_%s_ant%u.cfg", txrx_str, ant_id);
-    mkdir("./qec", 0755);
+    snprintf(path, sizeof(path), "%s/qec_coeff_%s_ant%u.cfg", g_qec_dir, txrx_str, ant_id);
+    mkdir(g_qec_dir, 0755);
     fp = fopen(path, "w");
     if (!fp) {
         perror("qec_save_file");
@@ -1424,11 +1845,61 @@ static void qec_save_file(const char *txrx_str, uint32_t ant_id, float f1, float
     printf("\nQEC saved to %s\n", path);
 }
 
+/* Read <qecdir>/qec_coeff_<txrx>_ant<N>.cfg written by qec_save_file().
+ * The file holds coefficient values (not tap indexes), so the same file is
+ * valid for every firmware tap map. Returns 0 on success, -1 if no file. */
+static int qec_load_file(const char *txrx_str, uint32_t ant_id, float *f1, float *f4,
+                         float *f2, float *dcI, float *dcQ)
+{
+    char path[256], line[128];
+    FILE *fp;
+    int got = 0;
+
+    snprintf(path, sizeof(path), "%s/qec_coeff_%s_ant%u.cfg", g_qec_dir, txrx_str, ant_id);
+    fp = fopen(path, "r");
+    if (!fp)
+        return -1;
+    *f1 = 1.0f; *f4 = 1.0f; *f2 = 0.0f; *dcI = 0.0f; *dcQ = 0.0f;
+    while (fgets(line, sizeof(line), fp)) {
+        char key[16];
+        float v;
+        if (line[0] == '#')
+            continue;
+        if (sscanf(line, " %15[^= ] = %f", key, &v) != 2)
+            continue;
+        if (!strcmp(key, "f1"))       { *f1 = v;  got |= 1; }
+        else if (!strcmp(key, "f4"))  { *f4 = v;  got |= 2; }
+        else if (!strcmp(key, "f2"))  { *f2 = v;  got |= 4; }
+        else if (!strcmp(key, "dcI")) { *dcI = v; got |= 8; }
+        else if (!strcmp(key, "dcQ")) { *dcQ = v; got |= 16; }
+    }
+    fclose(fp);
+    if (got != 31)
+        fprintf(stderr, "iq_app: %s incomplete, missing fields use passthrough\n", path);
+    printf("iq_app: QEC loaded from %s\n", path);
+    return 0;
+}
+
+/* Inverse of qec_coeffs_from_imb(): f4 = 1/alpha, f2 = -tan(phi)/alpha. */
+static void qec_imb_from_coeffs(float f4, float f2, float *gain_db, float *phase_deg)
+{
+    float alpha;
+
+    if (fabsf(f4) < 1e-6f)
+        f4 = 1e-6f;
+    alpha      = 1.0f / f4;
+    *gain_db   = 20.0f * log10f(fabsf(alpha));
+    *phase_deg = atanf(-f2 * alpha) * 180.0f / (float)M_PI;
+}
+
 /* Push one QEC coefficient to VSPA via the vspa_mbox CLI (send + recv ack). */
-static void tone_send_qec(uint32_t txrx, uint32_t idx, float val)
+/* Channel field of MBOX_OPC_IQ_CORR: MSB bits 17-16 (msg bits 49-48). */
+#define QEC_MBOX_CH(ch) (((uint32_t)(ch) & 0x3u) << 16)
+
+static void tone_send_qec_ch(uint32_t txrx, uint32_t ch, uint32_t idx, float val)
 {
     uint32_t lsb;
-    uint32_t msb = 0x08000000u | (txrx << 21) | (idx & 0xFFFFu);
+    uint32_t msb = 0x08000000u | (txrx << 21) | QEC_MBOX_CH(ch) | (idx & 0xFFFFu);
     char cmd[160];
     int rc;
 
@@ -1438,6 +1909,11 @@ static void tone_send_qec(uint32_t txrx, uint32_t idx, float val)
              "vspa_mbox recv 0 0 >/dev/null 2>&1", msb, lsb);
     rc = system(cmd);
     (void)rc;
+}
+
+static void tone_send_qec(uint32_t txrx, uint32_t idx, float val)
+{
+    tone_send_qec_ch(txrx, 0, idx, val);
 }
 
 /* Compute TX f1/f4/f2 from gain/phase imbalance.
@@ -1467,25 +1943,53 @@ static void tone_qec_coeffs(float *f1, float *f4, float *f2)
 
 /* -----------------------------------------------------------------------
  * RX QEC (spectrum mode -X): same txiqcomp kernel and tap map, txrx = 0.
- * The firmware keeps a single RX QEC set (channel id bits are not used).
+ * The firmware keeps one RX QEC set per channel; the keys act on the
+ * current channel g_rxq_ch ('c' cycles it, -C sets it at start).
  * ----------------------------------------------------------------------- */
-static float g_rxq_gain_db   = 0.0f;
-static float g_rxq_phase_deg = 0.0f;
-static float g_rxq_dc_i      = 0.0f;
-static float g_rxq_dc_q      = 0.0f;
+#define RXQ_MAX_CH 4
+typedef struct {
+    float gain_db, phase_deg, dc_i, dc_q;
+} rxq_state_t;
+static rxq_state_t g_rxq[RXQ_MAX_CH];
+static uint32_t g_rxq_ch = 0;
+#define g_rxq_gain_db   (g_rxq[g_rxq_ch].gain_db)
+#define g_rxq_phase_deg (g_rxq[g_rxq_ch].phase_deg)
+#define g_rxq_dc_i      (g_rxq[g_rxq_ch].dc_i)
+#define g_rxq_dc_q      (g_rxq[g_rxq_ch].dc_q)
 
 static void rx_qec_push(int with_dc)
 {
     float f1, f4, f2;
 
     qec_coeffs_from_imb(g_rxq_gain_db, g_rxq_phase_deg, &f1, &f4, &f2);
-    tone_send_qec(0, QEC_IDX_F1, f1);
-    tone_send_qec(0, QEC_IDX_F4, f4);
-    tone_send_qec(0, QEC_IDX_F2, f2);
+    tone_send_qec_ch(0, g_rxq_ch, QEC_IDX_F1, f1);
+    tone_send_qec_ch(0, g_rxq_ch, QEC_IDX_F4, f4);
+    tone_send_qec_ch(0, g_rxq_ch, QEC_IDX_F2, f2);
     if (with_dc) {
-        tone_send_qec(0, QEC_IDX_DC_I, g_rxq_dc_i);
-        tone_send_qec(0, QEC_IDX_DC_Q, g_rxq_dc_q);
+        tone_send_qec_ch(0, g_rxq_ch, QEC_IDX_DC_I, g_rxq_dc_i);
+        tone_send_qec_ch(0, g_rxq_ch, QEC_IDX_DC_Q, g_rxq_dc_q);
     }
+}
+
+/* Apply saved RX QEC of every channel at start (unless -U). The UI state is
+ * rebuilt from the file so the keys continue from the loaded values. */
+static void rx_qec_load_apply(void)
+{
+    uint32_t ch, save_ch = g_rxq_ch;
+
+    if (!g_qec_load)
+        return;
+    for (ch = 0; ch < g_n_rx && ch < RXQ_MAX_CH; ch++) {
+        float f1, f4, f2, dcI, dcQ;
+        if (qec_load_file("rx", ch, &f1, &f4, &f2, &dcI, &dcQ) != 0)
+            continue;
+        g_rxq_ch = ch;
+        qec_imb_from_coeffs(f4, f2, &g_rxq_gain_db, &g_rxq_phase_deg);
+        g_rxq_dc_i = dcI;
+        g_rxq_dc_q = dcQ;
+        rx_qec_push(1);
+    }
+    g_rxq_ch = save_ch;
 }
 
 /* Handle one RX QEC key; returns 1 if the key was a QEC key. */
@@ -1505,12 +2009,19 @@ static int rx_qec_handle_key(char ch)
         g_rxq_gain_db = g_rxq_phase_deg = 0.0f;
         rx_qec_push(0);
         return 1;
+    case 'c':
+        /* next channel; its own state is kept, nothing is sent */
+        g_rxq_ch = (g_rxq_ch + 1u) % (g_n_rx ? g_n_rx : 1u);
+        return 1;
     case 's': {
         float f1, f4, f2;
         qec_coeffs_from_imb(g_rxq_gain_db, g_rxq_phase_deg, &f1, &f4, &f2);
-        qec_save_file("rx", 0, f1, f4, f2, g_rxq_dc_i, g_rxq_dc_q);
+        qec_save_file("rx", g_rxq_ch, f1, f4, f2, g_rxq_dc_i, g_rxq_dc_q);
         return 1;
     }
+    case 'w':
+        g_snap_req = 1;
+        return 1;
     default:
         return 0;
     }
@@ -1518,10 +2029,26 @@ static int rx_qec_handle_key(char ch)
 
 static void rx_qec_status_line(void)
 {
-    printf("RX QEC  gain %+6.2f dB  phase %+6.2f deg  DC I %+6.3f  DC Q %+6.3f"
-           "   keys: g/G p/P i/I j/J r=rst s=save q=quit\033[K\n",
-           (double)g_rxq_gain_db, (double)g_rxq_phase_deg,
+    printf("RX QEC ch %u/%u  gain %+6.2f dB  phase %+6.2f deg  DC I %+6.3f  DC Q %+6.3f"
+           "   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap q=quit\033[K\n",
+           g_rxq_ch, g_n_rx ? g_n_rx : 1u, (double)g_rxq_gain_db, (double)g_rxq_phase_deg,
            (double)g_rxq_dc_i, (double)g_rxq_dc_q);
+    printf("%s\033[K\n", g_snap_msg);
+}
+
+static void tone_push_all_qec(void);
+
+/* Apply saved TX QEC (qec_coeff_tx_ant0.cfg) at start (unless -U). */
+static void tx_qec_load_apply(void)
+{
+    float f1, f4, f2, dcI, dcQ;
+
+    if (!g_qec_load || qec_load_file("tx", 0, &f1, &f4, &f2, &dcI, &dcQ) != 0)
+        return;
+    qec_imb_from_coeffs(f4, f2, &g_qec_gain_db, &g_qec_phase_deg);
+    g_qec_dc_i = dcI;
+    g_qec_dc_q = dcQ;
+    tone_push_all_qec();
 }
 
 /* Send all five TX QEC coefficients (txrx = 1). */
@@ -1572,23 +2099,26 @@ static void tone_amp_bump(float delta)
  * The panel shows only 3 bins, so a per-bin DFT is cheap. A cs16 FFT was
  * used before, but its output saturates at int16 for any strong tone
  * (peak ~A*N/2), which pinned the reading at -54 dBFS whatever the
- * amplitude. Full-scale on-bin tone reads about -6 dBFS (Hann gain 0.5). */
+ * amplitude. Normalised by the Hann window sum: full-scale tone = 0 dBFS. */
 static float tone_bin_dbfs(const iq_cs16_t *src, uint32_t n, uint32_t bin)
 {
-    double acc_re = 0.0, acc_im = 0.0, p;
+    double acc_re = 0.0, acc_im = 0.0, p, wsum = 0.0;
     double w0 = 2.0 * M_PI * (double)bin / (double)n;
     uint32_t k;
 
     for (k = 0; k < n; k++) {
         double w  = 0.5 * (1.0 - cos(2.0 * M_PI * (double)k / (double)(n - 1u)));
         double xr = (double)src[k].re * w, xi = (double)src[k].im * w;
+        wsum += w;
         double c  = cos(w0 * (double)k), sn = sin(w0 * (double)k);
         /* X[bin] = sum x[k] * exp(-j w0 k) */
         acc_re += xr * c + xi * sn;
         acc_im += xi * c - xr * sn;
     }
+    /* normalise by the window sum (coherent gain), so a tone of amplitude
+     * A reads 20*log10(A) dBFS: full scale 0 dBFS, A = 0.05 reads -26 */
     p = (acc_re * acc_re + acc_im * acc_im) /
-        ((double)n * (double)n * 32767.0 * 32767.0);
+        (wsum * wsum * 32767.0 * 32767.0);
     return (float)(10.0 * log10(p + 1e-30));
 }
 
@@ -1649,7 +2179,12 @@ static void tone_print_status(tone_ctx_t *ctx)
             uint32_t bin = (i + fft_n / 2u) & (fft_n - 1u);
             float fmhz = (((float)i / (float)fft_n) - 0.5f) * g_srate_mhz;
             float db   = tone_bin_dbfs(src, fft_n, bin);
-            float norm = (db - g_db_floor) / (0.0f - g_db_floor);
+            /* default: bar length follows the linear amplitude (|X| / full
+             * scale), so 0.05 -> 5% and 0.5 -> 50% of the bar. -l: dB bar
+             * from the -B floor up to 0 dBFS. */
+            float norm = g_tone_dbbar ?
+                         (db - g_db_floor) / (0.0f - g_db_floor) :
+                         powf(10.0f, db / 20.0f);
             uint32_t bw, b;
 
             if (norm < 0.0f) norm = 0.0f;
@@ -1874,7 +2409,7 @@ int main(int argc, char *argv[])
     signal(SIGTERM, terminate_process);
     signal(SIGUSR1, sigusr1_process);
 
-    while ((c = getopt(argc, argv, "htrXTF:f:c:n:s:N:W:B:Z:Y:q:A:V:vR:S:")) != EOF) {
+    while ((c = getopt(argc, argv, "htrXTF:f:c:C:n:s:N:W:B:K:M:HP:L:lZ:Y:q:A:V:vR:S:Q:Uw:d:")) != EOF) {
         switch (c) {
         case 'h':
             print_cmd_help();
@@ -1884,6 +2419,9 @@ int main(int argc, char *argv[])
             break;
         case 'r':
             command = OP_RX_ONLY;
+            break;
+        case 'C':
+            g_rxq_ch = (uint32_t)strtoul(optarg, NULL, 0) % RXQ_MAX_CH;
             break;
         case 'X':
             command = OP_SPECTRUM;
@@ -1916,12 +2454,58 @@ int main(int argc, char *argv[])
         /* spectrum options */
         case 'N':
             g_fft_size = (uint32_t)strtoul(argv[optind - 1], NULL, 0);
+            g_fft_set  = true;
+            break;
+        case 'H':
+            g_spec_hann = true;
+            break;
+        case 'l':
+            g_tone_dbbar = true;
+            break;
+        case 'L':
+            g_spec_rows = (uint32_t)strtoul(optarg, NULL, 0);
+            if (g_spec_rows < 3u)
+                g_spec_rows = 3u;
+            if (g_spec_rows > 60u)
+                g_spec_rows = 60u;
+            break;
+        case 'P':
+            g_spec_file = optarg;
+            break;
+        case 'Q':
+            g_qec_dir = optarg;
+            break;
+        case 'U':
+            g_qec_load = false;
+            break;
+        case 'w':
+            g_snap_base = optarg;
+            break;
+        case 'd':
+            {
+                char *end = NULL;
+                double v = strtod(optarg, &end);
+                if (end && !strcmp(end, "ms")) {
+                    g_snap_ms    = (float)v;
+                    g_snap_bytes = 0;
+                } else {
+                    g_snap_bytes = (uint32_t)strtoul(optarg, NULL, 0) & ~3u;
+                }
+            }
             break;
         case 'W':
             g_bar_cols = (uint32_t)strtoul(argv[optind - 1], NULL, 0);
             break;
         case 'B':
             g_db_floor = strtof(argv[optind - 1], NULL);
+            break;
+        case 'K':
+            g_db_top = strtof(optarg, NULL);
+            break;
+        case 'M':
+            g_spec_navg = (uint32_t)strtoul(optarg, NULL, 0);
+            if (g_spec_navg < 1u)
+                g_spec_navg = 1u;
             break;
         case 'Y':
             g_conv_mhz = strtof(optarg, NULL);
@@ -1975,6 +2559,10 @@ int main(int argc, char *argv[])
         }
     }
 
+    /* -P: offline file spectrum, no modem needed */
+    if (g_spec_file)
+        return spec_file_app(g_spec_file);
+
     /* Check modem driver is loaded */
     if (stat("/sys/shiva/shiva_status", &status) != 0) {
         perror("la9310 shiva driver not started");
@@ -2022,6 +2610,9 @@ int main(int argc, char *argv[])
             g_n_rx = 1u;
         }
     }
+
+    if (g_rxq_ch >= g_n_rx)
+        g_rxq_ch = 0;
 
     /*
      * Sample rate seen by the host (unless -Z given):
@@ -2072,6 +2663,12 @@ int main(int argc, char *argv[])
         iq_player_set_rx_copy_rate(g_rx_copy_rate);
     if (g_rx_throttle_pct != 0u)
         iq_player_set_rx_throttle_rate(g_rx_throttle_pct, 500u);
+
+    /* Apply saved QEC so the config is the same for every firmware/run */
+    if (command == OP_RX_ONLY || command == OP_SPECTRUM)
+        rx_qec_load_apply();
+    else if (command == OP_TX_ONLY || command == OP_TONE_TX)
+        tx_qec_load_apply();
 
     switch (command) {
     case OP_TX_ONLY:

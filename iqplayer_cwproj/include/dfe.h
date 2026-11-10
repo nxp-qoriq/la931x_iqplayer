@@ -30,10 +30,40 @@ extern structTXIQCompParams2 iq_comp_params2_tx _VSPA_VECTOR_ALIGN;
 extern structTXIQCompParams txiqcompcfg_struct _VSPA_VECTOR_ALIGN;
 #endif
 
+/* Number of RX QEC parameter sets: one per RX channel of the build. */
+#if defined(IQMOD_RX_1T4R) || defined(IQMOD_RX_0T4R)
+#define QEC_RX_NCH 4
+#elif defined(IQMOD_RX_1T2R)
+#define QEC_RX_NCH 2
+#else
+#define QEC_RX_NCH 1
+#endif
+#define QEC_TX_NCH 1
+
+/* QEC mailbox channel field (MBOX_OPC_IQ_CORR, MBOX_OPC_RX/TX_DCO_CORR), in the
+ * message MSB word: bits 17-16 (msg bits 49-48) channel, bit 18 (msg bit 50)
+ * apply to all channels. */
+#define QEC_MBOX_CH_MASK  0x00030000u
+#define QEC_MBOX_CH_SHIFT 16
+#define QEC_MBOX_ALL      0x00040000u
+
+/* Apply an RX QEC mailbox message (dc=1: RX_DCO_CORR, 0: IQ_CORR) to the
+ * selected channel(s). Returns 0 when the channel is out of range. */
+uint32_t rx_qec_mbox_apply(uint32_t msb, uint32_t val, uint32_t dc);
+/* TX has one QEC set: only channel 0 or "all" is accepted. */
+#define QEC_TX_CH_OK(msb) (((msb) & QEC_MBOX_ALL) || !((msb) & QEC_MBOX_CH_MASK))
+
 #ifdef RXIQCOMP2
+/* txiqcomp_x32chf_5t keeps a single circular input buffer: one set only. */
 extern structTXIQCompParams2 iq_comp_params2_rx _VSPA_VECTOR_ALIGN;
 #else
-extern structTXIQCompParams rxiqcompcfg_struct _VSPA_VECTOR_ALIGN;
+/* txiqcomp needs its config inside one DMEM line: pad each set to a line. */
+typedef struct {
+    structTXIQCompParams p;
+    float pad[10];
+} _VSPA_VECTOR_ALIGN rx_qec_ch_t;
+extern rx_qec_ch_t rxiqcompcfg_ch[QEC_RX_NCH];
+#define RX_QEC_CFG(ch) (&rxiqcompcfg_ch[(ch)].p)
 #endif
 
 void rf_init(void);

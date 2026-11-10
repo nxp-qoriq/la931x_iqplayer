@@ -21,3 +21,15 @@
 *.tags
 .cwGeneratedFileSetLog
 bin/
+
+# build outputs
+Debug_IQPLAYER_*/
+install/
+*.o
+*.obj
+*.a
+obj/
+host-utils/iq_app/iq_app
+host-utils/iq_monitor/iq_mon
+host-utils/vspa_mbox/vspa_mbox
+host-utils/iq_trace/vspa_trace_enum.h

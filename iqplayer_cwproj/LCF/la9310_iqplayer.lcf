@@ -63,7 +63,17 @@ IPPU_DRAMSize = (16*1024);
 IPPU_TopMemAddress    		= 0x8000;
 
 HeapSize   = 0x00000;
-StackSize  = 0x00100;
+/* The VCPU stack grows up from StackStart and ends at VCPU_TopMemAddress,
+ * directly below the IPPU DMEM ring (input_qec_buffer at 0x4000).
+ * 256 B was too small: PUSH_RX_DATA -> DDR_write_multi_dma reached
+ * sp = 0x4080 B and its frame zeroed input_qec_buffer[31] every pass.
+ * Worst static chain is 384 B (main -> BW_CAL -> PUSH_RX_DATA) after the
+ * DMA helpers were inlined and the nested PUSH_* calls removed from the
+ * start handlers. tools/stack_check.py checks it after every link with a
+ * 64 B margin and fails the build if a new call chain does not fit.
+ * The 0T4R_FUSED* variants link a copy with StackSize 0x480 (soft-float in
+ * rx_qec_decx2_prepare, 1024 B), see FUSED_STACK_SIZE in Sources/Makefile. */
+StackSize  = 0x00200;
 StackStart = VCPU_TopMemAddress - align((StackSize + HeapSize), DMEM_Line_Size);
 
 DDR_CODE_OVERLAY_Start		= 0x20000000;	// start address of the code sections for overlays

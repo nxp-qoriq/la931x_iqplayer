@@ -8,10 +8,19 @@
 # Use -n to override if auto-detect fails.
 #
 # Usage:
-#   ./iq-app-rx.sh -X [-f] [-n N_RX] [fifo_size]
+#   ./iq-app-rx.sh -X [-f] [-n N_RX] [-C QEC_CH] [-W base [size]] [-Q dir] [-q] [fifo_size]
 #       Spectrum mode (foreground, live FFT). Press q to quit.
-#       RX QEC keys: g/G gain +-0.1 dB, p/P phase +-0.5 deg, i/I j/J DC I/Q +-0.01,
-#       r reset gain/phase, s save ./qec/qec_coeff_rx_ant0.cfg
+#       RX QEC keys act on the current QEC channel (one QEC set per channel):
+#       c next channel, g/G gain +-0.1 dB, p/P phase +-0.5 deg,
+#       i/I j/J DC I/Q +-0.01, r reset gain/phase,
+#       s save <qecdir>/qec_coeff_rx_ant<ch>.cfg,
+#       w write an IQ snapshot of all channels to
+#         <base>_<rate>Msps_ch<N>_<YYYYmmdd_HHMMSS>.bin
+#
+#   Saved RX QEC (<qecdir>/qec_coeff_rx_ant<ch>.cfg) is applied at start in
+#   both modes. The files hold coefficient values, not firmware tap indexes,
+#   so the same config is used with every firmware. qecdir defaults to
+#   <script dir>/qec, independent of the current directory.
 #
 #   ./iq-app-rx.sh -D <outfile> <filesize> [-f] [-n N_RX] [fifo_size]
 #       Capture mode: record <filesize> bytes per channel.
@@ -24,6 +33,16 @@
 #   -D file size   dump/capture mode (background)
 #   -f             full speed: ADC at 122.88 MSPS (default half speed 61.44 MSPS)
 #   -n N_RX        number of RX channels 1-4 (default: auto-detect from proxy)
+#   -K top         -X only: chart top dBFS (default 0)
+#   -B bottom      -X only: chart bottom dBFS (default -100)
+#   -L rows        -X only: chart rows per channel (default 40 for 1T1R, 16 for 1T2R, 10 for 0T4R)
+#   -M navg        -X only: FFTs averaged per refresh (default 8)
+#   -N fft         -X only: FFT size (default 8192, as compute_tone_params.py)
+#   -H             -X only: Hann window + power average (default rect, mean |X|)
+#   -W base [size] -X only: snapshot base name and per-channel size for key w
+#                  (default <script dir>/capture/rx, 1ms; size in bytes or <N>ms)
+#   -Q dir         QEC config directory (default <script dir>/qec)
+#   -q             do not apply saved QEC at start
 #   fifo_size      per-channel DDR ring FIFO bytes, hex ok (default 0x80000)
 #
 # Examples:
@@ -32,6 +51,7 @@
 #   ./iq-app-rx.sh -D ./rx.bin 4915200         # capture, auto-detect N_RX
 #   ./iq-app-rx.sh -D ./rx.bin 4915200 -n 2    # capture, 2 ch
 #   ./iq-app-rx.sh -X -f                       # spectrum, ADC at full speed 122.88 MSPS
+#   ./iq-app-rx.sh -X -W /tmp/rx 10ms          # key w writes 10 ms per channel
 #
 ####################################################################
 #set -x
@@ -39,17 +59,33 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROXY_RESERVED=1024
 DEFAULT_FIFO_SIZE=524288
+QEC_DIR="$SCRIPT_DIR/qec"
+SNAP_BASE="$SCRIPT_DIR/capture/rx"
+SNAP_SIZE="1ms"
+QEC_NOLOAD=""
 
 usage() {
     echo "Usage:"
-    echo "  $0 -X [-f] [-n N_RX] [fifo_size]"
-    echo "  $0 -D <outfile> <filesize> [-f] [-n N_RX] [fifo_size]"
+    echo "  $0 -X [-f] [-n N_RX] [-C QEC_CH] [-W base [size]] [-Q dir] [-q] [fifo_size]"
+    echo "  $0 -D <outfile> <filesize> [-f] [-n N_RX] [-Q dir] [-q] [fifo_size]"
     echo ""
     echo "  -X             spectrum mode (foreground, live FFT)"
     echo "  -D file size   dump/capture mode (background); file is a base name:"
     echo "                 rx.bin -> rx_ch0.bin, rx_ch1.bin ..."
     echo "  -f             full speed: ADC at 122.88 MSPS (default half speed 61.44 MSPS)"
     echo "  -n N_RX        RX channel count 1-4 (default: auto-detect from proxy)"
+    echo "  -C QEC_CH      -X only: RX QEC channel selected at start (default 0, key c cycles)"
+    echo "  -K top         -X only: chart top dBFS (default 0)"
+    echo "  -B bottom      -X only: chart bottom dBFS (default -100)"
+    echo "  -L rows        -X only: chart rows per channel (default 40 for 1T1R, 16 for 1T2R, 10 for 0T4R)"
+    echo "  -M navg        -X only: FFTs averaged per refresh (default 8)"
+    echo "  -N fft         -X only: FFT size (default 8192, as compute_tone_params.py)"
+    echo "  -H             -X only: Hann window + power average (default rect, mean |X|)"
+    echo "  -W base [size] -X only: key w snapshot base and per-channel size"
+    echo "                 (default $SCRIPT_DIR/capture/rx, 1ms; bytes or <N>ms)"
+    echo "                 files: <base>_<rate>Msps_ch<N>_<YYYYmmdd_HHMMSS>.bin"
+    echo "  -Q dir         QEC config directory (default $SCRIPT_DIR/qec)"
+    echo "  -q             do not apply saved QEC at start"
     echo "  fifo_size      per-channel DDR FIFO bytes, hex ok (default $(printf '0x%X' $DEFAULT_FIFO_SIZE))"
     echo "ex:"
     echo "  ./iq-app-rx.sh -X "
@@ -67,6 +103,13 @@ MODE=""
 OUT_FILE=""
 FILE_SIZE=0
 N_RX_OVERRIDE=""
+QEC_CH=0
+DB_TOP=0
+NAVG=8
+FFT_N=8192
+HANN=""
+DB_BOT=-100
+ROWS=""
 CONV_MHZ=61.44   # ADC converter rate: 61.44 (half, default) or 122.88 (full, -f)
 FIFO_SIZE_ARG=$DEFAULT_FIFO_SIZE
 
@@ -85,6 +128,58 @@ while [ $# -gt 0 ]; do
             OUT_FILE=$2
             FILE_SIZE=$3
             shift 3
+            ;;
+        -C)
+            if [ $# -lt 2 ]; then
+                echo "***ERROR: -C requires a value"
+                usage
+            fi
+            QEC_CH=$2
+            shift 2
+            ;;
+        -H)
+            HANN="-H"
+            shift
+            ;;
+        -W)
+            if [ $# -lt 2 ]; then
+                echo "***ERROR: -W requires a base name"
+                usage
+            fi
+            SNAP_BASE=$2
+            shift 2
+            # optional size: number (bytes, hex ok) or <N>ms
+            if [ $# -gt 0 ] && [[ "$1" =~ ^(0x[0-9a-fA-F]+|[0-9]+(\.[0-9]+)?ms|[0-9]+)$ ]]; then
+                # a bare number right after -W is the size, not fifo_size
+                SNAP_SIZE=$1
+                shift
+            fi
+            ;;
+        -Q)
+            if [ $# -lt 2 ]; then
+                echo "***ERROR: -Q requires a directory"
+                usage
+            fi
+            QEC_DIR=$2
+            shift 2
+            ;;
+        -q)
+            QEC_NOLOAD="-U"
+            shift
+            ;;
+        -K|-B|-M|-N|-L)
+            if [ $# -lt 2 ]; then
+                echo "***ERROR: $1 requires a value"
+                usage
+            fi
+            case "$1" in
+                -K) DB_TOP=$2 ;;
+                -B) DB_BOT=$2 ;;
+                -M) NAVG=$2 ;;
+                -N) FFT_N=$2 ;;
+                -L) ROWS=$2 ;;
+            esac
+            shift 2
             ;;
         -f)
             CONV_MHZ=122.88
@@ -179,6 +274,11 @@ else
 fi
 total_slots=$(( N_TX + N_RX ))
 
+# Spectrum chart rows per channel: 40 for 1T1R, 16 for 1T2R, 10 for 0T4R (-L overrides)
+if [ -z "$ROWS" ]; then
+    if [ "$N_RX" -gt 2 ]; then ROWS=10; elif [ "$N_RX" -gt 1 ]; then ROWS=16; else ROWS=40; fi
+fi
+
 # --- Compute slot layout ---
 usable=$(( maxsize - PROXY_RESERVED ))
 raw_slot=$(( usable / total_slots ))
@@ -235,13 +335,15 @@ echo ""
 # iq_app pins its RX drain thread to IQ_CPU_RX (default 2) and the UI to
 # the cores not used by TX/RX, so it can run in parallel with iq-app-tx.sh
 if [ "$MODE" = "spectrum" ]; then
-    echo "Starting spectrum mode (foreground): iq_app -X -n $N_RX -c 0 -F $ch0_fifo_offset_hex $fifo_bytes -N 512 -Y $CONV_MHZ"
-    iq_app -X -n "$N_RX" -c 0 -Y "$CONV_MHZ" \
+    echo "Starting spectrum mode (foreground): iq_app -X -n $N_RX -c 0 -F $ch0_fifo_offset_hex $fifo_bytes -N $FFT_N -Y $CONV_MHZ -K $DB_TOP -B $DB_BOT -M $NAVG -L $ROWS $HANN -Q $QEC_DIR $QEC_NOLOAD -w $SNAP_BASE -d $SNAP_SIZE"
+    iq_app -X -n "$N_RX" -c 0 -C "$QEC_CH" -Y "$CONV_MHZ" \
+        -K "$DB_TOP" -B "$DB_BOT" -M "$NAVG" -L "$ROWS" \
         -F "$ch0_fifo_offset_hex" "$fifo_bytes" \
-        -N 512
+        -N "$FFT_N" $HANN -Q "$QEC_DIR" $QEC_NOLOAD \
+        -w "$SNAP_BASE" -d "$SNAP_SIZE"
 else
-    echo "Starting capture mode (background): iq_app -r -n $N_RX -c 0 -f $OUT_FILE -s $FILE_SIZE -F $ch0_fifo_offset_hex $fifo_bytes -Y $CONV_MHZ"
-    iq_app -r -n "$N_RX" -c 0 -Y "$CONV_MHZ" \
+    echo "Starting capture mode (background): iq_app -r -n $N_RX -c 0 -f $OUT_FILE -s $FILE_SIZE -F $ch0_fifo_offset_hex $fifo_bytes -Y $CONV_MHZ -Q $QEC_DIR $QEC_NOLOAD"
+    iq_app -r -n "$N_RX" -c 0 -Y "$CONV_MHZ" -Q "$QEC_DIR" $QEC_NOLOAD \
         -f "$OUT_FILE" -s "$FILE_SIZE" \
         -F "$ch0_fifo_offset_hex" "$fifo_bytes" &
     IQ_APP_PID=$!

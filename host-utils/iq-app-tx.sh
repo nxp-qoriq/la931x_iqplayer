@@ -12,7 +12,10 @@
 # -f : full speed, DAC at 122.88 MSPS (default half speed 61.44 MSPS).
 #      Only used by iq_app for the tone frequency and the spectrum axis.
 #     keys: up/dn freq, lt/rt amp, w waveform, g/G p/P i/I j/J TX QEC,
-#           r reset QEC, s save QEC (./qec/qec_coeff_tx_ant0.cfg), q quit
+#           r reset QEC, s save QEC (<script dir>/qec/qec_coeff_tx_ant0.cfg), q quit
+#
+# Saved TX QEC (<script dir>/qec/qec_coeff_tx_ant0.cfg) is applied at start
+# in both modes. Set QEC_DIR to use another directory, QEC_NOLOAD=1 to skip.
 #
 # Host flow control is enabled: iq_app feeds a DDR ring FIFO at the
 # start of iqflood, and VSPA fetches from it as data is produced.
@@ -26,6 +29,10 @@
 #set -x
 
 DEFAULT_FIFO_SIZE=262144
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+QEC_DIR=${QEC_DIR:-$SCRIPT_DIR/qec}
+QEC_OPT="-Q $QEC_DIR"
+[ -n "$QEC_NOLOAD" ] && [ "$QEC_NOLOAD" != "0" ] && QEC_OPT="$QEC_OPT -U"
 PROXY_RESERVED=1024
 
 print_usage()
@@ -119,11 +126,11 @@ if [ $tone_mode -eq 1 ]; then
         # Foreground: keyboard control needs the terminal. Stop VSPA TX on exit.
         # iq_app pins its own threads: feeder on IQ_CPU_TX (3), UI on the
         # cores not used by TX/RX, so it can run in parallel with iq-app-rx.sh
-        iq_app -T -Y $CONV_MHZ -F 0x00000000 $fifo
+        iq_app -T -Y $CONV_MHZ $QEC_OPT -F 0x00000000 $fifo
         echo "Tone TX stopped. Stopping VSPA TX ..."
         vspa_mbox send 0 0 0x05000000 0x0
         vspa_mbox recv 0 0
 else
         # TX FIFO at offset 0 of iqflood region
-        iq_app -t -Y $CONV_MHZ -f "$iq_file" -F 0x00000000 $fifo &
+        iq_app -t -Y $CONV_MHZ $QEC_OPT -f "$iq_file" -F 0x00000000 $fifo &
 fi

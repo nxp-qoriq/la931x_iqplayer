@@ -32,9 +32,10 @@
 #ifndef RX_CYCLE_METER_OFF
 #define RX_CYCLE_METER 1
 #endif
-/* One AXIQ buffer time: 2560 cy at 61.44 MSPS, 1280 cy at 122.88 MSPS. */
+/* One AXIQ buffer time at VSPA 491.52 MHz: 2048 cy at 61.44 MSPS,
+ * 1024 cy at 122.88 MSPS. */
 #ifndef RX_PASS_BUDGET
-#define RX_PASS_BUDGET 2560u
+#define RX_PASS_BUDGET 2048u
 #endif
 
 /* Per-buffer traces in the streaming loop are compiled out unless
@@ -74,14 +75,11 @@ static uint32_t RX_total_dmem_CMPed_size = 0;                                   
 static uint32_t RX_total_ddr_enqueued_size = 0;                                  /* 5: DDR wr cmd fifo 		*/
 static uint32_t RX_total_dmem_consumed_size = 0;                                 /* 6: xfer to DDR complete */
 #define RX_total_ddr_consumed_size (rx_vspa_proxy[0].la9310_fifo_consumed_size)  /* 7: host consumed (RO) */
-#ifndef RX_DDR_LEGACY_CMPL
 /* DDR write completion from DMA state: the completion flag is a single
  * sticky bit, two queued writes can complete between passes and merge.
  * in_flight = no free entry ? 2 : (running ? 1 : 0), done = enqueued -
  * in_flight * step, min() over two passes, never moving back. */
-#define RX_DDR_STATE_CMPL 1
 static uint32_t rx_ddr_cand = 0;
-#endif
 
 static vspa_complex_fixed16 *p_rx_axiq_enqueued = &input_buffer[0];
 static vspa_complex_fixed16 *p_rx_axiq_received = &input_buffer[0];
@@ -108,8 +106,10 @@ uint32_t dma_chan_mask(uint32_t dma_channel, uint32_t nb_dma) {
     return mask;
 }
 
-void DDR_write_multi_dma(uint32_t DDR_wr_dma_channel, uint32_t nb_dma, uint32_t DDR_address, uint32_t vsp_address,
-                         int32_t bytes_size) {
+/* Forced inline: removes a 128 B call frame from the PUSH_RX_DATA path. */
+static inline __attribute__((always_inline)) void DDR_write_multi_dma(uint32_t DDR_wr_dma_channel, uint32_t nb_dma,
+                                                                      uint32_t DDR_address, uint32_t vsp_address,
+                                                                      int32_t bytes_size) {
     uint32_t i;
     uint32_t size = bytes_size / nb_dma;
 
@@ -137,7 +137,9 @@ void rx_compress(vspa_complex_fixed16 *data) {
     for (cmp_cycle = 0; cmp_cycle < CMP_CYCLES; cmp_cycle++) {
     };
 }
-void rx_qec_correction(vspa_complex_fixed16 *dataIn, vspa_complex_fixed16 *dataOut) {
+/* No fused QEC+decimation kernel in the 1-channel RX path. */
+
+void rx_qec_correction(vspa_complex_fixed16 *dataIn, vspa_complex_fixed16 *dataOut, uint32_t ch) {
     if (!DDR_wr_QEC_enable)
         return;
 
@@ -145,7 +147,7 @@ void rx_qec_correction(vspa_complex_fixed16 *dataIn, vspa_complex_fixed16 *dataO
     txiqcomp_x32chf_5t((vspa_complex_fixed16 *)dataIn, (vspa_complex_fixed16 *)dataOut, &iq_comp_params2_rx, MEM_LINE_SIZE);
 #else
 #ifdef RXIQCOMP
-    txiqcomp((vspa_complex_fixed16 *)dataIn, (vspa_complex_fixed16 *)dataOut, &rxiqcompcfg_struct, MEM_LINE_SIZE);
+    txiqcomp((vspa_complex_fixed16 *)dataIn, (vspa_complex_fixed16 *)dataOut, RX_QEC_CFG(ch), MEM_LINE_SIZE);
 #endif
 #endif
 }
@@ -198,9 +200,7 @@ void RX_IQ_DATA_TO_DDR(void) {
 
         rx_vspa_proxy[0].la9310_fifo_produced_size = 0;
         rx_vspa_proxy[0].la9310_fifo_consumed_size = 0;
-#ifdef RX_DDR_STATE_CMPL
         rx_ddr_cand = 0;
-#endif
         /* abort any DDR write left from a previous run */
         dmac_abort(ddr_wr_dma_ch_mask);
         dmac_clear_complete(ddr_wr_dma_ch_mask);
@@ -253,12 +253,13 @@ void RX_IQ_DATA_TO_DDR(void) {
         /* Wait for the 64-byte ptr_rst transfer to complete.
          * Original code used '|| !dmac_errxfr(...)' which requires BOTH complete
          * AND errxfr simultaneously -- errxfr never fires on a clean reset so the
-         * loop spins forever.  Wait on complete only, then clear. */
-        do {
-#ifndef IQMOD_RX_0T1R
-            PUSH_TX_DATA();
-#endif
-        } while (!dmac_is_complete(0x1 << dma_channel_rd));
+         * loop spins forever.  Wait on complete only, then clear.
+         * Plain wait, no nested PUSH_TX_DATA(): the nested call stacked a
+         * second 256 B frame on top of this handler and set the VCPU stack
+         * peak. The 64 B reset is short; a transient TX underrun at stream
+         * start is accepted to save stack. Checked by tools/stack_check.py. */
+        while (!dmac_is_complete(0x1 << dma_channel_rd)) {
+        }
         dmac_clear_complete(0x1 << dma_channel_rd);
 
         if (DDR_wr_continuous) {
@@ -268,7 +269,7 @@ void RX_IQ_DATA_TO_DDR(void) {
             host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
         }
 
-        axiq_fifo_rx_enable(AXIQ_BANK_0, Rx_Antenna2fifo_index[RX_index]);
+        RX_FIFO_ENABLE(Rx_Antenna2fifo_index[RX_index]);
         axiq_fifo_rx_cr(AXIQ_BANK_0, Rx_Antenna2fifo_index[RX_index], AXIQ_CR_CLRERR, AXIQ_CR_CLRERR);
         axiq_fifo_rx_cr(AXIQ_BANK_0, Rx_Antenna2fifo_index[RX_index], AXIQ_CR_CLRERR, 0);
 
@@ -459,7 +460,7 @@ void PUSH_RX_DATA(void) {
             if (rx_empty_size >= RX_DDR_STEP) {
                 // QEC buffer just received
                 RX_TRACE(L1_TRACE_L1APP_RX_QEC_START, (uint32_t)p_rx_dmem_QECed_in);
-                rx_qec_correction((vspa_complex_fixed16 *)p_rx_dmem_QECed_in, (vspa_complex_fixed16 *)p_rx_dmem_QECed_out);
+                rx_qec_correction((vspa_complex_fixed16 *)p_rx_dmem_QECed_in, (vspa_complex_fixed16 *)p_rx_dmem_QECed_out, 0);
                 INCR_RX_BUFF(p_rx_dmem_QECed_in);
                 INCR_RX_QEC_BUFF(p_rx_dmem_QECed_out);
                 RX_total_dmem_QECed_size += RX_DDR_STEP;
@@ -477,7 +478,6 @@ void PUSH_RX_DATA(void) {
         // Push data to DDR if standalone mode
         if (!RX_ext_dma_enabled) {
             // check DDR dma completion
-#ifdef RX_DDR_STATE_CMPL
             if (RX_total_ddr_enqueued_size != RX_total_dmem_consumed_size) {
                 uint32_t r, f, n, cand, prev;
                 dmac_clear_complete(ddr_wr_dma_ch_mask);
@@ -501,20 +501,6 @@ void PUSH_RX_DATA(void) {
                     }
                 }
             }
-#else
-            if (dmac_is_complete(ddr_wr_dma_ch_mask) == ddr_wr_dma_ch_mask) {
-                dmac_clear_complete(ddr_wr_dma_ch_mask);
-                RX_total_dmem_consumed_size += RX_DDR_STEP;
-                rx_vspa_proxy[0].la9310_fifo_produced_size = RX_total_dmem_consumed_size;
-                rx_proxy_updated = 1;
-                g_stats.rx_stats[0][STAT_DMA_DDR_WR]++;
-                RX_TRACE(L1_TRACE_MSG_DMA_DDR_WR_COMP, (uint32_t)g_stats.rx_stats[0][STAT_DMA_DDR_WR]);
-                if (DDR_wr_buff_wrap_equeued) {
-                    DDR_wr_buff_wrap_equeued = 0;
-                    DDR_wr_buff_loop_count++;
-                }
-            }
-#endif
 
             // host flow control (host-written consumed counter, read only)
             if (host_flow_control_disable ||

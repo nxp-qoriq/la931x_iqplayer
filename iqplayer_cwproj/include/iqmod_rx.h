@@ -7,6 +7,31 @@
 #ifndef IQMOS_RX_H_
 #define IQMOS_RX_H_
 
+/*
+ * RX IQ swap at the AXIQ input. On RFNM (LMS7002 RFIC) the received
+ * spectrum is mirrored (a +f tone shows at -f), so I and Q are swapped by
+ * the AXIQ RX FIFO before any VSPA processing. Build with -DRX_IQ_SWAP=0
+ * for RF front-ends that do not need it.
+ */
+#ifndef RX_IQ_SWAP
+#define RX_IQ_SWAP 1
+#endif
+
+/* Enable one AXIQ RX FIFO, applying the RX_IQ_SWAP setting first. */
+#if RX_IQ_SWAP
+#define RX_FIFO_ENABLE(fifo)                                  \
+    do {                                                      \
+        axiq_fifo_rx_iq_swap_on(AXIQ_BANK_0, (fifo));         \
+        axiq_fifo_rx_enable(AXIQ_BANK_0, (fifo));             \
+    } while (0)
+#else
+#define RX_FIFO_ENABLE(fifo)                                  \
+    do {                                                      \
+        axiq_fifo_rx_iq_swap_off(AXIQ_BANK_0, (fifo));        \
+        axiq_fifo_rx_enable(AXIQ_BANK_0, (fifo));             \
+    } while (0)
+#endif
+
 #ifdef IQMOD_RX_1T0R
 #define RX_NUM_CHAN 0
 #define RX_DECIM 1
@@ -59,10 +84,12 @@
 #define RX_COMPRESS_RATIO_PCT 100
 #define RX_DMA_TXR_size (256)
 #define RX_DECIM 2
-/* NOQEC: no rxiqcompcfg in IPPU so input_buffer(4ch*4buf*256smp*4B=16384B) fits exactly */
-#ifdef IQMOD_RX_NO_QEC
+#if defined(IQMOD_RX_QEC_DECX2_FUSED)
+/* FUSED: 4-deep AXIQ input ring (IPPU DMEM), the 3-deep ring
+ * could not absorb host flow-control jitter. The decimated ring stays 3
+ * deep: a 4th slot does not fit in VCPU DMEM with the 0x480 stack. */
 #define RX_NUM_BUF 4
-#define RX_NUM_DEC_BUF 4
+#define RX_NUM_DEC_BUF 3
 #else
 #define RX_NUM_BUF 3
 #define RX_NUM_DEC_BUF 3
@@ -118,7 +145,7 @@ __attribute__((aligned(64)));
     {                                                                                         \
         /*rxbuff_ptr##_prev=rxbuff_ptr;*/                                                     \
         rxbuff_ptr += RX_DMA_TXR_size / RX_DECIM;                                             \
-        if (rxbuff_ptr >= &input_dec_buffer[chan][RX_NUM_BUF * RX_DMA_TXR_size / RX_DECIM]) { \
+        if (rxbuff_ptr >= &input_dec_buffer[chan][RX_NUM_DEC_BUF * RX_DMA_TXR_size / RX_DECIM]) { \
             rxbuff_ptr = &input_dec_buffer[chan][0];                                          \
         }                                                                                     \
     }
@@ -146,12 +173,20 @@ typedef struct s_rx_ch_context {
     //	uint32_t DDR_wr_base_address; /* moved to host proxy */
 } t_rx_ch_context;
 
-#ifndef IQMOD_RX_NO_QEC
-extern structTXIQCompParams rxiqcompcfg_struct _VSPA_VECTOR_ALIGN;
+/* Refresh the fused QEC+decimation kernel config of channel ch after a QEC
+ * change (no-op unless built with IQMOD_RX_QEC_DECX2_FUSED). */
+#if defined(IQMOD_RX_0T4R) && defined(IQMOD_RX_QEC_DECX2_FUSED)
+void rx_fused_cfg_update(uint32_t ch);
+/* Mailbox path: cheap incremental update while streaming. */
+void rx_fused_cfg_refresh(uint32_t ch);
+#else
+/* No fused kernel in this build: nothing to rebuild. */
+#define rx_fused_cfg_update(ch) ((void)(ch))
+#define rx_fused_cfg_refresh(ch) ((void)(ch))
 #endif
 
 void DDR_write(uint32_t DDR_wr_dma_channel, uint32_t DDR_address, uint32_t vsp_address);
-void rx_qec_correction(vspa_complex_fixed16 *dataIn, vspa_complex_fixed16 *dataOut);
+void rx_qec_correction(vspa_complex_fixed16 *dataIn, vspa_complex_fixed16 *dataOut, uint32_t ch);
 void RX_IQ_DATA_TO_DDR(void);
 void PUSH_RX_DATA(void);
 uint32_t dma_chan_mask(uint32_t dma_channel, uint32_t nb_dma);

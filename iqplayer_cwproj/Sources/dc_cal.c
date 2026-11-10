@@ -49,7 +49,7 @@ __attribute__((section(".text.opcode_3"))) void RX_DCOC_CAL(void) __attribute__(
 	dmac_clear_complete(0x1<<dma_channel_rd);
 	stream_read(dma_channel_rd, axi_rd, 2 * (uint32_t)(input_buffer));
 	stream_read(dma_channel_rd, axi_rd, 2 * (uint32_t)(input_buffer));
-	axiq_fifo_rx_enable(AXIQ_BANK_0, Rx_Antenna2fifo_index[RX_index]);
+	RX_FIFO_ENABLE(Rx_Antenna2fifo_index[RX_index]);
 	WAIT(dmac_is_complete(0x1<<dma_channel_rd));
 	dmac_clear_complete(0x1<<dma_channel_rd);
 	WAIT(dmac_is_complete(0x1<<dma_channel_rd));
@@ -67,10 +67,10 @@ __attribute__((section(".text.opcode_3"))) void RX_DCOC_CAL(void) __attribute__(
 	iq_comp_params2_rx.dcOffset.real = output_buffer_1[FFT_SIZE/2].real;
 	iq_comp_params2_rx.dcOffset.imag = output_buffer_1[FFT_SIZE/2].imag;
 	mailbox_out_msg_0_MSB =  *(uint32_t *) &iq_comp_params2_rx.dcOffset;
-#elif !defined(IQMOD_RX_NO_QEC)
-	rxiqcompcfg_struct.dcOffset.real = output_buffer_1[FFT_SIZE/2].real;
-	rxiqcompcfg_struct.dcOffset.imag = output_buffer_1[FFT_SIZE/2].imag;
-	mailbox_out_msg_0_MSB =  *(uint32_t *) &rxiqcompcfg_struct.dcOffset;
+#else
+	RX_QEC_CFG(0)->dcOffset.real = output_buffer_1[FFT_SIZE/2].real;
+	RX_QEC_CFG(0)->dcOffset.imag = output_buffer_1[FFT_SIZE/2].imag;
+	mailbox_out_msg_0_MSB =  *(uint32_t *) &RX_QEC_CFG(0)->dcOffset;
 #endif
 	mailbox_out_msg_0_LSB = 0x1;
 
@@ -165,7 +165,7 @@ __attribute__((section(".text.opcode_3"))) void TX_DCOC_CAL(void) {
 				stream_read(dma_channel_rd, axi_rd, 2 * (uint32_t)(input_buffer));
 				stream_read(dma_channel_rd, axi_rd, 2 * (uint32_t)(input_buffer));
 				axiq_fifo_tx_enable(AXIQ_BANK_0, AXIQ_FIFO_TX0);
-				axiq_fifo_rx_enable(AXIQ_BANK_0, Rx_Antenna2fifo_index[RX_index]);
+				RX_FIFO_ENABLE(Rx_Antenna2fifo_index[RX_index]);
 				WAIT(dmac_is_complete(0x1<<dma_channel_rd));
 				dmac_clear_complete(0x1<<dma_channel_rd);
 				WAIT(dmac_is_complete(0x1<<dma_channel_rd));
@@ -383,7 +383,7 @@ __attribute__((section(".text.opcode_4"))) void BW_CAL(void) {
 	// DMA transfer from AXIQ to DMEM
 	stream_read(dma_channel_rd, axi_rd, 2 * (uint32_t)(input_buffer_0));
 	axiq_fifo_tx_enable(AXIQ_BANK_0, AXIQ_FIFO_TX0);
-	axiq_fifo_rx_enable(AXIQ_BANK_0, Rx_Antenna2fifo_index[RX_index]);
+	RX_FIFO_ENABLE(Rx_Antenna2fifo_index[RX_index]);
 	WAIT(dmac_is_complete(0x1<<dma_channel_rd));
 	dmac_clear_complete(0x1<<dma_channel_rd);
 	fftDIF512_hfx_hfx(input_buffer_0, (vspa_complex_fixed16 *)input_buffer_1, input_buffer_0, FFT_SIZE*2);

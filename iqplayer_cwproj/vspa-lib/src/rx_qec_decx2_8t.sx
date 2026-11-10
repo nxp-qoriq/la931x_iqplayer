@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: (BSD-3-Clause OR GPL-2.0)
+# Copyright 2026 NXP
+
+//! @prototype  rx_qec_decx2_8t( cfixed16_t *pOut,            a0
+//!                              cfixed16_t *pIn,             a1
+//!                              rx_qec_decx2_cfg_t *pCfg,    a2 (line 0 taps/2, line 1 QEC)
+//!                              cfixed16_t *filtState,       a3 (32 history samples)
+//!                              unsigned int n_samples )     g0 (multiple of 64)
+//
+// Stage 1: x2 decimation, decimator_2x_8_Taps_asm pipeline (taps scaled 1/2).
+// Stage 2: QEC in place on the n_samples/2 outputs, txiqcomp pipeline.
+
+#include "vspa.h"
+
+#define VR     (__AU_COUNT__*4)
+
+	.section .text
+	.global _rx_qec_decx2_8t
+	.type _rx_qec_decx2_8t, @function
+_rx_qec_decx2_8t:
+    mv a4, a0;                  // output start, for the QEC pass
+    clr.VRA;
+    mv g7, 50;
+    add a3,50;
+    add a1,50;
+               						ld [a2]+0;        set.prec single, half_fixed, single, single, half_fixed;
+    sr g0, g0, 6;
+    mv g6, g0;                  // output lines, for the QEC pass
+    setB.VRAptr rS0, 448;    		ld [a3]-g7;
+    set.VRArange1 rS0, 448, 460;	      				ld.h2l R7;
+       								ldA.laddr [a1]+0;
+    set.rot R0R1r4;										ld.h2l R0;
+    set.VRAincr rS0, 4;     		ldA.laddr [a1]+1;
+    setB.VRAptr rV, 256;    		ldA.laddr [a1]+0;   ld.l2h_h2l R0;
+    set.VRArange1 rV, 256, 288;
+    set.VRAincr rV, 32;		    						ld.h2l R2;   	ror;    rd S2; rd S1; rd S0;   set.Smode S0i1r1i1r1, S1i2i1r2r1, S2zeros;
+    setB.loop g0, 8;        		ldA.laddr [a1]+1;	ld.l2h_h2l R2;  ror;    rd S1; rd S0;
+    								ldA.laddr [a1]+0;                   ror;    rd S1; rd S0;           cmad;
+    setB.VRAptr rS1, 128;												    	rd S1; rd S0;           cmac;
+    set.rot R2R3r4;         							ld.h2l R0;   	ror;    rd S1; rd S0;           cmac;
+    setB.VRAptr rSt, 4;      		ldA.laddr [a1]+1;	ld.l2h_h2l R0;  ror;    rd S1; rd S0;           cmac;
+    								ldA.laddr [a1]+0;                   ror;    rd S1; rd S0;           cmad;
+    setB.VRAptr rS1, 0;            			    						    	rd S1; rd S0;           cmac;
+    set.rot R0R1r4;         							ld.h2l R2;   	ror;    rd S1; rd S0;           cmac;						loop_begin;
+    								ldA.laddr [a1]+1;	ld.l2h_h2l R2;  ror;    rd S1; rd S0;           cmac;		wr.hlinecplx;
+    								ldA.laddr [a1]+0;                   ror;	rd S1; rd S0;           cmad;
+    setB.VRAptr rS1, 128;   													rd S1; rd S0;           cmac;
+    set.rot R2R3r4;         							ld.h2l R0;   	ror;    rd S1; rd S0;           cmac;
+    								ldA.laddr [a1]+1;	ld.l2h_h2l R0;  ror;    rd S1; rd S0;           cmac;		wr.hlinecplx;
+    								ldA.laddr [a1]+0;                   ror;    rd S1; rd S0;           cmad;
+    setB.VRAptr rS1, 0;            			    						    	rd S1; rd S0;           cmac;	    stA.laddr [a0]+1;
+
+    add a1,-4*64;
+    ld.laddr [a1]+0;
+    nop;
+    nop;
+    ld.normal R4;
+    st.laddr [a3]+0;            // filter history
+    add a2, 64;                 // QEC config line
+    mv a0, a4;
+    mv a1, a4;
+    mv g0, g6;
+    nop;
+
+    // ---- QEC, in place on the decimated output (txiqcomp pipeline) ----
+                                                                                                        clr.VRA;
+                                                                                                        set.VRArange1 rS0, 1*VR+4, 1*VR+8;
+	ld.laddr [a2]+0;	                																set.VRAincr rS0, 4;
+    ld.laddr [a0]+1;																					set.VRAptr rS0, 1*VR+8;
+    																									set.VRAptr rS2, 1*VR;  set.VRAptr rS1, 4*VR;
+    ld.laddr [a0]+1;		ld.normal R1;                                                               set.prec single, half_fixed, single, single, half_fixed;
+    						ld.normal R4;                                                               set.Smode S0i1r1i1r1, S1straight, S2i1r1i1r1;
+    ld.laddr [a0]+1;							rd S0; rd S1; rd S2;	rol;							set.rot R4l1;
+    	                    ld.normal R4;       rd S0; rd S1;
+    ld.laddr [a0]+1;                            rd S0; rd S1;           rol;	rmad;
+    					    ld.normal R4;       rd S0; rd S1;                   rmac;
+    ld.laddr [a0]+1;                            rd S0; rd S1;           rol;    rmad;
+    	                    ld.normal R4;       rd S0; rd S1;                   rmac;                   set.loop g0,2;
+    ld.laddr [a0]+1;                            rd S0; rd S1;           rol;    rmad;
+    	                    ld.normal R4;       rd S0; rd S1;                   rmac;   wr.straight;
+	ld.laddr [a0]+1;                            rd S0; rd S1;           rol;    rmad;                   loop_begin;
+    st.laddr [a1]+1;        ld.normal R4;       rd S0; rd S1;                   rmac;   wr.straight;    loop_end;
+
+    rts;
+    nop;
+    nop;
+
+	.size _rx_qec_decx2_8t, .-_rx_qec_decx2_8t

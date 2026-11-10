@@ -27,6 +27,14 @@
 #include "vspa_dmem_proxy.h"
 #include "ccnt.h"
 
+/* Fused QEC + x2 decimation (0T4R only, -DIQMOD_RX_QEC_DECX2_FUSED).
+ * One kernel call per buffer replaces the QEC stage, the decimation stage,
+ * the QECed counter/pointer and the late re-arm. */
+#if defined(IQMOD_RX_0T4R) && defined(IQMOD_RX_QEC_DECX2_FUSED)
+#define RX_FUSED 1
+#include "rx_qec_decx2.h"
+#endif
+
 /* Cycle meter for the streaming pass, about 20-30 cycles per pass.
  * Uses the spare g_stats.unused[0..5] slots: max pass, pass count,
  * passes > 2560 cy, sum(pass)/16, max gap between pass starts, last pass start.
@@ -35,9 +43,10 @@
 #define RX_CYCLE_METER 1
 #endif
 /* Pass budget in VSPA cycles for the "over budget" count: one AXIQ buffer
- * time (2560 cy at 61.44 MSPS, 1280 cy at 122.88 MSPS). */
+ * time at VSPA 491.52 MHz (measured on RFNM): 2048 cy at 61.44 MSPS,
+ * 1024 cy at 122.88 MSPS. */
 #ifndef RX_PASS_BUDGET
-#define RX_PASS_BUDGET 2560u
+#define RX_PASS_BUDGET 2048u
 #endif
 
 /* Per-stage cycle sums (>>4) in tx_stats[0..4], only in RX-only builds where
@@ -88,8 +97,8 @@ static uint32_t rx_el_last, rx_el_frac;
 #define RX_STALL(ch, idx) do { } while (0)
 #endif
 
-/* DDR write accounting from DMA state (0T4R, disable with
- * -DRX_DDR_LEGACY_CMPL).  The completion flag is a single sticky bit, so with
+/* DDR write accounting from DMA state (0T4R, 1T2R).  The completion flag is a
+ * single sticky bit, so with
  * two writes queued in the 2-entry command FIFO two completions can merge
  * into one and produced_size falls behind for good.  Instead, the number of
  * writes in flight is derived each pass from XRUN and FIFO_STAT:
@@ -97,30 +106,19 @@ static uint32_t rx_el_last, rx_el_frac;
  * and produced = enqueued - in_flight * step.  produced never moves back,
  * and it advances to min(value this pass, value previous pass), so a single
  * transient status read cannot overestimate it.
- * RX_DDR_INFLIGHT (1 or 2, default 2) is the max number of DDR writes queued
- * per channel, gated on the in-flight count read in the same pass.
- * Cycle budget at 4R (measured, FC off): with 1 write in flight or with the
- * full 3-read status sequence (-DRX_DDR_STATUS_FULL) the last channel
- * starves and the AXIQ FIFO overruns.  The default (2 in flight, XRUN +
- * FIFO_STAT reads only) is lossless with and without host flow control.
+ * RX_DDR_INFLIGHT (2) is the max number of DDR writes queued per channel,
+ * gated on the in-flight count read in the same pass.
+ * Cycle budget at 4R (measured, FC off): with 1 write in flight or with a
+ * full 3-read status sequence the last channel starves and the AXIQ FIFO
+ * overruns.  2 in flight with XRUN + FIFO_STAT reads only is lossless with
+ * and without host flow control.
  * tx_stats[0..3] count advances of more than 2 chunks at once (only with
  * RX_STALL_STATS); shared with the optional RX_STAGE_METER. */
-#if (defined(IQMOD_RX_0T4R) || defined(IQMOD_RX_1T2R)) && !defined(RX_DDR_LEGACY_CMPL)
-#define RX_DDR_STATE_CMPL 1
-#ifndef RX_DDR_INFLIGHT
 #define RX_DDR_INFLIGHT 2
-#endif
 static uint32_t rx_ddr_cand[RX_NUM_CHAN];
-#endif
 
-/* Channel service order in the streaming loops.  -DRX_REVERSE_ORDER serves
- * channel 3 first and channel 0 last (diagnostic: tells loop-order starvation
- * apart from a hardware/DMA-channel limit). */
-#ifdef RX_REVERSE_ORDER
-#define RX_FOR_EACH_CHAN(i) for ((i) = RX_NUM_CHAN; (i)-- > 0;)
-#else
+/* Channel service order in the streaming loops. */
 #define RX_FOR_EACH_CHAN(i) for ((i) = 0; (i) < RX_NUM_CHAN; (i)++)
-#endif
 
 vspa_complex_fixed16 input_buffer[RX_NUM_CHAN][RX_NUM_BUF * RX_DMA_TXR_size] __attribute__((section(".ippu_dmem")))
 __attribute__((aligned(64)));
@@ -133,6 +131,96 @@ int filter_taps_downsampling[8] __attribute__((aligned(64))) = {
 };
 
 t_rx_ch_context rx_ch_context[RX_NUM_CHAN];
+
+#ifdef RX_FUSED
+/* Per-channel kernel config: FIR taps/2 and QEC with gains x2 and DC x sum(h).
+ * The kernel loads it by whole DMEM lines: it must be line aligned. The type
+ * alignment is not applied to a static .bss array by the linker (it landed at
+ * 0x1b24), so the alignment and the section are set on the variable. */
+static rx_qec_decx2_cfg_t rx_fused_cfg[RX_NUM_CHAN] __attribute__((section(".vcpu_dmem")))
+__attribute__((aligned(128)));
+#endif
+
+/* Rebuild the fused config of channel ch from its QEC set. Called at stream
+ * start (all channels) and from the mailbox handlers that change the RX QEC
+ * parameters; empty when the fused kernel is not built in. */
+#ifdef RX_FUSED
+/* Source QEC words used for the last build of each channel config, and
+ * sum(h) of the decimation taps (the taps never change at run time). */
+static uint32_t rx_fused_src[RX_NUM_CHAN][6];
+static float rx_fused_sumh;
+
+/* Full rebuild with soft-float (about 21 float operations). Only called
+ * when the stream is not running: at stream start and from the mailbox
+ * handlers while idle. */
+void rx_fused_cfg_update(uint32_t ch) {
+    const uint32_t *s;
+    float sh = 0.0f;
+    int k;
+
+    if (ch >= RX_NUM_CHAN)
+        return;
+    rx_qec_decx2_prepare(&rx_fused_cfg[ch], (const float *)filter_taps_downsampling,
+                         (const float *)RX_QEC_CFG(ch));
+    for (k = 0; k < 8; k++)
+        sh += ((const float *)filter_taps_downsampling)[k];
+    rx_fused_sumh = sh;
+    s = (const uint32_t *)RX_QEC_CFG(ch);
+    for (k = 0; k < 6; k++)
+        rx_fused_src[ch][k] = s[k];
+}
+
+/* 2.0f * x, bit exact: exponent + 1 for normal values, soft-float only for
+ * zero/denormal/overflow/inf/nan. */
+static uint32_t rx_fused_dbl(uint32_t x) {
+    uint32_t e = (x >> 23) & 0xffu;
+    float f;
+
+    if ((x & 0x7fffffffu) == 0)
+        return x;
+    if (e != 0 && e < 0xfeu)
+        return x + (1u << 23);
+    f = 2.0f * *(const float *)&x;
+    return *(uint32_t *)&f;
+}
+
+/* Called from the QEC mailbox handlers. While streaming, only the fused
+ * words whose source word changed are recomputed: the gains with an
+ * integer exponent increment, the DC terms with one soft-float multiply.
+ * A full rebuild stalled all channels for several thousand cycles and
+ * overran every AXIQ FIFO on each QEC message. */
+void rx_fused_cfg_refresh(uint32_t ch) {
+    const uint32_t *s;
+    uint32_t *d;
+    uint32_t k;
+
+    /* Always incremental, also when idle: stream start does a full
+     * rebuild anyway, and not nesting rx_fused_cfg_update() here keeps
+     * the mailbox stack chain inside the 0x480 stack. */
+    if (ch >= RX_NUM_CHAN)
+        return;
+    s = (const uint32_t *)RX_QEC_CFG(ch);
+    d = (uint32_t *)rx_fused_cfg[ch].qec;
+    for (k = 0; k < 6; k++) {
+        uint32_t v = s[k];
+        if (v == rx_fused_src[ch][k])
+            continue;
+        rx_fused_src[ch][k] = v;
+        if (k < 2) {
+            if ((v & 0x7fffffffu) == 0) {
+                d[k] = 0;
+            } else {
+                float f = *(const float *)&v * rx_fused_sumh;
+                d[k] = *(uint32_t *)&f;
+            }
+        } else if (k == 2) {
+            d[k] = 0;
+        } else {
+            d[k] = rx_fused_dbl(v);
+        }
+    }
+}
+#endif
 
 // uint32_t DDR_wr_QEC_enable= 0, DDR_wr_CMP_enable=0;
 #define DDR_wr_QEC_enable 1
@@ -160,8 +248,10 @@ uint32_t dma_chan_mask(uint32_t dma_channel, uint32_t nb_dma) {
     return mask;
 }
 
-void DDR_write_multi_dma(uint32_t DDR_wr_dma_channel, uint32_t nb_dma, uint32_t DDR_address, uint32_t vsp_address,
-                         int32_t bytes_size) {
+/* Forced inline: removes a 128 B call frame from the PUSH_RX_DATA path. */
+static inline __attribute__((always_inline)) void DDR_write_multi_dma(uint32_t DDR_wr_dma_channel, uint32_t nb_dma,
+                                                                      uint32_t DDR_address, uint32_t vsp_address,
+                                                                      int32_t bytes_size) {
     uint32_t i;
     uint32_t size = bytes_size / nb_dma;
 
@@ -176,15 +266,19 @@ void DDR_write_multi_dma(uint32_t DDR_wr_dma_channel, uint32_t nb_dma, uint32_t 
     }
 }
 
-void rx_qec_correction(vspa_complex_fixed16 *dataIn, vspa_complex_fixed16 *dataOut) {
+void rx_qec_correction(vspa_complex_fixed16 *dataIn, vspa_complex_fixed16 *dataOut, uint32_t ch) {
     //	if(!DDR_wr_QEC_enable)
     //		return;
 
 #ifdef RXIQCOMP2
     txiqcomp_x32chf_5t((vspa_complex_fixed16 *)dataIn, (vspa_complex_fixed16 *)dataOut, &iq_comp_params2_rx, MEM_LINE_SIZE);
 #else
-#if defined(RXIQCOMP) && !defined(IQMOD_RX_NO_QEC)
-    txiqcomp((vspa_complex_fixed16 *)dataIn, (vspa_complex_fixed16 *)dataOut, &rxiqcompcfg_struct, MEM_LINE_SIZE);
+#ifdef RXIQCOMP
+    /* txiqcomp processes one 32-sample line per loop at 16 AU, so the loop
+     * count must follow the ring slot size: 16 for 512-sample slots
+     * (1T2R), 8 for 256-sample slots (0T4R). MEM_LINE_SIZE (16) overran the
+     * slot in 0T4R and corrected the next slot twice. */
+    txiqcomp((vspa_complex_fixed16 *)dataIn, (vspa_complex_fixed16 *)dataOut, RX_QEC_CFG(ch), RX_DMA_TXR_size / 32);
 #endif
 #endif
 }
@@ -280,6 +374,8 @@ void RX_IQ_DATA_TO_DDR(void) {
 
         // clear decimation history buffers
         memclr((void *)filtState, sizeof(filtState));
+        for (i = 0; i < RX_NUM_CHAN; i++)
+            rx_fused_cfg_update(i);
 
         // if simple load test no axiq init
         if (DDR_wr_load_start_bit_update != 0) {
@@ -301,11 +397,13 @@ void RX_IQ_DATA_TO_DDR(void) {
             dmac_reset(0x1 << dma_channel_rd);
             axiq_fifo_rx_disable(AXIQ_BANK_0, Rx_Antenna2fifo_index[rx_ch_context[i].RX_index]);
             stream_read_ptr_rst(dma_channel_rd, axi_rd);
-            do {
-#ifndef IQMOD_RX_0T1R
-                PUSH_TX_DATA();
-#endif
-            } while (!dmac_is_complete(0x1 << dma_channel_rd));
+            /* Plain wait, no nested PUSH_TX_DATA(): the nested call stacked
+             * a second 256 B frame on top of this handler and set the VCPU
+             * stack peak. The 64 B reset is short; a transient TX underrun
+             * at stream start is accepted to save stack.
+             * Checked by tools/stack_check.py. */
+            while (!dmac_is_complete(0x1 << dma_channel_rd)) {
+            }
             dmac_clear_complete(0x1 << dma_channel_rd);
         }
 
@@ -318,7 +416,7 @@ void RX_IQ_DATA_TO_DDR(void) {
 
         for (i = 0; i < RX_NUM_CHAN; i++) {
             dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
-            axiq_fifo_rx_enable(AXIQ_BANK_0, Rx_Antenna2fifo_index[rx_ch_context[i].RX_index]);
+            RX_FIFO_ENABLE(Rx_Antenna2fifo_index[rx_ch_context[i].RX_index]);
             axiq_fifo_rx_cr(AXIQ_BANK_0, Rx_Antenna2fifo_index[rx_ch_context[i].RX_index], AXIQ_CR_CLRERR, AXIQ_CR_CLRERR);
             axiq_fifo_rx_cr(AXIQ_BANK_0, Rx_Antenna2fifo_index[rx_ch_context[i].RX_index], AXIQ_CR_CLRERR, 0);
             dmac_clear_errxfr(0x1 << dma_channel_rd);
@@ -363,17 +461,15 @@ void RX_IQ_DATA_TO_DDR(void) {
 #endif
             rx_el_frac = 0;
             rx_el_last = (uint32_t)ccnt_read();
-#if defined(RX_DDR_STATE_CMPL) && !defined(RX_STAGE_METER)
+#ifndef RX_STAGE_METER
             for (i = 0; i < RX_NUM_CHAN; i++)
                 g_stats.tx_stats[i] = 0;
 #endif
 #endif /* RX_TXSTATS_FREE */
         }
 #endif
-#ifdef RX_DDR_STATE_CMPL
         for (i = 0; i < RX_NUM_CHAN; i++)
             rx_ddr_cand[i] = 0;
-#endif
         /* Avoid false RXUDR on the first PUSH_RX_DATA call: FIFO has just
          * been enabled so any stale underrun flag would be a false positive. */
         rxovr_check_throttle = 16;
@@ -422,19 +518,11 @@ fail_rx_iq_data:
 
 //#pragma optimize_for_size off
 volatile uint32_t rx_busy_size = 0;
-#ifdef RX_FC_POLL
-/* Set when some channel still has decimated data waiting for the FC gate or
- * a DDR DMA slot; main() then re-polls instead of entering __idle(). */
-uint32_t rx_work_pending = 0;
-#endif
 void PUSH_RX_DATA(void) {
     uint32_t tmp_status, i;
     uint32_t tmp_dma_errors;
     uint32_t rx_empty_size;
     uint32_t all_chan_ddr_consumed_size = 0;
-#ifdef RX_FC_POLL
-    rx_work_pending = 0;
-#endif
 
     /* Check all 4 AXIQ RX FIFOs for overrun/underrun every 16 iterations.
      * A single iord(AXIQ_SR0) covers all 4 channels; compile-time constant
@@ -479,6 +567,15 @@ void PUSH_RX_DATA(void) {
 #define AXIQ_SR_UDR_RX2 ((uint32_t)(AXIQ_SR_FIELD_ERRUNDER << AXIQ_SR_SHIFT_RX2))
 #define AXIQ_SR_OVR_RX3 ((uint32_t)(AXIQ_SR_FIELD_ERROVER  << AXIQ_SR_SHIFT_RX3))
 #define AXIQ_SR_UDR_RX3 ((uint32_t)(AXIQ_SR_FIELD_ERRUNDER << AXIQ_SR_SHIFT_RX3))
+#ifdef RX_AXIQ_CHK_LIGHT
+/* Light error path (0T4R_FUSED_FAST): counters only, no traces, to keep
+ * the 1-in-16 check pass inside the AXIQ buffer budget. */
+#define CHK_CH(ch, OVR, UDR)                                                        \
+            if (tmp_status & (OVR))                                                  \
+                g_stats.rx_stats[ch][ERROR_AXIQ_FIFO_RX_OVERRUN]++;                 \
+            if (tmp_status & (UDR))                                                  \
+                g_stats.rx_stats[ch][ERROR_AXIQ_FIFO_RX_UNDERRUN]++;
+#else
 #define CHK_CH(ch, OVR, UDR)                                                        \
             if (tmp_status & (OVR)) {                                                \
                 g_stats.rx_stats[ch][ERROR_AXIQ_FIFO_RX_OVERRUN]++;                 \
@@ -490,6 +587,7 @@ void PUSH_RX_DATA(void) {
                 l1_trace(L1_TRACE_MSG_DMA_AXIQ_RX_UNDER,                            \
                          (uint32_t)g_stats.rx_stats[ch][ERROR_AXIQ_FIFO_RX_UNDERRUN]); \
             }
+#endif
 #if RX_NUM_CHAN > 2
             /* Report per antenna (stat column), not per hardware FIFO:
              * Rx_Antenna2fifo_index = {RX1, RX3, RX0, RX2}. */
@@ -608,9 +706,7 @@ void PUSH_RX_DATA(void) {
                 dmac_clear_event(ch_mask);
                 rx_ch_context[i].RX_total_axiq_received_size += RX_DMA_TXR_STEP;
                 g_stats.rx_stats[i][STAT_DMA_AXIQ_READ]++;
-#ifndef IQMOD_RX_NO_QEC
                 RX_TRACE(L1_TRACE_MSG_DMA_AXIQ_RX_COMP, (uint32_t)g_stats.rx_stats[i][STAT_DMA_AXIQ_READ]);
-#endif
             }
             if (dmac_errxfr(ch_mask)) {
                 dmac_clear_errxfr(ch_mask);
@@ -632,9 +728,7 @@ void PUSH_RX_DATA(void) {
                     stream_read(dma_channel_rd, axi_rd, 2 * (uint32_t)(rx_ch_context[i].p_rx_axiq_enqueued));
                     INCR_RX_BUFF(rx_ch_context[i].p_rx_axiq_enqueued, i);
                     rx_ch_context[i].RX_total_axiq_enqueued_size += RX_DMA_TXR_STEP;
-#ifndef IQMOD_RX_NO_QEC
                     RX_TRACE(L1_TRACE_MSG_DMA_AXIQ_RX_START, (uint32_t)rx_ch_context[i].p_rx_axiq_enqueued);
-#endif
                 } else {
                     /* No DMEM buffer free: FIFO will overrun. */
                     g_stats.rx_stats[i][ERROR_DMA_DDR_WR_OVERRUN]++;
@@ -645,25 +739,26 @@ void PUSH_RX_DATA(void) {
         }
 
         RX_STAGE(0);
-#ifndef IQMOD_RX_NO_QEC
+#ifndef RX_FUSED
         /* QEC stage: correct IQ imbalance per channel before decimation. */
         RX_FOR_EACH_CHAN(i) {
             if ((rx_ch_context[i].RX_total_axiq_received_size - rx_ch_context[i].RX_total_dmem_QECed_size) >= RX_DMA_TXR_STEP) {
                 RX_TRACE(L1_TRACE_L1APP_RX_QEC_START, (uint32_t)rx_ch_context[i].p_rx_dmem_QECed);
                 rx_qec_correction((vspa_complex_fixed16 *)rx_ch_context[i].p_rx_dmem_QECed,
-                                  (vspa_complex_fixed16 *)rx_ch_context[i].p_rx_dmem_QECed);
+                                  (vspa_complex_fixed16 *)rx_ch_context[i].p_rx_dmem_QECed, i);
                 INCR_RX_BUFF(rx_ch_context[i].p_rx_dmem_QECed, i);
                 rx_ch_context[i].RX_total_dmem_QECed_size += RX_DMA_TXR_STEP;
                 RX_TRACE(L1_TRACE_L1APP_RX_QEC_COMP, (uint32_t)rx_ch_context[i].RX_total_dmem_QECed_size);
             }
         }
-#endif /* !IQMOD_RX_NO_QEC */
+#endif /* !RX_FUSED */
 
         RX_STAGE(1);
-        /* Decimation: when IQMOD_RX_NO_QEC the QEC stage is absent so gate
-         * directly on AXIQ received count; otherwise gate on QEC output. */
+        /* Decimation: with RX_FUSED there is no separate
+         * QEC stage so gate directly on AXIQ received count; otherwise gate
+         * on QEC output. */
         RX_FOR_EACH_CHAN(i) {
-#ifdef IQMOD_RX_NO_QEC
+#ifdef RX_FUSED
             if ((rx_ch_context[i].RX_total_axiq_received_size - rx_ch_context[i].RX_total_dmem_input_Decimated_size) >=
 #else
             if ((rx_ch_context[i].RX_total_dmem_QECed_size - rx_ch_context[i].RX_total_dmem_input_Decimated_size) >=
@@ -692,10 +787,12 @@ void PUSH_RX_DATA(void) {
                  * and causes AXIQ HW FIFO overrun (ERROR_AXIQ_FIFO_RX_OVERRUN).
                  * The DDR ring fullness check belongs in the DDR DMA enqueue path
                  * below, not in the decimation path. */
-#ifndef IQMOD_RX_NO_QEC
                 RX_TRACE(L1_TRACE_L1APP_RX_DEC_START, (uint32_t)rx_ch_context[i].p_rx_dmem_input_decimated);
-#endif
-#if defined(IQMOD_RX_1T2R) || defined(IQMOD_RX_1T4R) || defined(IQMOD_RX_0T4R)
+#if defined(RX_FUSED)
+                rx_qec_decx2_8t((void *)rx_ch_context[i].p_rx_dmem_output_decimated,
+                                (void *)rx_ch_context[i].p_rx_dmem_input_decimated,
+                                &rx_fused_cfg[i], (void *)filtState[i], RX_DMA_TXR_size);
+#elif defined(IQMOD_RX_1T2R) || defined(IQMOD_RX_1T4R) || defined(IQMOD_RX_0T4R)
                 decimator_2x_8_Taps_asm((cfixed16_t *)rx_ch_context[i].p_rx_dmem_output_decimated,
                                         (cfixed16_t *)rx_ch_context[i].p_rx_dmem_input_decimated,
                                         (float32_t *)filter_taps_downsampling, (cfixed16_t *)filtState[i], RX_DMA_TXR_size);
@@ -706,9 +803,7 @@ void PUSH_RX_DATA(void) {
                 // rx_ch_context[i].RX_total_dmem_output_Decimated_size += RX_DDR_STEP;
                 rx_ch_context[i].RX_total_decimated_size += RX_DDR_STEP;
                 rx_proxy_updated = 1;
-#ifndef IQMOD_RX_NO_QEC
                 RX_TRACE(L1_TRACE_L1APP_RX_DEC_COMP, (uint32_t)rx_ch_context[i].RX_total_dmem_input_Decimated_size);
-#endif
             }
         }
 
@@ -718,11 +813,9 @@ void PUSH_RX_DATA(void) {
             RX_FOR_EACH_CHAN(i) {
                 // check DDR dma completion
                 ddr_wr_dma_ch_mask = dma_chan_mask(DDR_WR_DMA_CHANNEL_1 + i, 1);
-#ifdef RX_DDR_STATE_CMPL
                 uint32_t ddr_n = 0;
                 if (rx_ch_context[i].RX_total_ddr_enqueued_size != rx_vspa_proxy[i].la9310_fifo_produced_size) {
                     uint32_t r1, f, n, cand, prev;
-#ifndef RX_DDR_STATUS_FULL
                     /* Default: 2 status reads, no completion read.
                      * XRUN is read before FIFO_STAT; VSPA is the only one
                      * that starts writes, so a transition between the two
@@ -731,15 +824,6 @@ void PUSH_RX_DATA(void) {
                     r1 = dmac_is_running(ddr_wr_dma_ch_mask);
                     f  = dmac_is_available(ddr_wr_dma_ch_mask);
                     n = !f ? 2u : (r1 ? 1u : 0u);
-#else
-                    uint32_t r2;
-                    if (dmac_is_complete(ddr_wr_dma_ch_mask))
-                        dmac_clear_complete(ddr_wr_dma_ch_mask);
-                    r1 = dmac_is_running(ddr_wr_dma_ch_mask);
-                    f  = dmac_is_available(ddr_wr_dma_ch_mask);
-                    r2 = dmac_is_running(ddr_wr_dma_ch_mask);
-                    n = !f ? 2u : ((r1 | r2) ? 1u : 0u);
-#endif
                     ddr_n = n;
                     cand = rx_ch_context[i].RX_total_ddr_enqueued_size - n * RX_DDR_STEP;
                     /* glitch filter: use min(this pass, previous pass) */
@@ -758,25 +842,7 @@ void PUSH_RX_DATA(void) {
 #endif
                     }
                 }
-#else
-                if (dmac_is_complete(ddr_wr_dma_ch_mask) == ddr_wr_dma_ch_mask) {
-                    dmac_clear_complete(ddr_wr_dma_ch_mask);
-                    rx_vspa_proxy[i].la9310_fifo_produced_size += RX_DDR_STEP;
-#ifdef RX_FC_POLL
-                    /* refresh the host mirror even if decimation is stalled */
-                    rx_proxy_updated = 1;
-#endif
-                    g_stats.rx_stats[i][STAT_DMA_DDR_WR]++;
-#ifndef IQMOD_RX_NO_QEC
-                    RX_TRACE(L1_TRACE_MSG_DMA_DDR_WR_COMP, (uint32_t)g_stats.rx_stats[i][STAT_DMA_DDR_WR]);
-#endif
-                }
-#endif /* RX_DDR_STATE_CMPL */
 
-#ifdef RX_FC_POLL
-                if ((rx_ch_context[i].RX_total_decimated_size - rx_ch_context[i].RX_total_ddr_enqueued_size) >= RX_DDR_STEP)
-                    rx_work_pending = 1;
-#endif
                 // host flow control: block DDR DMA if host is less than RX_DDR_STEP behind ring boundary
                 if (host_flow_control_disable ||
                     (rx_ch_context[i].RX_total_ddr_enqueued_size - rx_vspa_proxy[i].la9310_fifo_consumed_size + RX_DDR_STEP <=
@@ -784,12 +850,8 @@ void PUSH_RX_DATA(void) {
                     // if ((rx_ch_context[i].RX_total_dmem_output_Decimated_size-rx_ch_context[i].RX_total_ddr_enqueued_size) >=
                     // RX_DDR_STEP)
                     if ((rx_ch_context[i].RX_total_decimated_size - rx_ch_context[i].RX_total_ddr_enqueued_size) >= RX_DDR_STEP) {
-#ifdef RX_DDR_STATE_CMPL
                         if (ddr_n < RX_DDR_INFLIGHT &&
                             dmac_is_available(ddr_wr_dma_ch_mask) == ddr_wr_dma_ch_mask) {
-#else
-                        if (dmac_is_available(ddr_wr_dma_ch_mask) == ddr_wr_dma_ch_mask) {
-#endif
                             DDR_write_multi_dma(DDR_WR_DMA_CHANNEL_1 + i, 1,
                                                 rx_vspa_proxy[i].DDR_wr_base_address + rx_ch_context[i].DDR_wr_offset,
                                                 2 * (uint32_t)rx_ch_context[i].p_rx_ddr_enqueued, ddr_wr_dma_xfr_size);
@@ -798,9 +860,7 @@ void PUSH_RX_DATA(void) {
                             rx_ch_context[i].DDR_wr_offset += ddr_wr_dma_xfr_size;
                             if (rx_ch_context[i].DDR_wr_offset >= rx_vspa_proxy[i].DDR_wr_size)
                                 rx_ch_context[i].DDR_wr_offset = 0;
-#ifndef IQMOD_RX_NO_QEC
                             RX_TRACE(L1_TRACE_MSG_DMA_DDR_WR_START, (uint32_t)rx_ch_context[i].p_rx_ddr_enqueued);
-#endif
                         } else {
                             RX_STALL(i, STAT_EXT_DMA_DDR_WR);
                         }
@@ -814,10 +874,10 @@ void PUSH_RX_DATA(void) {
             }
         }
 
-#ifndef IQMOD_RX_NO_QEC
+#ifndef RX_FUSED
         /* Late re-arm: with QEC the correction loop (~1500 cy) may allow a
          * second DMA slot to open up after the early re-arm.  Not needed in
-         * the NOQEC path where the early re-arm above is sufficient, and
+         * the fused path where the early re-arm above is sufficient, and
          * enabling it there causes a double-arm race that overflows the
          * input_buffer ring and triggers DDR_WR_OVERRUN -> RXOVR. */
         RX_FOR_EACH_CHAN(i) {
@@ -839,7 +899,7 @@ void PUSH_RX_DATA(void) {
                 }
             }
         }
-#endif /* !IQMOD_RX_NO_QEC */
+#endif /* !RX_FUSED */
 
         // end reception
         all_chan_ddr_consumed_size = 0;
@@ -880,10 +940,6 @@ end_rx_push:
             g_stats.rx_stats[err_ch][ERROR_DMA_CONFIG_ERROR]++;
         }
         dmac_clear_errcfg();
-        #ifdef DBG_SPIN_ON
-        while (dbg_gbl == 6) {
-        };
-        #endif
     };
 
     // update host proxy if needed

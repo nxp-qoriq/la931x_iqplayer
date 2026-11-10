@@ -13,9 +13,10 @@
 #endif
 #ifdef IQMOD_RX_1T2R
 #define L1_TRACE 1
-/* 40 (was 50): frees .vdram for the t_stats cycle meters */
+/* 16 (was 40): frees 384 B of .vdram so bss ends below the VCPU stack
+ * (__stack 0x3E00, StackSize 0x200). Checked by tools/stack_check.py. */
 #ifndef L1_TRACE_SIZE
-#define L1_TRACE_SIZE 40
+#define L1_TRACE_SIZE 16
 #endif
 #endif
 #ifdef IQMOD_RX_1T4R
