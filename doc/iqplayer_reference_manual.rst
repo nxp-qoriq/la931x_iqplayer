@@ -1,768 +1,75 @@
 .. sectnum::
 
-**IQ Player  Software Reference Manual** 
-+++++++++++++++++++++++++++++++++++++++++
-
+**IQ Player Software Reference Manual**
++++++++++++++++++++++++++++++++++++++++
 
 Overview
 ********
-  
-IQ Player is a lightweight reference application designed to exercise the LA9310 baseband TX/RX paths using raw time-domain I/Q samples. 
-It targets SDR applications, RF testing, and calibration scenarios, providing signal conditioning features such as TX/RX QEC and decimation, 
-while maximizing hardware throughput (sampling rate, PCI bandwidth, and channel count).
 
-Key Features:
+IQ Player is a lightweight reference application that exercises the LA9310 baseband TX/RX
+paths with raw time-domain I/Q samples. It targets SDR applications, RF testing and
+calibration, provides TX/RX QEC, DC offset correction and decimation, and aims at the
+maximum hardware throughput (sampling rate, PCIe bandwidth, channel count).
 
-- Continuous raw RX/TX streaming
+Key features:
 
-- Supported sampling rates: 61.44 MSPS, 122.88 MSPS, and optionally 160 MSPS
+- Continuous raw RX/TX streaming, file replay and capture, host streaming library
+- Per-channel RX QEC and DC offset correction, TX QEC, saved and reapplied at start
+- Live spectrum display with QEC tuning and IQ snapshot capture (``iq_app -X``)
+- Statistics, cycle meters and traces for performance debugging
 
-- Channel configurations: 1T1R, 1T2R, 1T4R, 0T4R (RX-only)
+Supported configurations (VSPA DMA only, i.MX8MP RFNM):
 
-- QEC and decimation support
-
+ ============ ============================= =================================================
+  Config       Rate                          Status
+ ============ ============================= =================================================
+  1T1R         61.44 MSPS                    full duplex
+  1T1R         122.88 MSPS                   half duplex (RX only or TX only)
+  1T2R         61.44 MSPS, x2 decimation     full duplex
+  0T4R         4 x 61.44 MSPS, x2 decim.     RX only, fused QEC + decimation, lossless
+  TX only      up to 160 MSPS                2 DDR read channels + mBurst
+ ============ ============================= =================================================
 
 Hardware Requirements
 *********************
 
-The RFNM board (LA9310 + i.MX8M Plus) is the reference evaluation platform used by NXP for LA9310. This board is supported by default in the NXP LA9310 Linux BSP.
-Users may generate images using the NXP Linux BSP or directly use prebuilt images available on www.nxp.com.
+The RFNM board (LA9310 + i.MX8M Plus) is the NXP reference evaluation platform for LA9310.
+For a recent Linux kernel and updates, use the RFNM SDK and run IQ Player on top of it,
+see ``iqplayer_porting_guide_RFNM-SDK.rst``.
+The discontinued NXP LA9310 Linux BSP for RFNM is described in the legacy
+``iqplayer_quick_start_guide_RFNM.rst`` (reference only, no longer updated).
 
-Refer to 'iqplayer_quick_start_guide_rfnm-imx8mplus.rst'
-
-IQ Player can operate on any LA9310-based setup and has been validated with the LimeSDR‑Micro M.2 module:
-https://www.crowdsupply.com/lime-micro/limesdr-micro
-
-This module can be used with low-cost reference platforms such as:
-
-- FRDM‑IMX8M Plus
-
-- FRDM‑IMX95
-
-See: https://www.nxp.com/design/design-center/development-boards-and-designs/frdm-development-boards:FRDM
-
-Refer to 'iqplayer_porting_guide_LimeSDR-Micro_imx8mp_imx95.rst'
-
+IQ Player runs on any LA9310-based setup and has been validated with the LimeSDR-Micro M.2
+module (https://www.crowdsupply.com/lime-micro/limesdr-micro) on FRDM-IMX8MPLUS and
+FRDM-IMX95
+(https://www.nxp.com/design/design-center/development-boards-and-designs/frdm-development-boards:FRDM).
+See ``iqplayer_porting_guide_LimeSDR-Micro.rst``.
 
 Software Components
 *******************
 
-The IQ Player data path is fully implemented in the VSPA firmware, handling ADC/DAC data flows on one side and DMA transfers of I/Q samples to and from host DDR on the other.
+The data path is implemented in the VSPA firmware: ADC/DAC data flows on one side, DMA of
+I/Q samples to and from host DDR on the other. Linux controls and operates IQ Player.
 
-The Linux host environment is used to control and operate IQ Player:
+- **la93xx_host_sw (Shiva) driver**: loads and starts the VSPA firmware over PCIe. Included
+  in the NXP Linux BSPs (https://github.com/nxp-real-time-edge-sw/yocto-real-time-edge/tree/la93xx).
+- **LA9310 M4 FreeRTOS**: not required by IQ Player. The only constraint is that it must not
+  use the VSPA mailbox registers, which are reserved for IQ Player. On NXP platforms
+  (LimeSDR-Micro) it does the RF configuration and the AXIQ loopback, controlled with
+  ``dpdk-dfe_app`` (https://github.com/nxp-qoriq/la93xx_freertos). On RFNM the RF
+  configuration is done by Linux (``rfnm_daughterboard`` sysfs, ``txrx_en.sh``) and the AXIQ
+  loopback is an M4 build option; see ``iqplayer_porting_guide_RFNM-SDK.rst``.
+- **host-utils scripts**: shell scripts that send VSPA mailbox commands (start, stop, QEC,
+  stats) (``host-utils/``).
+- **lib_iqplayer / iq_app**: host library and sample application that stream samples
+  between VSPA and host buffers, using DDR FIFOs with flow control (``host-utils/lib_iqplayer``,
+  ``host-utils/iq_app``).
+- **iq_mon**: statistics monitor (``host-utils/iq_monitor``).
 
-Linux and la93xx_host_sw (Shiva) driver
----------------------------------------
-
-The IQ Player VSPA firmware is loaded and started using the la93xx_host_sw (Shiva) PCI driver.
-
-The host Linux system must provide support for this driver. NXP Linux BSPs include this support for multiple platforms.
-
-- https://github.com/nxp-real-time-edge-sw/yocto-real-time-edge/tree/la93xx
-
-LA9310 M4 FreeRTOS
-------------------
-
-IQ Player has no dependency on LA9310 M4 FreeRTOS control software.
-
-The only constraint is that the FreeRTOS firmware must not use VSPA mailbox registers, which are exclusively used by IQ Player scripts.
-
-The M4 firmware may still be used for other purposes such as:
-
-- AXIQ loopback control
-- RF configuration
-- Clock configuration
-
-On RFNM platforms, all RF and clock configuration is handled by Linux; therefore, the default BSP FreeRTOS image can be used.
-
-- https://github.com/nxp-qoriq/la93xx_freertos
-
-host-utils linux scripts
-------------------------
-
-IQ Player firmware operation is controlled via memory-mapped LA9310 VSPA mailbox registers.
-
-Linux shell scripts are provided to control operating modes such as RX/TX start and stop:
-
-- https://github.com/nxp-qoriq/la931x_iqplayer/host-utils
-
- 
-iq_app/lib_iqplayer
--------------------
-
-IQ Player supports:
-
-- Playing and capturing I/Q sample files
-- Streaming samples between VSPA and host software
-
-Host DDR buffers used during DMA have option to act as RX and TX FIFOs, with built-in backpressure handling.
-
-A Linux library and sample application are provided for this mode:
-
-- https://github.com/nxp-qoriq/la931x_iqplayer/host-utils/lib_iqplayer
-- https://github.com/nxp-qoriq/la931x_iqplayer/host-utils/iq_app
-
-Usage
-*****
-
-Initial configuration
-----------------------
- 
-The basic principle consists of sending VSPA mailbox commands to stream data from a buffer in host DDR (the IQFLOOD region).
-
-This region is:
-- Declared in the device tree
-- Mapped over PCI by the LA9310 driver la9310shiva using endpoint outbound windows
-
-The configuration includes:
-- Host physical address (e.g., 0x148000000 )
-- Associated LA9310 physical address (e.g., 0xb0001000)
-
-These values can be retrieved using la9310_modem_info :
-::
- 
- root@imx95frdm:~/host_utils# la9310_modem_info
- Board Name - NA
- LA93xx ID:0
- Dev name - shiva0
- PCI addr - 0000:01:00.0
- PCI WIN start     0x0 Size:0x40000000
- HIF start         0x92101b000 Size:0x328
- CCSR phys         0x910000000 Size:0x10000000
- TCML phys         0x921000000 Size:0x20000
- TCMU phys         0x928000000 Size:0x800000
- Scratch buf phys 0x144000000 Size:0x1e19240
- Scrach Buf Regions
- Region           |      Host Phy Addr    |      Modem Phy Addr   |      Size
- VSPA OVERLAY phys|      0xfe000000       |      0xa0000000       |      0x200000
- VSPA start       |      0xfe200040       |      0xa0200040       |      0x0
- FW start         |      0xfe200080       |      0xa0200080       |      0x18000
- DBG LOG phys     |      0xfe2180c0       |      0xa02180c0       |      0x1000
- IQ SAMPLES phys  |      0xfe219100       |      0xa0219100       |      0x1400000
- IQ FLOOD phys    |      0x148000000      |      0xb0001000       |      0x2000000
- NLM OPS start    |      0xff619140       |      0xa1619140       |      0x800000
- STD FW phys      |      0xffe19180       |      0xa1e19180       |      0x20000
- RF CAL phys      |      0xffe391c0       |      0xa1e391c0       |      0x32000
- DAC Mask: 0x1  Rate: 61.44 MHz
- ADC-0: ON  Rate : 61.44 MHz
- ADC-1: ON  Rate : 61.44 MHz
- ADC-2: ON  Rate : 61.44 MHz
- ADC-3: ON  Rate : 61.44 MHz
- 
-
-Single-Buffer Replay (TX)
--------------------------
- 
-IQ replay loads a binary waveform at the start of iqflood and issues a VSPA mailbox command that streams from the EP address (e.g., 0xb0001000) to the DAC through VSPA TX DMEM FIFO. DAC pacing drives FIFO progress; the DDR buffer is replayed until stop.
-::
- 
- ./iq-replay.sh ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin 1200
- 
-Single-Shot and Continuous Capture (RX)
----------------------------------------
- 
-RX capture uses the second half of iqflood buffer :
-- One-shot capture: iq-capture.sh
-- Continuous capture: iq-capture-ddr.sh
-
-In multi-channel RX (2R/4R), the DDR buffer is split across channels and all captures start simultaneously.
-::
- 
- ./iq-capture.sh ./iqdata.bin 1200
- ./iq-capture-ddr.sh 1200
- ./iq-stop.sh
- bin2mem -f iqdata.bin -a 0x9CC00000 -r 4915200
- 
-Streaming via lib_iqplayer / iq_app
------------------------------------
- 
-The lib_iqplayer library demonstrates host-driven streaming using DDR as TX/RX FIFOs, with VSPA DMA transferring data to and from DMEM FIFOs.
-iq_app will stream data from/to standard malloc() buffer using intermediate FIFOs located in iqflood region.
-
-Default examples use 32KB TX FIFO ans 128KB RX FIFO in DDR 
-iq_app application will perform best when host is configured for real time operation :
-- CPU isolation is enabled
-- Architectural timer interrupts are reduced
-
-To enable host-side flow control and operate DDR buffers as FIFO :
-- iq-start-rxfifo.sh
-- iq-start-txfifo.sh
-
-RX flow control is enabled by default in continuous mode. Setting bit 0x00400000 in the
-RX start mailbox MSB (e.g. ``0x06D00200`` instead of ``0x06900200``) disables it; the VSPA
-then overwrites the DDR ring without waiting for the host.
-
-lib_iqplayer RX flow-control tuning (environment variables):
-
-- ``IQ_RX_ACK_MIN``: minimum number of consumed bytes before the consumed pointer is
-  written back to VSPA DMEM (default ``0x8000``). Smaller values reopen the VSPA gate
-  sooner at the cost of more PCIe writes.
-- ``IQ_RX_KICK``: when non-zero (default 1), each ACK is followed by a mailbox-1 GO
-  event so the VSPA wakes up and re-evaluates the gate immediately.
-
-::
-
- # Use first half of iqflood region for TX FIFO i.e. 32KB fifo at offset 0 
- ./iq-app-tx.sh <input iq sample file> [FIFO Size]
- ex : ./iq-app-tx.sh ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin
-
-::
-
- # Use second half of iqflood region for TX FIFO i.e. 128KB fifo at offset iqfloodSize/2  
- ./iq-app-rx.sh <output iq sample file> <File size> [FIFO Size]
- ex : ./iq-app-rx.sh ./iqdata.bin 4915200
-
-::
-
- get iq_app trace
-  kill -USR1 <iq_streamer PID>
-
- to stop app
-  kill <iq_streamer PID>
-  ./iq-stop.sh
-
-Performance 
-***********
-
-Throughput Requirements
------------------------
-
-Each I/Q sample consists of:
-- 16-bit I + 16-bit Q = 4 bytes per sample
- 
- ====================== ========================================
-         Rate (MSPS)       Bandwidth (MB/s)
- ====================== ========================================
-  61.44                     122.88
-  122.88                    491.52
-  160                       640
- ====================== ========================================
- 
-Experiments show a maximum PCI throughput of ~836 MB/s on i.MX8MP RFNM.
-Actual transfer performance depends on the DMA engine and configuration.
-IQ Player uses VSPA DMA by default.
- 
-VSPA DMA : Write to Host DDR ( RX Path )
------------------------------------------
- 
-Inbound memory writes are limited to ~528 MB/s on i.MX8MP RFNM due to a known hardware limitation documented in AN13164.
-This throughput is sufficient for 122.88 MSPS operation using a single VSPA DMA channel.
-
-Operation at 160 MSPS requires a higher-performance host such as i.MX95.   
- 
- .. note::
-        IQ Player default configuration is using one VSPA DMA write channel.
-
-
-VSPA DMA : Read from Host DDR ( Tx Path )
------------------------------------------
- 
-LA9310 AXI bus supports 4 opened Rd transactions in parallel, so best throughput may be achieved by using 4x DMA channels.  
-Here perf measured on i.MX8MP RFNM with different VSPA DMA configurations
- 
- ========== ========================== ========= ===============================
- Config N°	Nb parallel DMA chan	mBurst        Bandwidth (MB/s)
- ========== ========================== ========= ===============================
-    A                  1                  off        200 
-    B                  2                  off        393 
-    C                  4                  off        590 
-    D                  1                  on	    481 
-    E                  2                  on	    836  (max out)
-    F                  4                  on	    836  (max out)
- ========== ========================== ========= ===============================
- 
-Config C, E, F are good for performance but are causing problem for full duplex operation 
-( Tx reads starving Rx writes and causing fifo overflow ).  
- 
- .. note::
-        IQ Player default configuration is 2 channels without mBurst allowing Full Duplex operation at 61.44MSPS.
- .. note::
-        IQ Player has an option to enable mBurst to achieve max performance in half duplex, tx only up to 160MSPS.  
-
-Host eDMA : Read and Write
---------------------------
- 
-Host eDMA on RFNM i.MX8MP can reach ~700 MB/s with large transfers. 
-While this enables higher bandwidth operation, it adds software complexity and requires host-side DMA agents synchronized with VSPA code.
- 
- .. note::
-        IQ Player does not use host eDMA by default.
- 
-VSPA DMA Considerations
-***********************
-
-- LA9310 VSPA DMA: 128-bit AXI3; 3 engines; 16 channels; single-burst per transaction; optional multi-burst (up to 4×256B).
-- Priority: lower channel number = higher priority; channel 0 has strict priority.
-- DMEM bandwidth: spread load across VDMEM and IDMEM; align transfers to bus widths; align AXI origins to 4 KB boundaries.
-- Write engine: single; Read engines: ≥2; parallelize reads/writes on different channels.
-- DMEM access priority (highest→lowest): DMA write, DMA read, AXI slave, IPPU, Debug, VCPU.
- 
-PCI Access Strategy (VSPA dmem proxy)
-*************************************
-
-Prefer posted PCI writes over reads to avoid initiator stalls. 
-IQ Player mirrors control/statistics from VSPA DMEM to host DDR using a dmem proxy structure (s_vspa_dmem_proxy) located at the last 1 KB of IQFLOOD. 
-Read-only fields (tx_state_readonly, rx_state_readonly, vspa_stats) are DMA-copied to DDR
-writable fields (e.g., host flow control) expose DMEM offsets via dmemProxyOffset
-
-Debugging & Monitoring
-**********************
-
-- iq_mon: polls t_stats in the DDR proxy region every second, adapts to channel count, and computes bandwidth.
-  Rates use the real elapsed time between samples; the screen is cleared on each refresh.
-- ``[VSPA RX cycle meter]`` line (all RX builds unless ``-DRX_CYCLE_METER_OFF``): longest
-  and average streaming pass in VSPA cycles, pass count, passes above the RX_PASS_BUDGET (2048-cycle)
-  budget and longest gap between two pass starts (all reset at stream start).
-- ``[VSPA RX stalls/s]`` and ``[VSPA RX loss check]`` blocks (``0T4R_DIAG`` only):
-  per-channel stall counters (host gate closed, DDR DMA busy, decimation backlog), measured
-  VSPA clock and buffers/s versus nominal.
-- Tracing: iq_app keeps a local heap trace buffer; send SIGUSR1 to dump. VSPA firmware keeps DMEM trace readable via iq_trace.
-
-::
-
- RX stats :
-  DMA_AXIQ_RD    0x000e7592(00000491 MB/s)       0x000e7593(00000491 MB/s)
-  DMA_DDR_WR     0x000e7592(00000245 MB/s)       0x000e7592(00000245 MB/s)
-  EXT_DDR_WR     0x00000000(00000000 MB/s)       0x00000000(00000000 MB/s)
-  DDR_WR_OVR     0x00000000                      0x00000000
-  FIFO_RX_UDR    0x00000000                      0x00000000
-  FIFO_RX_OVR    0x00000000                      0x00000000
-  DMA_RX_CMD_OVR 0x00000000                      0x00000000
-  EXT_DDR_WR_OVR 0x00000000                      0x00000000
- TX stats :
-  DMA_AXIQ_WR    0x00000000(00000000 MB/s)
-  DMA_DDR_RD     0x00000000(00000000 MB/s)
-  EXT_DDR_RD     0x00000000(00000000 MB/s)
-  DDR_RD_UDR     0x00000000
-  FIFO_TX_UDR    0x00000000
-  FIFO_TX_OVR    0x00000000
-  DMA_TX_CMD_UDR 0x00000000
-  EXT_DDR_RD_UDR 0x00000000
- Global stats :
-  DMA_CFG_ERROR  0x00901003
-  DMA_XFER_ERROR 0x00000000
-
-::
-
- #clear vspa stats
- ./stats.sh -1
-
- #clear host stats
- ./iq_mon -c
-
- # get vspa trace
-  iq_streamer -d
-
-IQ Data Format
-**************
- 
-Firmware uses 16-bit signed-magnitude (half-fixed). VSPA DMA can convert to 2’s complement expected by host software (int16). 
-IQ Player scripts use 2’s complement files; MATLAB code is provided to generate/display binary waveforms.
-
-QEC and DC Offset
+Firmware Variants
 *****************
 
-Integrated VSPA kernels provide IQ imbalance (phase & amplitude) compensation and optional fractional delay, 
-along with DC offset correction. Default kernel: txiqcomp(); 
-alternate: txiqcomp_x32chf_5t() (adds 5-tap fractional delay). 
-Python tooling (imb2qec-rfnm.py) assists parameter computation per channel.
-
-Decimation
-**********
-
-Decimation kernels: decimator_2x_8_Taps_asm and decimator_4x_8_Taps_asm. 
-Default uses 2× with an 8-tap FIR as a balanced choice for multi-RX and VSPA cycles.
-
-Reload VSPA images at runtime
-*****************************
-
-The LA9310 provides 32 KB of program memory and 32 KB of data memory (16 KB VCPU bank + 16 KB IPPU bank). Two mechanisms are available to extend the effective memory usage:
-
-- Change the VSPA image at runtime (software reset)
-- Use program and data memory overlays
-
-
-Changing the VSPA Image at Runtime (software reset)
----------------------------------------------------
-
-For applications with multiple use cases, it can be useful to implement different VSPA firmwares with distinct memory layouts and code.
-For example, IQ Player supports multiple configurations: 
-- RX only
-- TX only
-- 1T1R
-- 1T2R
-- 1T4R
-- 0T4R (RX-only, no TX resources allocated)
-
-::
-
-./load-la9310.sh   -> Start vspa on default /lib/firmware/apm-iqplayer-1T1R.eld   
-./iq-swreset.sh -> Issue opcode to put VSPA in done state with all event cleared, config start as go handler
-./iq-reload-vspa.sh /lib/firmware/apm-iqplayer-1T2R.eld -> Configure VSPA DMA to load vpram, vdram, idram . 
-./stats.sh 0   -> Issue any command to wakeup vspa and restart on new image
-
-Program and Data Memory Overlay
--------------------------------
-An overlay mechanism is avaible to change only a portion of code or data at runtime.
-In this approach, the user defines common program and data sections and manages dynamically overlaid sections.
-Depending on the use case, the user loads the appropriate firmware code and data into the overlay regions.
-For example, in a TDD application, the firmware may reload RX or TX code at each TDD transition.
-la93xx_host_sw (Shiva) driver has support for overlay management 
-Here how to load an overlay section using sysfs
-
-::
-
-  echo "Overlay_section_name" > /sys/devices/platform/soc@0/33800000.pcie/pci0000:00/0000:00:00.0/0000:01:00.0/la9310sysfs/vspa_do_overlay
-
-0T4R RX-Only Configuration
-***************************
-
-The 0T4R firmware variant allocates all four RX channels and no TX resources, maximising
-DMEM space available for RX buffering. This section describes the DMEM layout, the AXIQ
-timing budget, and the measured per-phase pipeline breakdown obtained from live iq_trace
-captures on RFNM Blue (i.MX8MP, LA9310 VSPA @ 491.52 MHz, ADC @ 61.44 MSPS).
-
-DMEM Layout
------------
-
-The 0T4R build (``Debug_IQPLAYER_0T4R``) uses the following DMEM allocation
-(RX_NUM_CHAN=4, RX_NUM_BUF=3, RX_DMA_TXR_size=256 samples, RX_DECIM=2):
-
- ============== ======================== =========== =============================================
-  Memory bank    Symbol                   Size (B)    Notes
- ============== ======================== =========== =============================================
-  VCPU DMEM      proxy (0x0000-0x007F)         128    VSPA mailbox / dmem proxy
-  VCPU DMEM      input_dec_buffer              6144    4 ch x 3 buf x 128 smp x 4 B
-  VCPU DMEM      (free)                        ~9856   up to stack at 0x3F00
-  IPPU DRAM      rxiqcompcfg (0x4000)           512    QEC coefficient struct (4 channels)
-  IPPU DRAM      input_buffer (0x4200)        12288    4 ch x 3 buf x 256 smp x 4 B
-  IPPU DRAM      (free)                        3584    remaining to 0x8000
- ============== ======================== =========== =============================================
-
-AXIQ Timing Budget
-------------------
-
-At 61.44 MSPS and RX_DMA_TXR_size = 256 samples, the AXIQ DMA transfer window is:
-
-::
-
-  window = 256 samples / 61.44 MSPS  = 4.167 us
-         = 4.167 us  x  491.52 MHz   = 2048 VSPA cycles
-
-The complete RX pipeline (AXIQ completion -> next AXIQ re-arm) must fit within 2048 cycles
-to avoid AXIQ FIFO overrun (RXOVR).
-
-VSPA clock on RFNM
-~~~~~~~~~~~~~~~~~~
-
-The LA9310 platform PLL locks on DCS_CLK, and the VSPA runs at 4 x DCS_CLK.
-On RFNM, DCS_CLK comes from the Si5510 programmed by the i.MX kernel driver
-(``i2c-rfnm-si5510.c``, boot value 122.88 MHz; ``la9310rfnm`` can reclock it later and then
-prints ``reclocking dcs frequency``). The ADC/DAC rate is DCS_CLK divided by a power of two, so
-61.44 MSPS requires DCS = 122.88 MHz, and the VSPA then runs at 491.52 MHz (491.22 MHz
-measured with the ``0T4R_NOQEC_DIAG`` clock check). 614.4 MHz (DCS 153.6 MHz) cannot
-produce 61.44 MSPS.
-
-::
-
-  budget (cycles per buffer) = N_samples x 4 x DCS / Fs
-                             = 256 x 4 x 122.88 MHz / 61.44 MSPS = 2048
-
-.. note::
-   Measurement sessions 1-4 below were recorded against the former 2560-cycle
-   assumption; the measured cycle counts are unchanged, only the budget is 2048.
-
-Measurement Session 1 -- Pre-fix (live iq_trace on RFNM Blue)
---------------------------------------------------------------
-
-.. note::
-   Sessions 1-5 were measured on the ``0T4R_NOQEC`` firmware (``-DIQMOD_RX_NO_QEC``),
-   the 4R workaround before the fused QEC kernel. That variant and the
-   ``IQMOD_RX_NO_QEC`` code paths were removed in v1.2; 0T4R is now the fused build.
-
-Platform: RFNM Blue, i.MX8MP host, LA9310 VSPA @ 491.52 MHz, ADC @ 61.44 MSPS.
-Build: ``Debug_IQPLAYER_0T4R_NOQEC`` (flags: ``-DIQMOD_RX_0T4R -DIQMOD_RX_NO_QEC``).
-Measurement instrument: ``L1_TRACE_MSG_DMA_XFR`` events inserted at the top of the
-PUSH_RX_DATA() hot path; inter-event spacing read from live ``iq_trace`` capture.
-
-**Result: loop period ~4310 cy (budget 2560 cy; 68% over).**
-
-The loop was 1750 cy over budget. The primary contributor was the AXIQ overrun recovery
-block: on every iteration the firmware detected an AXIQ FIFO overrun
-(``L1_TRACE_MSG_DMA_AXIQ_RX_OVER``) and issued four ``axiq_fifo_rx_sr`` reads plus eight
-``axiq_fifo_rx_cr`` writes (2 per channel x 4 channels), adding ~886 cy to the hot path.
-This created a self-sustaining cascade: the slow loop caused RXOVR, which slowed the loop
-further, which caused more RXOVR.
-
- ======================================= ============ ================================================
-  Phase                                   Cycles       Notes
- ======================================= ============ ================================================
-  AXIQ COMP + re-arm (4 channels)            ~700      completion poll + stream_read re-arm
-  AXIQ overrun check + clear (4 channels)    ~886      axiq_fifo_rx_sr + 2x axiq_fifo_rx_cr per ch
-  Decimation kernel (4 channels)             ~900      decimator_2x_8_Taps_asm, 4 ch sequential
-  DDR WR check + enqueue (4 channels)        ~550      slot check + stream_write
-  Dispatch / control overhead               ~1274      inter-phase branches, trace calls, counters
- ======================================= ============ ================================================
-  **Total measured (DMA_XFR spacing)**    **~4310**   **1750 cy over the 2560-cycle budget**
- ======================================= ============ ================================================
-
-Root Cause
-----------
-
-The ``axiq_fifo_rx_sr`` / ``axiq_fifo_rx_cr`` pair (AXIQ overrun detection and clear) is
-required only when QEC is active to protect the QEC coefficient pipeline. In the NOQEC
-build (``IQMOD_RX_NO_QEC``) it provides no benefit but adds ~886 cy per loop iteration
-across 4 channels, pushing the loop well above the 2560-cycle AXIQ window and triggering
-a self-reinforcing RXOVR cascade.
-
-Two additional fixes were identified independently:
-
-- **Fix 4** -- the DMA completion-check loop and the re-arm loop were implemented as two
-  separate ``for`` loops over 4 channels, adding ~250 cy of redundant loop overhead.
-- **Fixes 5/6/7** -- measurement-only ``l1_trace`` calls (ENTRY_MAIN, DEC_START/DEC_COMP,
-  and ``_main.c`` dispatch traces) remain in the NOQEC hot path and account for ~550 cy.
-
-Applied Fixes
--------------
-
-- **Fix 1** (``iqmod_rx_2R_decx2x4.c``): The entire AXIQ overrun check/clear block is
-  wrapped in ``#ifndef IQMOD_RX_NO_QEC``, removing it from the NOQEC hot path.
-  *Note: superseded by Fix A v2 (see below), which reinstates a lightweight throttled
-  AXIQ check covering all 4 channels with a single register read.*
-- **Fix 2** (same file): The ``axiq_fifo_rx_cr`` double-write (set then clear) is also
-  guarded, preventing the ~886 cy cost from appearing even in a partial-guard scenario.
-  *Note: also superseded by Fix A v2.*
-- **Fix 4** (same file): The two separate ``for`` loops (COMP-check and re-arm) are fused
-  into a single pass per channel, saving ~250 cy of loop overhead.
-  *Note: superseded by the two-loop structure (Fix B resolution, see below), which is
-  required by VSPA2 DMA FIFO propagation latency constraints.*
-
-Measurement Session 2 -- Post-fix Fix 1+2+4 (live iq_trace on RFNM Blue)
---------------------------------------------------------------------------
-
-Same platform and build as Session 1. ELD rebuilt, deployed, and measured after applying
-Fixes 1, 2, and 4.
-
-**Result: loop period ~3124 cy, RXOVR = 0, throughput 234 MB/s.**
-
- ======================================= ============ ================================================
-  Phase                                   Cycles       Notes
- ======================================= ============ ================================================
-  AXIQ COMP + re-arm (fused, 4 channels)     ~700      single-pass fused loop; Fix 4 applied
-  AXIQ overrun check + clear                    0      removed by Fix 1+2 (#ifndef IQMOD_RX_NO_QEC)
-  Decimation kernel (4 channels)             ~900      unchanged
-  DDR WR check + enqueue (4 channels)        ~550      unchanged
-  Dispatch / trace overhead (residual)      ~974      ENTRY_MAIN + DEC traces + dispatch traces
- ======================================= ============ ================================================
-  **Total measured (DMA_XFR spacing)**    **~3124**   **564 cy over the 2560-cycle budget**
- ======================================= ============ ================================================
-
-The 234 MB/s result (vs. 245 MB/s target) corresponds to the 564 cy residual overage.
-This residual is entirely due to measurement/trace instrumentation left in the NOQEC hot
-path. The breakdown is:
-
-- ``L1_TRACE_MSG_ENTRY_MAIN`` in PUSH_RX_DATA: ~50 cy (Fix 5: remove unconditionally).
-- ``L1_TRACE_L1APP_RX_DEC_START`` + ``L1_TRACE_L1APP_RX_DEC_COMP`` x 4 channels: ~200 cy
-  (Fix 6: wrap in ``#ifndef IQMOD_RX_NO_QEC``).
-- ``_main.c`` dispatch trace calls x ~5 sites: ~300 cy
-  (Fix 7: wrap in ``#ifndef IQMOD_RX_NO_QEC``).
-
-Projected loop after Fixes 5+6+7: ~3124 - 550 = **~2574 cy**, within the 2560-cycle
-budget, yielding the **~245 MB/s** throughput target.
-
-Measurement Session 3 -- Post-fix Fix 5+6+7 (live iq_trace on RFNM Blue)
---------------------------------------------------------------------------
-
-Same platform and build as Session 2. ELD rebuilt and deployed after applying
-Fixes 5, 6, and 7.
-
-**Result: loop period ~2490 cy, RXOVR = 0, throughput 245 MB/s.**
-
- ======================================= ============ ================================================
-  Phase                                   Cycles       Notes
- ======================================= ============ ================================================
-  AXIQ COMP + re-arm (fused, 4 channels)     ~700      unchanged from Session 2
-  AXIQ overrun check + clear                    0      removed by Fix 1+2 (#ifndef IQMOD_RX_NO_QEC)
-  Decimation kernel (4 channels)             ~900      unchanged
-  DDR WR check + enqueue (4 channels)        ~550      unchanged
-  Dispatch / trace overhead (residual)       ~340      ENTRY_MAIN removed (Fix 5); DEC_START/DEC_COMP
-                                                       guarded (Fix 6); ENTRY_MAIN_DMASTAT + ENTRY_IDLE
-                                                       guarded in _main.c (Fix 7)
- ======================================= ============ ================================================
-  **Total measured (DMA_XFR spacing)**    **~2490**   **70 cy within the 2560-cycle budget**
- ======================================= ============ ================================================
-
-The 245 MB/s result confirms all fixes are effective. RXOVR counter = 0 across
-all 4 channels in 300 steady-state trace entries. The firmware operates within
-the 2560-cycle AXIQ window with ~70 cy margin.
-
-Fix A v2 -- Throttled AXIQ Overrun Check
------------------------------------------
-
-Session 3 removed the AXIQ overrun/underrun check entirely via ``#ifndef IQMOD_RX_NO_QEC``
-(Fix 1+2). While correct for NOQEC builds, this leaves AXIQ hardware faults silently
-undetected. Fix A v2 reinstates a lightweight safety net compatible with the NOQEC hot path:
-
-- A single ``iord(AXIQ_SR0)`` read covers all 4 RX channels simultaneously (bits for
-  RX0..RX3 are packed in one register). The original per-channel ``axiq_fifo_rx_sr`` loop
-  (4 reads) is replaced by this single read.
-- The check is throttled via a ``rxovr_check_throttle`` counter: the SR+CR sequence runs
-  once every 16 PUSH_RX_DATA iterations.
-- Amortised hot-path cost: ~70 cy (1 iord + branch-not-taken, amortised over 16 calls).
-  Un-throttled cost if errors present: ~170 cy (includes per-channel stat increments + 2
-  iowr to clear). Both are well within the 2560-cycle AXIQ window.
-- RXOVR is detected within ~16 x 4.167 us = ~67 us of occurrence.
-- The counter is pre-loaded to 16 in the capture start path to suppress a false RXUDR on
-  the first iteration (FIFO just enabled; any stale underrun flag is a false positive).
-
-This replaces Fix 1+2. Fix 1+2's complete removal of the AXIQ check is no longer needed
-because the throttled single-read path is fast enough even in the NOQEC hot path.
-
-Fix B Attempt and DMA FIFO Propagation Latency
------------------------------------------------
-
-After confirming Session 3 results, an optimisation attempt (Fix B) tried to further
-reduce hot-path cost by hoisting all three DMA status register reads before the
-completion/re-arm loop and fusing completion processing and re-arm into a single
-per-channel pass (one loop instead of two). This introduced a regression:
-
-**Observed regression:** ch2 ``DMA_RX_CMD_OVR`` incrementing continuously; ch3 running at
-~132 MB/s (half-rate); ch0/ch1 unaffected. Error appeared immediately on first iq_mon
-sample after reboot.
-
-**Root cause -- VSPA2 DMA FIFO propagation latency:**
-The VSPA2 DMA operates in FIFO mode (``DMAC_FIFO``): each channel has 2 command slots.
-``DMA_FIFO_STAT`` bit for a channel is cleared when both slots are occupied and is set
-again when a slot becomes free. The hardware mechanism is:
-
-1. ``dmac_clear_complete(ch)`` writes to ``DMA_COMP_STAT`` to acknowledge a completed
-   transfer. This is what frees the FIFO slot.
-2. ``dmac_is_available(ch)`` reads ``DMA_FIFO_STAT`` to check whether a slot is free.
-
-There is a pipeline propagation delay between step 1 and step 2: the freed slot does not
-appear in ``DMA_FIFO_STAT`` immediately. The VSPA2 memory-mapped register bus requires
-several pipeline cycles before the clear in ``DMA_COMP_STAT`` propagates into the
-``DMA_FIFO_STAT`` read. When ``dmac_clear_complete(ch)`` and ``dmac_is_available(ch)``
-are back-to-back in the same loop iteration (the fused Fix B approach), the FIFO slot
-appears still occupied, ``stream_read`` is not issued, and the AXIQ FIFO overflows on
-the next window. This was not visible on ch0/ch1 because those channels had already been
-processed earlier in the loop and the propagation had time to settle.
-
-**Fix B resolution -- two-loop structure:**
-
-The proven fix reverts to two separate loops:
-
-- **Loop 1** iterates over all 4 channels and calls ``dmac_clear_complete()`` and
-  ``dmac_clear_event()`` for every channel that has completed. No ``is_available`` calls
-  are made in this loop.
-- **Loop 2** iterates over all 4 channels and calls ``dmac_is_available()``. By the time
-  Loop 2 reaches channel 0, the entire body of Loop 1 (4 iterations of completion check,
-  stat increment, error check) has executed, providing sufficient elapsed cycles for the
-  HW to propagate all freed FIFO slots into ``DMA_FIFO_STAT``.
-
-The minimum safe separation between ``dmac_clear_complete(ch_N)`` and
-``dmac_is_available(ch_N)`` is satisfied by the ~3-4 loop-1 iterations that execute
-between them (one full pass of Loop 1 completes before Loop 2 starts for channel 0).
-
-Measurement Session 4 -- Post Fix A v2 + Two-Loop (live iq_trace on RFNM Blue)
---------------------------------------------------------------------------------
-
-Same platform and build as Session 3. ELD rebuilt and deployed after applying Fix A v2
-(throttled AXIQ check) and the two-loop structure (Fix B resolution).
-
-**Result: loop period ~1900 cy (typical), RXOVR = 0, all 4 channels at 245 MB/s.**
-
-Loop period extracted from consecutive ``L1_TRACE_MSG_ENTRY_IDLE`` timestamps in a live
-``iq_trace`` capture (300 entries, steady-state streaming):
-
- ======================================================= ============ =============================================
-  Iteration                                               Period (cy)  Notes
- ======================================================= ============ =============================================
-  Typical (DMA completion present every call)              ~1900-1960  steady state; all 4 channels active
-  Short (no DMA completion in this pass)                   ~1518-1580  FIFO slot not yet ready; loop exits early
-  Budget                                                     2048      AXIQ window at 61.44 MSPS
-  Margin                                                    ~600-1000  comfortable headroom
- ======================================================= ============ =============================================
-
- ======================================= ============ ================================================
-  Phase                                   Cycles       Notes
- ======================================= ============ ================================================
-  AXIQ overrun check (throttled)             ~70        1 iord(AXIQ_SR0); amortised over 16 iterations
-  Loop 1: completion check (4 channels)     ~200        dmac_is_complete + clear_complete + clear_event
-  Loop 2: re-arm (4 channels)               ~200        dmac_is_available + stream_read
-  Decimation kernel (4 channels)            ~900        decimator_2x_8_Taps_asm, 4 ch sequential
-  DDR WR check + enqueue (4 channels)       ~550        slot check + stream_write
-  Dispatch / control overhead               ~80         counters, proxy update, branch targets
- ======================================= ============ ================================================
-  **Total (typical)**                     **~2000**    **~560 cy within the 2560-cycle budget**
- ======================================= ============ ================================================
-
-No ``DMA_RX_CMD_OVR``, ``FIFO_RX_UDR``, ``FIFO_RX_OVR``, or ``DMA_XFER_ERROR`` counters
-increment across the full 300-entry trace window. The two-loop structure resolves the Fix B
-regression without incurring any measurable throughput penalty versus the fused approach.
-
-Increasing RX_NUM_BUF to 4 provides one extra DMEM slot for in-flight DMA:
-
-- **0T4R_NOQEC** (no QEC struct): ``input_buffer`` = 4 x 4 x 256 x 4 = 16384 B fits
-  exactly in IPPU DRAM (16384 B total). This variant uses RX_NUM_BUF=4.
-- **0T4R with QEC**: ``rxiqcompcfg`` occupies 512 B of IPPU DRAM, leaving only 15872 B
-  for ``input_buffer``; RX_NUM_BUF=4 (16384 B) does not fit. Limited to RX_NUM_BUF=3
-  unless the QEC struct is relocated.
-
-Measurement Session 5 -- 4R Streaming with Host Flow Control
----------------------------------------------------------------
-
-Platform: RFNM, i.MX8MP host, LA9310 VSPA @ 491.52 MHz, 4 x RX @ 61.44 MSPS
-(245 MB/s AXIQ per channel, 122.88 MB/s DDR per channel after x2 decimation).
-
-**Problem: half-rate stall with flow control on.** The DDR write completion flag
-(``DMA_COMP_STAT``) is a single sticky bit per channel. With two writes queued in the
-2-entry DMA command FIFO, two completions can merge into one; ``la9310_fifo_produced_size``
-then falls behind for good, the host sees less data than was written and the flow-control
-gate closes early, halving throughput.
-
-**Fix: DDR accounting from DMA state** (0T4R, 1T2R, 1T1R). Each pass,
-for each channel with writes outstanding, the number of writes in flight is derived from
-``XRUN`` and ``DMA_FIFO_STAT``:
-
-- not running, FIFO entry free -> 0
-- running, FIFO entry free -> 1
-- no FIFO entry free -> 2
-
-and ``produced = enqueued - in_flight * RX_DDR_STEP``. The produced count never moves back
-and advances to the minimum of this pass and the previous pass, so a single transient read
-cannot overestimate it.
-
-**Cycle budget.** A bisect with flow control off (all variants at the same commit) showed
-the accounting must stay cheap at 4R:
-
- ======================================= ============================================
-  Variant                                 Result (FC off)
- ======================================= ============================================
-  Legacy completion bit                   lossless (but half-rate stall with FC on)
-  State accounting, 1 write in flight,    ch3 (serviced last) starves: DMEM ring full,
-  3 status reads + completion read        AXIQ FIFO overrun
-  Same with 2 writes in flight            ~5x fewer events, still overruns
-  2 writes in flight, 2 status reads      lossless (retained default)
- ======================================= ============================================
-
-**Result (default 0T4R_NOQEC):** pass ~1780 cy average, 1866 cy max (2048 cy budget,
-none above). 4 x 245 MB/s AXIQ, 4 x 122 MB/s DDR and app. Lossless in steady state with
-flow control on and off (iq_app ``-X`` and ``-D``), no ``DDR_WR_OVR`` increase.
-
-Build options (``iqmod_rx_2R_decx2x4.c``):
-
- ========================== ==============================================================
-  Option                     Effect
- ========================== ==============================================================
-  ``-DRX_STALL_STATS_ON``    stall and loss counters (used by ``0T4R_DIAG``, ``1T2R_DIAG``)
-  ``-DRX_CYCLE_METER_OFF``   remove the cycle meter
-  ``-DRX_STAGE_METER``       per-stage cycle sums in tx_stats[0..4] (with cycle meter)
-  ``-DRX_HOT_TRACE``         per-buffer l1 traces in the streaming loop
-  ``-DRX_AXIQ_CHK_LIGHT``    AXIQ error check counts only, no l1 traces (0T4R)
- ========================== ==============================================================
-
-Firmware variants built by ``make``:
+Variants built by ``make``:
 
  ===================== ==================================================================
   Variant               Description
@@ -775,31 +82,275 @@ Firmware variants built by ``make``:
   ``0T4R_PROF``         0T4R + per-stage cycle meter
  ===================== ==================================================================
 
-``make install CONFIG=<variant>`` copies these ELDs only and links ``apm.eld`` to the
-selected one.
+``make install CONFIG=<variant>`` copies these ELDs and copies the selected one to ``apm.eld`` (a regular file, not a symlink).
 
-0T4R with QEC: fused QEC + x2 decimation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Changing the VSPA image at runtime
+----------------------------------
 
-The former two-stage QEC build ran ``txiqcomp`` then ``decimator_2x_8_Taps_asm`` per channel
-(~2277 cy per pass, above the 2048 cy budget) and was removed. ``0T4R``
-(``-DIQMOD_RX_QEC_DECX2_FUSED``) replaces both with the single kernel ``rx_qec_decx2_8t`` (la931x_vspa_common
-``vspa-lib/rx_qec_decx2``): one call per channel and buffer, no separate QEC stage, no QECed
-counter and no late AXIQ re-arm. QEC is applied after decimation on the n/2 outputs, with the
-DC terms scaled by the tap sum; the coefficients are built by ``rx_fused_cfg_update()`` on
-stream start and refreshed incrementally by ``rx_fused_cfg_refresh()`` on
-``MBOX_OPC_IQ_CORR`` / RX DCO updates. Functional (not bit-exact) versus
-the reference chain: SNR > 75 dB on simulator test vectors, 99 cy vs 107 cy per 256-sample
-block. Uses a 4-deep AXIQ input ring, a 3-deep decimated ring and a 0x480 VCPU stack
-(worst case 1024 B). Board: 4 x 245 MB/s AXIQ, 4 x 122 MB/s DDR with iq-app, live QEC
-updates without loss.
+The LA9310 VSPA has 32 KB of program memory and 32 KB of data memory (16 KB VCPU bank +
+16 KB IPPU bank). Use cases that do not fit in one image can switch firmware at runtime
+without reloading the driver:
 
-Per-channel RX QEC
-~~~~~~~~~~~~~~~~~~
+::
 
-All firmware variants keep one RX QEC parameter set per RX channel (1T1R: 1, 1T2R: 2,
-0T4R: 4); TX keeps a single set. ``MBOX_OPC_IQ_CORR`` (0x08) and ``MBOX_OPC_RX_DCO_CORR``
-(0x0E) select the channel in the message MSB word:
+ ./load-la9310.sh                                        # or load-rfnm.sh: default image
+ ./iq-reload-vspa.sh /lib/firmware/apm-iqplayer-1T2R.eld # switch to 1T2R
+
+``iq-reload-vspa.sh``:
+
+1. sends the VSPA software reset (same mailbox as ``iq-swreset.sh``);
+2. copies the ELD to the scratch buffer and DMAs ``.vpram``, ``.vdram`` and ``.idram`` into
+   the VSPA; a DMA timeout stops the script with the section name and exit code 1;
+3. copies the new image to ``/lib/firmware/apm.eld``, used by ``iq_trace``, ``iq_mon`` and
+   the next ``load-*.sh`` (``-n`` leaves it unchanged);
+4. performs the VSPA boot handshake (``0x70000000``, answered ``0xF0700000``; done by
+   la9310shiva at driver load, otherwise it would consume the next mailbox), then sends the
+   IQFLOOD proxy offset again (the new ``.vdram`` resets it) and checks that the VSPA echoes
+   it. A missing handshake or echo stops the script with exit code 1.
+
+``-v`` traces the commands. After the switch, use the ``iq-app-*.sh`` options of the new
+variant (for example 2 RX channels with 1T2R).
+
+Program and data memory overlay
+-------------------------------
+
+An overlay changes only part of the code or data at runtime: common sections stay resident
+and overlay sections are loaded on demand (for example RX or TX code at each TDD
+transition). The Shiva driver manages overlays through sysfs:
+
+::
+
+ echo "Overlay_section_name" > /sys/devices/platform/soc@0/33800000.pcie/pci0000:00/0000:00:00.0/0000:01:00.0/la9310sysfs/vspa_do_overlay
+
+Usage
+*****
+
+IQFLOOD region
+--------------
+
+All transfers use a host DDR buffer, the IQFLOOD region. It is declared in the device tree
+and mapped over PCIe by la9310shiva through endpoint outbound windows. Its host physical
+address and LA9310 (EP) address are given by ``la9310_modem_info``:
+
+::
+
+ root@imx95frdm:~/host_utils# la9310_modem_info
+ ...
+ Region           |      Host Phy Addr    |      Modem Phy Addr   |      Size
+ IQ FLOOD phys    |      0x148000000      |      0xb0001000       |      0x2000000
+ ...
+ DAC Mask: 0x1  Rate: 61.44 MHz
+ ADC-0: ON  Rate : 61.44 MHz
+
+Layout used by the streaming scripts (``iq-app-tx.sh``, ``iq-app-rx.sh``):
+
+- the last 1 KB holds the VSPA DMEM proxy (control and statistics, see VSPA design notes)
+- the rest is split into ``N_TX + N_RX`` slots of ``(size - 1 KB) / (N_TX + N_RX)``
+  bytes, 4 KB aligned
+- slot 0 is the TX FIFO (when N_TX = 1), followed by one slot per RX channel
+
+N_RX is read from the proxy (``rx_num_chan``), so the scripts adapt to the loaded firmware.
+
+File replay and capture scripts
+-------------------------------
+
+These scripts use the IQFLOOD buffer directly, without a host application. Sizes are in
+4 KB units.
+
+::
+
+ # TX: load a waveform at the start of IQFLOOD and replay it until stop
+ ./iq-replay.sh ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin 1200
+ ./iq-replay.sh ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin 1200 1   # 2 DDR read ch + mBurst
+
+ # RX: one-shot or continuous capture into IQFLOOD
+ ./iq-capture.sh ./iqdata.bin 1200
+ ./iq-capture-ddr.sh 1200
+ ./iq-stop.sh
+ bin2mem -f iqdata.bin -a 0x9CC00000 -r 4915200
+
+In multi-channel RX the buffer is split across channels and all captures start together.
+
+Streaming with iq_app
+---------------------
+
+``iq_app`` streams between host memory and VSPA through DDR FIFOs in IQFLOOD, with
+host flow control. It pins its threads (TX feeder, RX drain, UI) to separate cores so TX
+and RX can run in parallel. Best results are obtained with a real-time host setup (CPU
+isolation, reduced architectural timer interrupts).
+
+TX (``iq-app-tx.sh``, default FIFO 256 KB, ``-f`` = DAC at 122.88 MSPS):
+
+::
+
+ ./iq-app-tx.sh ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin   # file replay (background)
+ ./iq-app-tx.sh -T                                        # interactive tone (foreground)
+
+Tone keys: up/down frequency, left/right amplitude, ``w`` waveform, ``g/G p/P i/I j/J``
+TX QEC gain/phase/DC, ``r`` reset QEC, ``s`` save QEC, ``q`` quit.
+
+Example screen (1T1R, 61.44 MSPS, tone at Fs/8 = 7.68 MHz):
+
+::
+
+ +-----------------------------------------------------------------+
+ | iq_app  Tone TX (LA9310)                                        |
+ +-----------------------------------------------------------------+
+ |  Waveform  : tone                                               |
+ |  Frequency :     +7680.000 kHz  (up/dn:  960.000 kHz/step)      |
+ |  Amplitude :  1.000              (lt/rt: 0.050 /step)           |
+ +-----------------------------------------------------------------+
+ |  TX QEC                                                         |
+ +-----------------------------------------------------------------+
+ |  Gain      :    +0.00 dB           ( g/G : step 0.1 dB  )       |
+ |  Phase     :    +0.00 deg          ( p/P : step 0.5 deg )       |
+ |  DC I      :   +0.000              ( i/I : step 0.01    )       |
+ |  DC Q      :   +0.000              ( j/J : step 0.01    )       |
+ +-----------------------------------------------------------------+
+ |  Keys: up/dn=freq  lt/rt=amp  w=wave  r=rst  s=save  q=quit     |
+ +-----------------------------------------------------------------+
+ | TX spectrum  FFT=512   SR=61.440 MHz
+ | ...
+ |     8.640 MHz |                                                                                |  -90.11 dBFS
+ |     7.680 MHz |############################################################################### |   -0.00 dBFS
+ |     6.720 MHz |                                                                                |  -90.17 dBFS
+ | ...
+ +-----------------------------------------------------------------+
+
+RX (``iq-app-rx.sh``, default FIFO 512 KB per channel, ``-f`` = ADC at 122.88 MSPS,
+``-n`` overrides the auto-detected channel count):
+
+::
+
+ ./iq-app-rx.sh -D ./rx.bin 4915200      # capture 4915200 bytes per channel (background)
+                                         # -> rx_ch0.bin, rx_ch1.bin ...
+ ./iq-app-rx.sh -X                       # live spectrum (foreground)
+ ./iq-app-rx.sh -X -W /tmp/rx 10ms       # spectrum, key w writes 10 ms per channel
+
+RF tuning (RFNM): ``rf_tune`` in a second terminal sets the daughterboard gain, power,
+frequency and path with range checks and TX/RX loop guards, see the RFNM porting guide
+section "RF tuning with rf_tune".
+
+Spectrum options: ``-N`` FFT size (8192), ``-M`` FFTs averaged (8), ``-H`` Hann window,
+``-K/-B`` chart top/bottom dBFS, ``-L`` rows per channel, ``-C`` initial QEC channel.
+
+Spectrum keys: ``c`` next QEC channel, ``g/G`` gain +-0.1 dB, ``p/P`` phase +-0.5 deg,
+``i/I j/J`` DC I/Q +-0.01, ``r`` reset gain/phase, ``s`` save QEC, ``w`` snapshot,
+``t`` spectrum / time-domain chart, ``+/-`` time zoom, ``a`` time scale auto / fixed,
+``q`` quit.
+
+Saturation: each channel has a line ``peak I <dB> Q <dB> dBFS  clip <n> (<%>)  crest <dB>``.
+``clip`` counts samples with \|I\| or \|Q\| >= 32700. ``[CLIP]`` (red) means at least one
+clipped sample in the refresh, ``[HIGH]`` (yellow) a peak above -3 dBFS. Crest factor is
+about 3 dB for a clean tone and goes toward 0 dB when the signal is clipped. Lower the RX
+gain (or TX power) until ``[CLIP]`` stays off; a peak around -6 dBFS is a good target.
+
+Time-domain chart (key ``t``, like the I/Q plots of ``compute_tone_params.py``): newest
+FFT block of each channel, ``*`` = I, ``o`` = Q, ``+`` = both, ``.`` = zero line.
+The Y scale is automatic by default (smallest 1-2-5 step above the peak, e.g. +-0.05 FS
+for a -29 dBFS signal); key ``a`` switches to a fixed +-1 FS scale where the top and
+bottom rows (``=``) are the clip rails. The chart starts at 1 sample per column (80
+samples, the actual I/Q points); ``-`` doubles the samples per column up to the whole
+block, ``+`` goes back. Above 1 sample per column each column is the min..max of its
+samples, so a single clipped sample is still visible.
+
+Example screen (1T2R, 2 channels at 30.72 MSPS after x2 decimation):
+
+::
+
+ RX QEC ch 0/2  gain  -0.20 dB  phase  +0.50 deg  DC I +0.000  DC Q -0.030   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+ Ch0 (RxChan 0)  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+   RSSI -23.6  floor -92.6  DC -23.6 dBFS
+   spurs: -81.7@+0.01 -82.2@-15.36 -84.8@+1.26 -85.5@+0.04 MHz
+   peak I -17.9  Q -18.1 dBFS  clip 0 (0.000%)  crest 5.7 dB
+   -6.2 |                                                                                |
+  -12.5 |                                                                                |
+  -18.8 |                                                                                |
+  -25.0 |                                        |                                       |
+  -31.2 |                                        |                                       |
+  -37.5 |                                        |                                       |
+  -43.8 |                                        #                                       |
+  -50.0 |                                        #                                       |
+  -56.2 |                                        #                                       |
+  -62.5 |                                        #                                       |
+  -68.8 |                                        #                                       |
+  -75.0 |                                        #                                       |
+  -81.2 |                                       |#                                       |
+  -87.5 ||                   ||| | |           ||#  |          |  | |||                  |
+  -93.8 ||| ||||||||###########################################################|||||||  ||
+ -100.0 |################################################################################|
+        ++-------------------+-------------------+-------------------+-------------------+
+      -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+ Ch1 (RxChan 1)  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+   RSSI -24.8  floor -98.9  DC -24.8 dBFS
+   spurs: -65.9@+7.68 -66.0@-7.68 -80.5@-15.36 -91.4@+0.16 MHz
+   -6.2 |                                                                                |
+  -12.5 |                                                                                |
+  -18.8 |                                                                                |
+  -25.0 |                                        |                                       |
+  -31.2 |                                        |                                       |
+  -37.5 |                                        |                                       |
+  -43.8 |                                        |                                       |
+  -50.0 |                                        #                                       |
+  -56.2 |                                        #                                       |
+  -62.5 |                                        #                                       |
+  -68.8 |                    |                   #                   |                   |
+  -75.0 |                    |                   #                   |                   |
+  -81.2 ||                   |                   #                   |                   |
+  -87.5 ||                   #                   #                   #                   |
+  -93.8 ||                   #                  |# |        |    ||  #                   |
+ -100.0 |#|||||||||############################################################|||||||||||
+        ++-------------------+-------------------+-------------------+-------------------+
+      -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+
+IQ snapshot (key ``w``): writes the next samples of all channels, contiguous from the key
+press, to ``<base>_<rate>Msps_ch<N>_<YYYYmmdd_HHMMSS>.bin`` (cs16, rate e.g. ``30p72``)
+while the spectrum keeps running; the status line reports the result. ``-W <base> [size]``
+sets the base (default ``<script dir>/capture/rx``) and the size per channel in bytes or
+``<N>ms`` (default ``1ms``).
+
+Stop a background run with ``kill -INT <pid>`` (the capture is saved), then ``./iq-stop.sh``.
+``kill -USR1 <pid>`` dumps the iq_app trace.
+
+Flow control
+------------
+
+``iq-start-txfifo.sh`` and ``iq-start-rxfifo.sh`` start VSPA with the DDR buffers used as
+FIFOs (the iq-app scripts call them). RX flow control is on by default in continuous
+mode; setting bit ``0x00400000`` in the RX start mailbox MSB (for example ``0x06D00200``
+instead of ``0x06900200``) disables it and VSPA overwrites the ring without waiting for the
+host.
+
+lib_iqplayer RX tuning (environment variables):
+
+- ``IQ_RX_ACK_MIN``: consumed bytes before the consumed pointer is written back to VSPA
+  DMEM (default ``0x8000``). Smaller values reopen the VSPA gate sooner at the cost of more
+  PCIe writes.
+- ``IQ_RX_KICK``: when non-zero (default 1), each ACK is followed by a mailbox-1 GO event so
+  VSPA re-evaluates the gate immediately.
+
+QEC and DC Offset
+*****************
+
+Kernels
+-------
+
+- 1T1R, 1T2R RX and all TX: ``txiqcomp()`` (IQ imbalance and DC offset); alternate
+  ``txiqcomp_x32chf_5t()`` adds a 5-tap fractional delay.
+- 0T4R RX: ``rx_qec_decx2_8t`` (la931x_vspa_common ``vspa-lib/rx_qec_decx2``), QEC fused
+  with the x2 decimation, one call per channel and buffer. QEC is applied after decimation
+  on the n/2 outputs, DC terms scaled by the tap sum. Functional (not bit-exact) versus
+  the two-stage chain: SNR > 75 dB on test vectors, 99 cy vs 107 cy per 256-sample block.
+  The config is rebuilt on stream start and refreshed incrementally on each QEC or DCO
+  update, without sample loss.
+
+Per-channel mailbox commands
+----------------------------
+
+Each firmware keeps one RX QEC set per RX channel (1T1R: 1, 1T2R: 2, 0T4R: 4) and one TX
+set. ``MBOX_OPC_IQ_CORR`` (0x08) and ``MBOX_OPC_RX_DCO_CORR`` (0x0E) select the channel in
+the message MSB word; the LSB carries the float32 value:
 
  ============= ============ ===========================================================
   MSB bits      msg bits     Meaning
@@ -812,149 +363,260 @@ All firmware variants keep one RX QEC parameter set per RX channel (1T1R: 1, 1T2
   15-0          47-32        IQ_CORR: coefficient index (FTAP1-3, 0xE DC_I, 0xF DC_Q)
  ============= ============ ===========================================================
 
-Without bit 50 only the selected channel is changed; a channel number not present in the
-build is rejected: the reply LSB is 0 (NACK) instead of 1. TX messages accept channel 0
-or bit 50 only. Old host tools that leave bits 50-48 at 0 now update channel 0 only.
-The fused 0T4R kernel config of the channel is rebuilt on each update.
+Without bit 50 only the selected channel changes. A channel not present in the build is
+rejected (reply LSB 0, NACK). TX accepts channel 0 or bit 50 only. Tools that leave bits
+50-48 at 0 update channel 0 only.
 
-Host tools: ``iq_app -X`` key ``c`` cycles the QEC channel, ``-C <ch>`` selects it at start
-(``iq-app-rx.sh -X -C <ch>``); the status line shows ``ch N/M`` and ``s`` saves
-``./qec/qec_coeff_rx_ant<ch>.cfg``. ``imb2qec.py`` and ``imb2qec-2.py`` take
-``--ch N`` or ``--all`` (RX only).
+Calibration, save and load
+--------------------------
 
-Program memory: to fit 1T2R in PRAM the main-loop and TX pass cycle meters are off in
-``1T2R`` and, in addition, the RX pass meter is off in ``1T2R_DIAG``.
+- Tune interactively with ``iq-app-rx.sh -X`` (RX) or ``iq-app-tx.sh -T`` (TX) and press
+  ``s`` to save ``<qecdir>/qec_coeff_rx_ant<ch>.cfg`` or ``qec_coeff_tx_ant0.cfg``.
+- ``imb2qec.py`` and ``imb2qec-2.py`` compute coefficients from measured imbalance
+  (``--ch N`` or ``--all`` for RX).
+- Saved files are applied at start: ``iq_app -r/-X`` loads every RX channel file,
+  ``iq_app -t/-T`` the TX file, and the keys continue from the loaded values.
+- The files hold coefficient values (f1, f4, f2, dcI, dcQ), not tap indexes, so one file is
+  valid for every firmware.
+- ``qecdir`` is ``<script dir>/qec`` for the scripts, whatever the current directory
+  (``iq_app -Q <dir>``, default ``./qec``). ``iq-app-rx.sh -Q <dir>`` changes it and ``-q``
+  skips loading; for ``iq-app-tx.sh`` use ``QEC_DIR`` / ``QEC_NOLOAD=1``.
 
-A start command received while already streaming now restarts the stream instead of
-returning a NACK; the DDR write channels are aborted and the RX stats reset at each start.
+Decimation and Data Format
+**************************
 
-1T1R RX accounting fix
-~~~~~~~~~~~~~~~~~~~~~~
+Decimation kernels: ``decimator_2x_8_Taps_asm`` and ``decimator_4x_8_Taps_asm``. The default
+is x2 with an 8-tap FIR, a balance between multi-RX support and VSPA cycles. 0T4R uses the
+fused ``rx_qec_decx2_8t`` kernel.
 
-``iqmod_rx.c`` (1T1R) used ``rx_vspa_proxy[0].la9310_fifo_consumed_size`` as its own
-DDR-done counter. Since libiqplayer writes that field directly in VSPA DMEM
-(``rx_fc_addr``), every host ACK moved the counter back, the QEC ring looked full and RX
-stalled with ``DDR_WR_OVR`` and ``FIFO_RX_OVR`` counting on every pass (``-X`` and ``-D``).
+The firmware works in 16-bit signed-magnitude (half-fixed); VSPA DMA converts to the 2's
+complement int16 used by the host. Files are interleaved cs16 (I then Q, 4 bytes per
+sample). MATLAB code is provided to generate and display binary waveforms; ``iq_app -P
+<file>`` shows the spectrum of a capture file offline.
 
-- The firmware keeps its own counters; the host consumed field is only read, for flow control.
-- ``la9310_fifo_produced_size`` is raised on DDR write completion (data in DDR), not on compress.
-- DDR completion is counted from DMA state (writes in flight), as in 0T4R.
-- Start and stop abort the DDR write DMA and clear produced.
+Performance
+***********
 
-Verified on RFNM: 1T1R iq-app TX and RX (``-X`` and ``-D``); 1T2R iq-app TX and RX
-(``-X`` and ``-T``).
+Throughput
+----------
 
-1T1R and 1T2R streaming options
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ ====================== ========================================
+  Rate (MSPS)            Bandwidth per channel (MB/s)
+ ====================== ========================================
+  61.44                  245.76
+  122.88                 491.52
+  160                    640
+ ====================== ========================================
 
-- 1T2R uses the same DMA-state DDR accounting as 0T4R.
-- ``1T2R_DIAG`` target: 1T2R with ``-DRX_STALL_STATS_ON``. Only the rx_stats stall counters
-  (``APP_DDR_WR``: host gate closed, ``EXT_DDR_WR``: DDR DMA busy, ``EXT_DDR_WR_OVR``:
-  decimation blocked) are built; ``tx_stats`` keeps the real TX statistics.
-- 1T1R has the RX cycle meter (``[VSPA RX cycle meter]`` line in iq_mon,
-  ``-DRX_CYCLE_METER_OFF`` removes it).
-- ``RX_PASS_BUDGET`` (default 2048) sets the cycle threshold of the "passes over budget"
-  count: 2048 cy at 61.44 MSPS, 1024 cy at 122.88 MSPS (256-sample buffers).
-- Per-buffer l1 traces in the 1T1R streaming loop and in ``_main.c`` are only built with
-  ``-DRX_HOT_TRACE`` (all variants); error traces are kept.
-- TX cycle meter (1T1R, 1T2R): times each streaming ``PUSH_TX_DATA()`` pass and prints
-  ``[VSPA TX cycle meter]`` in iq_mon (max pass, average over the last period, pass count,
-  passes over ``TX_PASS_BUDGET`` (default 2048), longest start-to-start gap).
-  ``-DTX_CYCLE_METER_OFF`` removes it.
-- Loop meter (all variants): times each main loop pass from GO wakeup to ``__idle()``
-  (idle time is not counted). It prints ``[VSPA loop meter]`` with max, average, pass count,
-  passes per second, and passes over ``LOOP_PASS_BUDGET`` (default 2048).
-  ``-DLOOP_CYCLE_METER_OFF`` removes it.
-- The meters are stored in ``t_stats.meter[16]``: [0..5] TX, [6..9] loop, [10..12] RX/TX/loop
-  budgets. iq_mon uses the budgets in its labels. ``t_stats`` is shared with the host, so
-  iq_mon, lib_iqplayer and iq_app must be rebuilt together with the firmware.
-- Per-buffer TX l1 traces (AXIQ TX start/comp, DDR RD start/comp, QEC start/comp) are only
-  built with ``-DTX_HOT_TRACE``.
-- 1T2R memory headroom is small: the default l1 trace size is 40 entries (it was 50), and
-  ``1T2R_DIAG`` is built without the TX and loop meters to fit in PRAM.
+The maximum PCIe throughput measured on i.MX8MP RFNM is ~836 MB/s; actual performance
+depends on the DMA engine and its configuration. IQ Player uses VSPA DMA.
 
-1T1R TX DMA completion accounting
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+VSPA DMA write to host DDR (RX)
+-------------------------------
 
-At 122.88 MSPS TX only, with 2 DDR read channels and mBurst (``iq-replay.sh <file> <size> 1``),
-the TX rate started at 491 MB/s and dropped to 327 MB/s after a few seconds, with
-``DDR_RD_UDR`` and ``FIFO_TX_UDR`` counting. The cycle meters were well under budget.
+Inbound writes are limited to ~528 MB/s on i.MX8MP RFNM (hardware limitation, AN13164),
+enough for 122.88 MSPS on one VSPA DMA channel; 160 MSPS needs a faster host such as
+i.MX95. IQ Player uses one DMA write channel.
 
-Cause: each FIFO-mode DMA channel has 2 command slots but a single sticky completion bit.
-When two transfers complete between two polls, only one completion is seen. TX counted
-fetched DDR reads and consumed AXIQ writes from that bit, so each merge lost one buffer for
-good and the TX rings looked fuller than they were.
+VSPA DMA read from host DDR (TX)
+--------------------------------
 
-Fix (``iqmod_tx.c``, default): the number of transfers still in flight is derived from the
-DMA state, as for RX (``dma_done_from_state()`` in ``_main.c``): no FIFO slot free -> 2,
-slot free and running -> 1, idle -> 0, and done = enqueued - in_flight. Done never moves
-back and advances to the minimum of this pass and the previous pass.
+The LA9310 AXI bus allows 4 outstanding reads, so several DMA channels increase throughput.
+Measured on i.MX8MP RFNM:
 
-- iq_mon prints ``TX in flight (last pass): DDR rd N buf, AXIQ wr N buf``
-  (``t_stats.meter[13..14]``).
-- 1T2R and ``1T2R_DIAG`` use the same TX accounting. To fit in PRAM the TX DDR read load
-  test (start bit ``0x00200000``) is not built (the request is NACKed); the legacy
-  completion-bit accounting, ``RX_DDR_STATUS_FULL``, ``RX_REVERSE_ORDER``, ``RX_FC_POLL``
-  and the ``dbg_gbl`` debug spin loops were removed in the v1.2 cleanup.
+ ========== ======================= ========= ===============================
+  Config     Parallel DMA channels   mBurst    Bandwidth (MB/s)
+ ========== ======================= ========= ===============================
+  A          1                       off       200
+  B          2                       off       393
+  C          4                       off       590
+  D          1                       on        481
+  E          2                       on        836 (max)
+  F          4                       on        836 (max)
+ ========== ======================= ========= ===============================
 
-Verified on RFNM, 1T1R, TX only at 122.88 MSPS with 2 read channels + mBurst:
-491 MB/s steady, no ``FIFO_TX_UDR``, TX pass max 501 cy, loop max 1204 cy.
+C, E and F give the best TX throughput but starve the RX writes in full duplex (FIFO
+overflow). The default (1 channel + mBurst) allows full duplex at 61.44 MSPS; 2 channels +
+mBurst (``iq-replay.sh <file> <size> 1``) gives the TX-only maximum, up to 160 MSPS.
 
-1T1R at 122.88 MSPS
-~~~~~~~~~~~~~~~~~~~
+Host eDMA on RFNM i.MX8MP reaches ~700 MB/s with large transfers, but needs host-side DMA
+agents synchronised with VSPA. IQ Player does not use it.
 
-1T1R buffers are 512 samples (2 KB), so the time budget per buffer is 2048 VSPA cycles at
-122.88 MSPS as well as at 61.44 MSPS (the default ``*_PASS_BUDGET`` values apply).
+Cycle budget
+------------
 
-Measured on RFNM (i.MX8MP), 1T1R firmware, stats cleared after start:
+Each buffer must be processed before the next one arrives:
+
+::
+
+  budget (VSPA cycles per buffer) = N_samples x VSPA_clk / Fs
+
+The VSPA runs at 4 x DCS_CLK. On RFNM, DCS_CLK comes from the Si5510 programmed by the
+i.MX kernel (``i2c-rfnm-si5510.c``, 122.88 MHz; ``la9310rfnm`` may reclock it and prints
+``reclocking dcs frequency``). ADC/DAC rates are DCS_CLK divided by a power of two, so
+61.44 MSPS needs DCS = 122.88 MHz and VSPA = 491.52 MHz.
+
+- 0T4R: 256 samples at 61.44 MSPS -> 2048 cycles
+- 1T1R: 512-sample buffers, 2048 cycles at 122.88 MSPS and at 61.44 MSPS
+
+The cycle meters count passes over ``RX_PASS_BUDGET``, ``TX_PASS_BUDGET`` and
+``LOOP_PASS_BUDGET`` (default 2048 each; use 1024 for 256-sample buffers at 122.88 MSPS).
+
+Measured results
+----------------
+
+0T4R (RFNM, 4 x 61.44 MSPS, flow control on and off): 4 x 245 MB/s AXIQ, 4 x 122 MB/s DDR
+and application, lossless in steady state, live QEC updates without loss.
+
+0T4R DMEM layout (RX_NUM_CHAN=4, RX_DMA_TXR_size=256, RX_DECIM=2; 4-deep AXIQ input ring,
+3-deep decimated ring, 0x480 VCPU stack):
+
+ ============== ======================== =============================================
+  Memory bank    Symbol                   Notes
+ ============== ======================== =============================================
+  VCPU DMEM      proxy (0x0000-0x007F)    VSPA mailbox / dmem proxy
+  VCPU DMEM      input_dec_buffer         4 ch x decimated ring x 128 smp x 4 B
+  IPPU DRAM      rxiqcompcfg (0x4000)     QEC coefficient struct (4 channels)
+  IPPU DRAM      input_buffer (0x4200)    4 ch x AXIQ ring x 256 smp x 4 B
+ ============== ======================== =============================================
+
+1T1R at 122.88 MSPS (RFNM i.MX8MP, stats cleared after start):
 
  ================================== ========= ========= =========================================
   Mode / TX DDR read config          RX MB/s   TX MB/s   Result
  ================================== ========= ========= =========================================
-  RX only (``iq-capture-ddr.sh``)     491       -         lossless, loop max 1252 cy
-  TX only, 2 ch + mBurst              -         491       lossless, loop max 1204 cy
-  TX only, 1 ch + mBurst (default)    -         < 491     DDR read bandwidth too low (481 MB/s)
-  Full duplex, 2 ch + mBurst          447       482       FIFO_RX_OVR, FIFO_TX_UDR
-  Full duplex, 4 ch, no mBurst        213       485       FIFO_RX_OVR (worse)
-  Full duplex, 1 ch + mBurst          467       430       DDR_WR_OVR, FIFO_RX_OVR, FIFO_TX_UDR
+  RX only (``iq-capture-ddr.sh``)    491       -         lossless, loop max 1252 cy
+  TX only, 2 ch + mBurst             -         491       lossless, loop max 1204 cy
+  TX only, 1 ch + mBurst (default)   -         < 491     DDR read bandwidth too low (481 MB/s)
+  Full duplex, 2 ch + mBurst         447       482       FIFO_RX_OVR, FIFO_TX_UDR
+  Full duplex, 4 ch, no mBurst       213       485       FIFO_RX_OVR (worse)
+  Full duplex, 1 ch + mBurst         467       430       DDR_WR_OVR, FIFO_RX_OVR, FIFO_TX_UDR
  ================================== ========= ========= =========================================
 
-In all full-duplex runs the VSPA cycle meters stay under budget (pass max < 610 cy,
-start-gap max < 1810 cy, loop average ~1230 cy for a 2048 cy buffer time). PCIe is full
-duplex and has the bandwidth for 491 MB/s in each direction. The limit is the VSPA DMA /
-AXI path carrying both the TX DDR reads and the RX AXIQ reads plus DDR writes: more read
-channels in flight starve the RX AXIQ reads, fewer starve TX and slow the DDR writes.
+The cycle meters stay under budget in all full-duplex runs and PCIe has the bandwidth; the
+limit is the VSPA DMA / AXI path carrying TX DDR reads, RX AXIQ reads and DDR writes
+together. More read channels starve the RX AXIQ reads, fewer starve TX. Full duplex at
+122.88 MSPS has been demonstrated with the PCIe DMA driven from the M7 host, outside the
+IQ Player scope.
 
-- With IQ Player (VSPA DMA only), 122.88 MSPS is supported in half duplex: RX only with the
-  default configuration, TX only with 2 DDR read channels + mBurst
-  (``iq-replay.sh <file> <size> 1``). Full duplex reaches about 90% of the rate.
-- Full duplex 1T1R at 122.88 MSPS has been demonstrated with the I/Q data moved by the PCIe
-  DMA driven from the M7 host, which takes the DDR traffic off the VSPA DMA/AXI path.
-  This mode is outside the IQ Player scope and is not implemented here.
+Debug and Monitoring
+********************
 
-Known Issues & Workarounds
-**************************
+iq_mon and statistics
+---------------------
 
-- 1T1R at 122.88 MSPS with IQ Player is half duplex only: full duplex reaches about 90% of
-  the rate (VSPA DMA/AXI read and write contention, see "1T1R at 122.88 MSPS"). Full duplex
-  requires the host PCIe DMA (demonstrated from the M7 host, not part of IQ Player).
-  TX only needs 2 DDR read channels + mBurst (``iq-replay.sh <file> <size> 1``).
-- 1T4R operation should enable no more than two RX channels to avoid FIFO overruns
-- 0T4R: a few AXIQ FIFO overruns are counted at stream start, before the host drain
-  threads run; steady state is lossless
-- lib_iqplayer / iq_app must be started before traffic; stop/restart is not yet supported
+``iq_mon`` polls the statistics in the DDR proxy every second, adapts to the channel count
+and computes bandwidth from the real elapsed time.
+
+::
+
+ RX stats :
+  DMA_AXIQ_RD    0x000e7592(00000491 MB/s)       0x000e7593(00000491 MB/s)
+  DMA_DDR_WR     0x000e7592(00000245 MB/s)       0x000e7592(00000245 MB/s)
+  DDR_WR_OVR     0x00000000                      0x00000000
+  FIFO_RX_UDR    0x00000000                      0x00000000
+  FIFO_RX_OVR    0x00000000                      0x00000000
+ TX stats :
+  DMA_AXIQ_WR    0x00000000(00000000 MB/s)
+  DMA_DDR_RD     0x00000000(00000000 MB/s)
+  DDR_RD_UDR     0x00000000
+  FIFO_TX_UDR    0x00000000
+ Global stats :
+  DMA_CFG_ERROR  0x00901003
+  DMA_XFER_ERROR 0x00000000
+
+::
+
+ ./stats.sh -1        # clear VSPA stats
+ ./iq_mon -c          # clear host stats
+
+Cycle meters
+------------
+
+Shown by iq_mon, all reset at stream start:
+
+- ``[VSPA RX cycle meter]``: longest and average streaming pass, pass count, passes over
+  ``RX_PASS_BUDGET``, longest gap between two pass starts.
+- ``[VSPA TX cycle meter]`` (1T1R, 1T2R): same for ``PUSH_TX_DATA()``, budget
+  ``TX_PASS_BUDGET``.
+- ``[VSPA loop meter]``: main loop pass from GO wakeup to ``__idle()`` (idle not counted),
+  passes per second, budget ``LOOP_PASS_BUDGET``.
+- ``TX in flight (last pass): DDR rd N buf, AXIQ wr N buf``.
+- ``[VSPA RX stalls/s]`` and ``[VSPA RX loss check]`` (``_DIAG`` variants): per-channel
+  stalls (host gate closed, DDR DMA busy, decimation backlog), measured VSPA clock and
+  buffers/s versus nominal.
+
+The meters live in ``t_stats.meter[16]`` ([0..5] TX, [6..9] loop, [10..12] budgets,
+[13..14] TX in flight). ``t_stats`` is shared with the host: rebuild iq_mon, lib_iqplayer
+and iq_app together with the firmware.
+
+To fit in PRAM, 1T2R has no loop or TX meter, and 1T2R_DIAG has no RX pass meter either.
+
+Build options
+-------------
+
+ =========================== ==============================================================
+  Option                      Effect
+ =========================== ==============================================================
+  ``-DRX_STALL_STATS_ON``     stall and loss counters (``0T4R_DIAG``, ``1T2R_DIAG``)
+  ``-DRX_CYCLE_METER_OFF``    remove the RX cycle meter
+  ``-DTX_CYCLE_METER_OFF``    remove the TX cycle meter
+  ``-DLOOP_CYCLE_METER_OFF``  remove the loop meter
+  ``-DRX_STAGE_METER``        per-stage cycle sums in tx_stats[0..4] (``0T4R_PROF``)
+  ``-DRX_HOT_TRACE``          per-buffer RX l1 traces in the streaming loop
+  ``-DTX_HOT_TRACE``          per-buffer TX l1 traces
+  ``-DRX_AXIQ_CHK_LIGHT``     AXIQ error check counts only, no l1 traces (0T4R)
+  ``-DRX_IQ_SWAP=0``          disable the AXIQ RX I/Q swap (default 1, RFNM/LMS7002 fix)
+ =========================== ==============================================================
+
+Traces
+------
+
+- iq_app keeps a heap trace buffer; ``kill -USR1 <pid>`` dumps it.
+- The VSPA firmware keeps an l1 trace in DMEM (40 entries by default), read with
+  ``iq_trace``. Error traces are always built; per-buffer traces need ``*_HOT_TRACE``.
+
+VSPA design notes
+-----------------
+
+- VSPA DMA: 128-bit AXI3, 3 engines, 16 channels, single burst per transaction, optional
+  multi-burst (up to 4 x 256 B). Lower channel number = higher priority, channel 0 strict.
+  One write engine, two or more read engines: spread reads and writes over channels.
+- DMEM: spread load over VDMEM and IDMEM, align transfers to the bus width, align AXI
+  origins to 4 KB. Access priority: DMA write, DMA read, AXI slave, IPPU, debug, VCPU.
+- DMA completion: a FIFO-mode channel has 2 command slots but one sticky completion bit,
+  so two completions can merge. RX and TX count transfers in flight from the DMA state
+  (``dma_done_from_state()``) instead of the completion bit.
+- PCIe: posted writes are preferred over reads to avoid initiator stalls. VSPA DMA-copies
+  its read-only state and statistics (``s_vspa_dmem_proxy``) to the last 1 KB of IQFLOOD;
+  writable fields (host flow control) are written by the host directly in DMEM at the
+  offsets given by ``dmemProxyOffset``.
+- A start command received while streaming restarts the stream (DDR write channels aborted,
+  RX stats reset).
+
+The development history (measurement sessions, root causes, removed variants) is kept in
+``iqplayer_design_notes.rst``.
+
+Known Issues and Limitations
+****************************
+
+- 1T1R at 122.88 MSPS is half duplex only; full duplex reaches about 90% of the rate (see
+  Performance, Measured results). TX only needs 2 DDR read channels + mBurst (``iq-replay.sh <file> <size> 1``).
+- 0T4R: a few AXIQ FIFO overruns are counted at stream start, before the host drain threads
+  run; steady state is lossless.
+- lib_iqplayer / iq_app must be started before traffic; stop/restart is not yet supported.
 
 Future Enhancements
 *******************
 
-- Add buffer metadata (timestamps)
-- Add on-device signal generation and analysis
-- Provide SoapySDR / GNU Radio APIs
-- Port IQ Player to LA1224 (Layerscape Access family)
+- Buffer metadata (timestamps)
+- On-device signal generation and analysis
+- SoapySDR / GNU Radio APIs
+- Port to LA1224 (Layerscape Access family)
 
 References
 **********
- 
-- LA9310 documentation are available at <https://www.nxp.com/la9310> 
-- LA9310 linux BSP documentation <https://github.com/nxp-real-time-edge-sw/yocto-real-time-edge/tree/la93xx>
 
+- LA9310 documentation: https://www.nxp.com/la9310
+- LA9310 Linux BSP: https://github.com/nxp-real-time-edge-sw/yocto-real-time-edge/tree/la93xx
+- ``iqplayer_design_notes.rst``: development history and measurements

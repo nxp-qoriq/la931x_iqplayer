@@ -1,0 +1,27 @@
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt b/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
+index b102660..f6b0ec8 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
+@@ -80,6 +80,9 @@ endif()
+ if(DCS_FULL_RATE)
+     SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}  -DDCS_FULL_RATE")
+ endif()
++if(AXIQ_LOOPBACK)
++    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}  -DAXIQ_LOOPBACK_ENABLE")
++endif()
+ 
+ if(DAC)
+     SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}  -DDAC")
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/include/la9310_avi.h b/Demo/CORTEX_M4_NXP_LA9310_GCC/include/la9310_avi.h
+index 5beb901..3ce6ee3 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/include/la9310_avi.h
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/include/la9310_avi.h
+@@ -12,7 +12,7 @@
+ 
+ 
+ #define MAILBOX_VALID_STATUS_RETRIES    200
+-/*#define AXIQ_LOOPBACK_ENABLE */
++/* AXIQ_LOOPBACK_ENABLE: set by the AXIQ_LOOPBACK cmake option */
+ 
+ #define VCPU_MBOX_STATUS                ( VSPA_BASE_ADDR + 0x6A0 )
+ #define HOST_OUT_0_MSB                  ( VSPA_BASE_ADDR + 0x680 )

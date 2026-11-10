@@ -93,6 +93,16 @@ static uint32_t g_spec_rows   = 0;      /* -L: chart rows, 0 = auto (40/16/10 fo
 static bool     g_tone_dbbar  = false;  /* -l: -T bar in dB (default linear amplitude) */
 static bool     g_spec_hann   = false;  /* -H: Hann window + power average */
 static const char *g_spec_file = NULL;  /* -P: offline spectrum of a file */
+static volatile int g_spec_tview = 0;   /* -X 't' key: time-domain chart */
+static volatile uint32_t g_spec_tspc = 1;  /* -X '+'/'-': samples per column */
+static volatile int g_spec_tfix = 0;    /* -X 'a' key: 1 = fixed +-1 FS scale */
+/* -X/-P saturation stats; |sample| >= SPEC_CLIP_LSB counts as clipped */
+#define SPEC_CLIP_LSB 32700
+typedef struct {
+    int32_t  pk_i, pk_q;    /* max |I|, max |Q| in LSB */
+    uint32_t clip;          /* samples with |I| or |Q| >= SPEC_CLIP_LSB */
+} spec_tstat_t;
+static spec_tstat_t *g_spec_ts;          /* updated by spec_accum_block() */
 #define SPEC_FFT_DEFAULT 8192u          /* -X/-P default, as compute_tone_params.py */
 static float    g_srate_mhz   = 122.88f;
 static bool     g_srate_set   = false; /* true when -Z was given explicitly */
@@ -207,6 +217,48 @@ static int map_physical_regions(void)
  * ----------------------------------------------------------------------- */
 void terminate_process(int sig) { (void)sig; running = 0; }
 
+/* -----------------------------------------------------------------------
+ * Terminal state: saved once before the first raw-mode switch, restored
+ * at exit (atexit) whatever the exit path, so the shell prompt and the
+ * readline column are always consistent after -T / -X.
+ * ----------------------------------------------------------------------- */
+static struct termios g_tty_saved;
+static volatile int g_tty_saved_ok;
+
+static void tty_restore(void)
+{
+    if (g_tty_saved_ok) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &g_tty_saved);
+        /* reset attributes, show cursor, start the prompt on a fresh line */
+        printf("\033[0m\033[?25h\r\n");
+        fflush(stdout);
+        g_tty_saved_ok = 0;
+    }
+}
+
+/* Switch stdin to raw keys. ISIG is cleared so Ctrl-C arrives as key 3
+ * and goes through the normal quit path instead of a SIGINT race with the
+ * calling script. vtime is the read timeout in 1/10 s (0 = blocking). */
+static int tty_raw(int vtime)
+{
+    struct termios raw;
+
+    if (!isatty(STDIN_FILENO))
+        return 0;
+    if (!g_tty_saved_ok) {
+        if (tcgetattr(STDIN_FILENO, &g_tty_saved) != 0)
+            return 0;
+        g_tty_saved_ok = 1;
+        atexit(tty_restore);
+    }
+    raw = g_tty_saved;
+    raw.c_lflag &= (tcflag_t)~(ICANON | ECHO | ISIG);
+    raw.c_cc[VMIN]  = 0;
+    raw.c_cc[VTIME] = (cc_t)vtime;
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    return 1;
+}
+
 void sigusr1_process(int sig) { (void)sig; fflush(stdout); print_host_trace(); }
 
 /* -----------------------------------------------------------------------
@@ -225,7 +277,10 @@ void print_cmd_help(void)
         "|\t-X\t\tSpectrum mode (live FFT display; keys: g/G p/P i/I j/J RX QEC,\n"
         "|\t\t\t  c next QEC channel, r reset gain/phase,\n"
         "|\t\t\t  s save <qecdir>/qec_coeff_rx_ant<ch>.cfg,\n"
-        "|\t\t\t  w write IQ snapshot of all channels, q quit)\n"
+        "|\t\t\t  w write IQ snapshot of all channels,\n"
+        "|\t\t\t  t spectrum/time-domain chart, +/- time zoom,\n"
+        "|\t\t\t  a time scale auto/fixed +-1 FS, q quit)\n"
+        "|\t\t\t  Status line: peak I/Q dBFS, clip count, crest factor\n"
         "|\t-C <ch>\t\tRX QEC channel selected at start in -X mode (default 0)\n"
         "|\t-T\t\tInteractive tone TX (keys: up/dn freq, lt/rt amp, w wave,\n"
         "|\t\t\t  g/G p/P i/I j/J TX QEC, r reset, s save, q quit)\n"
@@ -923,12 +978,8 @@ static void rx_qec_status_line(void);
 static void *spec_kbd_thread(void *arg)
 {
     spec_kbd_ctx_t *ctx = (spec_kbd_ctx_t *)arg;
-    struct termios old_tio, new_tio;
 
-    tcgetattr(STDIN_FILENO, &old_tio);
-    new_tio = old_tio;
-    new_tio.c_lflag &= (tcflag_t)~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+    (void)tty_raw(0);    /* select() below gives the 50 ms poll */
 
     while (!ctx->stop) {
         fd_set fds;
@@ -948,7 +999,7 @@ static void *spec_kbd_thread(void *arg)
         }
     }
 
-    tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+    /* terminal restored by tty_restore() once the display is done */
     return NULL;
 }
 
@@ -1063,6 +1114,20 @@ static void spec_accum_block(const iq_cs16_t *raw, uint32_t n,
     uint32_t k;
     double si = 0.0, sq = 0.0, sp = 0.0;
 
+    if (g_spec_ts) {
+        spec_tstat_t *ts = g_spec_ts;
+        for (k = 0; k < n; k++) {
+            int32_t ai = raw[k].re < 0 ? -(int32_t)raw[k].re : raw[k].re;
+            int32_t aq = raw[k].im < 0 ? -(int32_t)raw[k].im : raw[k].im;
+            if (ai > ts->pk_i)
+                ts->pk_i = ai;
+            if (aq > ts->pk_q)
+                ts->pk_q = aq;
+            if (ai >= SPEC_CLIP_LSB || aq >= SPEC_CLIP_LSB)
+                ts->clip++;
+        }
+    }
+
     for (k = 0; k < n; k++) {
         double re = (double)raw[k].re;
         double im = (double)raw[k].im;
@@ -1100,14 +1165,129 @@ static int spec_cmp_float(const void *a, const void *b)
     return (x > y) - (x < y);
 }
 
-/* Print one channel: 3 text lines, bar chart and frequency axis.
+/* Row of value v (in FS) on a chart of 'rows' rows covering +-scale;
+ * row 0 is the top. Values outside the scale go to the edge rows. */
+static int spec_trow(float v, float scale, uint32_t rows)
+{
+    int r = (int)floorf((scale - v) * (float)rows / (2.0f * scale));
+
+    if (r < 0)
+        r = 0;
+    if (r >= (int)rows)
+        r = (int)rows - 1;
+    return r;
+}
+
+/* Time-domain chart of one block (like the I/Q plots of
+ * compute_tone_params.py). '*' = I, 'o' = Q, '+' = both, '.' = zero line.
+ * Y scale: auto (smallest 1-2-5 step above the peak) or fixed +-1 FS
+ * ('a' key), where the edge rows are the clip rails ('=').
+ * X: g_spec_tspc samples per column. At 1 sample/column each sample is
+ * one point; above, each column is the min..max envelope of its samples,
+ * so a short clip is never averaged away. */
+static void spec_render_time(const iq_cs16_t *raw, uint32_t n, uint32_t rows)
+{
+    static const float steps[] = { 0.01f, 0.02f, 0.05f, 0.1f, 0.2f, 0.5f, 1.0f };
+    uint32_t cols = g_bar_cols, spc = g_spec_tspc, span, row, col, s, k;
+    float scale = 1.0f, pk = 0.0f;
+    int fixed = g_spec_tfix;
+
+    if (spc < 1u)
+        spc = 1u;
+    if (cols < 8u)
+        cols = 8u;
+    if ((uint64_t)cols * spc > n)
+        spc = n / cols ? n / cols : 1u;
+    span = cols * spc;
+    if (span > n) {
+        span = n;
+        cols = n;
+    }
+    if (rows < 4u)
+        rows = 4u;
+
+    if (!fixed) {
+        for (s = 0; s < span; s++) {
+            float vi = fabsf((float)raw[s].re) / 32768.0f;
+            float vq = fabsf((float)raw[s].im) / 32768.0f;
+            if (vi > pk) pk = vi;
+            if (vq > pk) pk = vq;
+        }
+        for (k = 0; k < sizeof(steps) / sizeof(steps[0]); k++) {
+            scale = steps[k];
+            if (pk <= scale)
+                break;
+        }
+    }
+
+    for (row = 0; row < rows; row++) {
+        float top = scale - (float)row * 2.0f * scale / (float)rows;
+        float bot = top - 2.0f * scale / (float)rows;
+        int zero = (bot <= 0.0f && top > 0.0f);
+        int rail = fixed && (row == 0u || row == rows - 1u);
+        printf("%+6.3f |", (double)top);
+        for (col = 0; col < cols; col++) {
+            uint32_t s0 = col * spc, s1 = s0 + spc;
+            float imn = 2.0f, imx = -2.0f, qmn = 2.0f, qmx = -2.0f;
+            for (s = s0; s < s1 && s < n; s++) {
+                float vi = (float)raw[s].re / 32768.0f;
+                float vq = (float)raw[s].im / 32768.0f;
+                if (vi < imn) imn = vi;
+                if (vi > imx) imx = vi;
+                if (vq < qmn) qmn = vq;
+                if (vq > qmx) qmx = vq;
+            }
+            int r = (int)row;
+            int hi = r >= spec_trow(imx, scale, rows) && r <= spec_trow(imn, scale, rows);
+            int hq = r >= spec_trow(qmx, scale, rows) && r <= spec_trow(qmn, scale, rows);
+            putchar(hi && hq ? '+' : hi ? '*' : hq ? 'o' :
+                    rail ? '=' : zero ? '.' : ' ');
+        }
+        printf("|%s", spec_eol());
+    }
+    printf("       +");
+    for (col = 0; col < cols; col++)
+        putchar((col % (cols / 4u ? cols / 4u : 1u)) == 0u ? '+' : '-');
+    printf("+%s", spec_eol());
+    printf("        0 .. %.3f us, %u samples, %u/col  scale +-%.2f FS (%s)"
+           "  keys: +/- zoom, a=auto/fixed, t=spectrum%s",
+           (double)((float)span / g_srate_mhz), span, spc, (double)scale,
+           fixed ? "fixed, = clip rails" : "auto", spec_eol());
+}
+
+/* Saturation line: peak |I|/|Q| in dBFS, clip count, crest factor of the
+ * busier component (about 3 dB for a clean tone, near 0 dB when clipped). */
+static void spec_print_sat(const spec_tstat_t *ts, double sum_p, double ns)
+{
+    int32_t pk = ts->pk_i > ts->pk_q ? ts->pk_i : ts->pk_q;
+    float pk_db = 20.0f * log10f((float)pk / 32768.0f + 1e-15f);
+    float rms_db = 10.0f * log10f((float)(sum_p / (2.0 * ns)) / (32768.0f * 32768.0f) + 1e-30f);
+    const char *on = "", *off = "", *tag = "";
+
+    if (ts->clip) {
+        tag = "  [CLIP]";
+        if (!g_spec_file) { on = "\033[1;31m"; off = "\033[0m"; }
+    } else if (pk_db > -3.0f) {
+        tag = "  [HIGH]";
+        if (!g_spec_file) { on = "\033[1;33m"; off = "\033[0m"; }
+    }
+    printf("  peak I %.1f  Q %.1f dBFS  clip %u (%.3f%%)  crest %.1f dB%s%s%s%s",
+           (double)(20.0f * log10f((float)ts->pk_i / 32768.0f + 1e-15f)),
+           (double)(20.0f * log10f((float)ts->pk_q / 32768.0f + 1e-15f)),
+           ts->clip, ns > 0.0 ? 100.0 * (double)ts->clip / ns : 0.0,
+           (double)(pk_db - rms_db), on, tag, off, spec_eol());
+}
+
+/* Print one channel: text lines, then the bar chart and frequency axis, or
+ * the time-domain chart of 'last' when the 't' view is on.
  * acc/nblk is the accumulator from spec_accum_block(); pwr and tmp are
- * scratch arrays of n floats. */
+ * scratch arrays of n floats. ts/last may be NULL. */
 static void spec_render_channel(uint32_t idx, uint32_t chan_id,
                                 const float *acc, uint32_t nblk,
                                 double sum_i, double sum_q, double sum_p,
                                 uint32_t n, uint32_t bar_rows,
-                                float *pwr, float *tmp)
+                                float *pwr, float *tmp,
+                                const spec_tstat_t *ts, const iq_cs16_t *last)
 {
     const float fs2 = 32768.0f * 32768.0f;
     float bin_hz = (g_srate_mhz * 1e6f) / (float)n;
@@ -1177,6 +1357,13 @@ static void spec_render_channel(uint32_t idx, uint32_t chan_id,
                (double)((float)sb * bin_hz / 1e6f));
     }
     printf("%s%s", nsp ? " MHz" : "", spec_eol());
+    if (ts)
+        spec_print_sat(ts, sum_p, ns);
+
+    if (g_spec_tview && last) {
+        spec_render_time(last, n, bar_rows);
+        return;
+    }
 
     /* chart, DC in the middle: '#' up to the column mean, '|' up to the
      * column max, so tones and spurs show as spikes over the floor */
@@ -1246,6 +1433,7 @@ static int spec_file_app(const char *path)
     float win_sum = 0.0f;
     double si = 0.0, sq = 0.0, sp = 0.0;
     uint32_t nblk = 0, k;
+    spec_tstat_t fts = { 0, 0, 0u };
 
     if (!raw || !in || !out || !win || !acc || !pwr || !tmp)
         goto out;
@@ -1257,18 +1445,26 @@ static int spec_file_app(const char *path)
     if (armral_fft_create_plan_cf32(&g_spec_plan, (int)n, ARMRAL_FFT_FORWARDS) != ARMRAL_SUCCESS)
         goto out;
 #endif
+    g_spec_ts = &fts;
     while (fread(raw, sizeof(iq_cs16_t), n, f) == n) {
         spec_accum_block(raw, n, g_spec_hann ? win : NULL, win_sum,
                          in, out, acc, &si, &sq, &sp);
         nblk++;
     }
+    g_spec_ts = NULL;
     if (nblk == 0u) {
         fprintf(stderr, "%s: less than one FFT block\n", path);
     } else {
         printf("%s: %u samples (%.2f ms)\n", path, nblk * n,
                (double)((float)(nblk * n) / (g_srate_mhz * 1e3f)));
+        /* IQ_APP_TVIEW=1 [IQ_APP_TSPC=<n>]: time chart of the last block */
+        if (getenv("IQ_APP_TVIEW"))
+            g_spec_tview = 1;
+        if (getenv("IQ_APP_TSPC"))
+            g_spec_tspc = (uint32_t)strtoul(getenv("IQ_APP_TSPC"), NULL, 0);
         spec_render_channel(0, 0, acc, nblk, si, sq, sp, n,
-                            g_spec_rows ? g_spec_rows : 40u, pwr, tmp);
+                            g_spec_rows ? g_spec_rows : 40u, pwr, tmp,
+                            &fts, raw);
         ret = EXIT_SUCCESS;
     }
 #ifdef HAVE_ARMRAL
@@ -1496,7 +1692,11 @@ static int process_ant_rx_spectrum_app(void)
     float *disp  = malloc(n * fft_n * sizeof(float));
     float *power = malloc(fft_n * sizeof(float));  /* scratch for one channel */
     float *sortb = malloc(fft_n * sizeof(float));  /* scratch for the median */
-    if (!disp || !power || !sortb) {
+    /* newest block per channel, for the 't' time-domain view */
+    iq_cs16_t *tlast = calloc((size_t)n * fft_n, sizeof(iq_cs16_t));
+    spec_tstat_t ch_ts[RX_NUM_MAX_CHAN];
+    memset(ch_ts, 0, sizeof(ch_ts));
+    if (!disp || !power || !sortb || !tlast) {
         fprintf(stderr, "spectrum: disp/power malloc failed\n");
         ret = EXIT_FAILURE;
 #ifdef HAVE_ARMRAL
@@ -1628,6 +1828,8 @@ static int process_ant_rx_spectrum_app(void)
                 r = w - (uint64_t)nblk * need_bytes;
                 memset(acc, 0, fft_n * sizeof(float));
                 ch_si[i] = ch_sq[i] = ch_sp[i] = 0.0;
+                memset(&ch_ts[i], 0, sizeof(ch_ts[i]));
+                g_spec_ts = &ch_ts[i];
                 for (uint32_t blk = 0; blk < nblk; blk++) {
                     uint64_t rb = r + (uint64_t)blk * need_bytes;
                     uint32_t src_off = (uint32_t)(rb & (uint64_t)ctx->ring_mask);
@@ -1644,6 +1846,8 @@ static int process_ant_rx_spectrum_app(void)
                                      fft_in, fft_out, acc,
                                      &ch_si[i], &ch_sq[i], &ch_sp[i]);
                 }
+                g_spec_ts = NULL;
+                memcpy(tlast + (size_t)i * fft_n, fft_raw, need_bytes);
                 /* release the consumed ring space */
                 __asm__ volatile("" ::: "memory");
                 ctx->ring_rpos = w;
@@ -1653,7 +1857,8 @@ static int process_ant_rx_spectrum_app(void)
             if (ch_nb[i] > 0u)
                 spec_render_channel(i, ctx->chan_id, acc, ch_nb[i],
                                     ch_si[i], ch_sq[i], ch_sp[i],
-                                    fft_n, bar_rows, power, sortb);
+                                    fft_n, bar_rows, power, sortb,
+                                    &ch_ts[i], tlast + (size_t)i * fft_n);
         }
         printf("\033[J");
         if (snap.active)
@@ -1668,9 +1873,8 @@ static int process_ant_rx_spectrum_app(void)
     kbd_ctx.stop = 1;
     pthread_join(kbd_tid, NULL);
 
-    /* restore cursor */
-    printf("\033[?25h\n");
-    fflush(stdout);
+    /* restore terminal: settings, cursor, prompt on a fresh line */
+    tty_restore();
 
 stop_drains:
     rx_stop_drains(ctxs, n, drain_all_ctx, drain_tids);
@@ -1678,6 +1882,7 @@ stop_drains:
         free(ctxs[i].ring_buf);
 
 out_disp:
+    free(tlast);
     free(sortb);
     free(power);
     free(disp);
@@ -2022,6 +2227,28 @@ static int rx_qec_handle_key(char ch)
     case 'w':
         g_snap_req = 1;
         return 1;
+    case 't':
+        /* spectrum <-> time-domain chart */
+        g_spec_tview = !g_spec_tview;
+        return 1;
+    case '+':
+    case '=':
+        /* zoom in: half the samples per column, down to 1 */
+        if (g_spec_tspc > 1u)
+            g_spec_tspc /= 2u;
+        return 1;
+    case '-': {
+        /* zoom out: double samples per column, up to the whole block */
+        uint32_t nmax = g_fft_set ? g_fft_size : SPEC_FFT_DEFAULT;
+        uint32_t cols = g_bar_cols ? g_bar_cols : 1u;
+        if (g_spec_tspc * 2u * cols <= nmax)
+            g_spec_tspc *= 2u;
+        return 1;
+    }
+    case 'a':
+        /* time chart Y scale: auto <-> fixed +-1 FS */
+        g_spec_tfix = !g_spec_tfix;
+        return 1;
     default:
         return 0;
     }
@@ -2030,7 +2257,7 @@ static int rx_qec_handle_key(char ch)
 static void rx_qec_status_line(void)
 {
     printf("RX QEC ch %u/%u  gain %+6.2f dB  phase %+6.2f deg  DC I %+6.3f  DC Q %+6.3f"
-           "   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap q=quit\033[K\n",
+           "   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit\033[K\n",
            g_rxq_ch, g_n_rx ? g_n_rx : 1u, (double)g_rxq_gain_db, (double)g_rxq_phase_deg,
            (double)g_rxq_dc_i, (double)g_rxq_dc_q);
     printf("%s\033[K\n", g_snap_msg);
@@ -2130,6 +2357,10 @@ static void tone_print_status(tone_ctx_t *ctx)
     uint32_t fft_n  = g_fft_size;
     uint32_t k;
 
+    /* no redraw once stopping: output after tty_restore() would land on
+     * the shell prompt line */
+    if (ctx->stop || !running)
+        return;
     printf("\033[H");
     printf("%s\n", sep);
     printf("| iq_app  Tone TX (LA9310)                                        |\n");
@@ -2205,19 +2436,10 @@ static void tone_print_status(tone_ctx_t *ctx)
 static void *tone_kbd_thread(void *arg)
 {
     tone_ctx_t *ctx = (tone_ctx_t *)arg;
-    struct termios old_tio, raw_tio;
-    int tty_ok = 0;
     uint32_t n_samp = modem_ddr_fifo_size / (uint32_t)sizeof(iq_cs16_t);
 
     pin_ui_cores();
-    if (tcgetattr(STDIN_FILENO, &old_tio) == 0) {
-        raw_tio = old_tio;
-        raw_tio.c_lflag &= ~((tcflag_t)(ICANON | ECHO));
-        raw_tio.c_cc[VMIN]  = 0;
-        raw_tio.c_cc[VTIME] = 1; /* 100 ms poll so stop is seen */
-        tcsetattr(STDIN_FILENO, TCSANOW, &raw_tio);
-        tty_ok = 1;
-    }
+    (void)tty_raw(1);    /* 100 ms read timeout so stop is seen */
 
     tone_print_status(ctx);
 
@@ -2291,8 +2513,7 @@ static void *tone_kbd_thread(void *arg)
             tone_print_status(ctx);
     }
 
-    if (tty_ok)
-        tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+    /* terminal restored by tty_restore() in process_tone_tx_app() */
     return NULL;
 }
 
@@ -2352,7 +2573,7 @@ static int process_tone_tx_app(void)
 
     if (pthread_create(&kbd_tid, NULL, tone_kbd_thread, &ctx) != 0) {
         perror("tone TX: pthread_create keyboard");
-        printf("\033[?25h\n");
+        printf("\033[?25h\r\n");
         free(ctx.buf[0]);
         free(ctx.buf[1]);
         return EXIT_FAILURE;
@@ -2385,8 +2606,7 @@ static int process_tone_tx_app(void)
     running  = 0;
     pthread_join(kbd_tid, NULL);
 
-    printf("\033[?25h\n");
-    fflush(stdout);
+    tty_restore();
     free(ctx.buf[0]);
     free(ctx.buf[1]);
     return 0;

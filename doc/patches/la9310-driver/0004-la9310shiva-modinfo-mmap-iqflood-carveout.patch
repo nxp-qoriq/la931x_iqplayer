@@ -1,0 +1,32 @@
+diff --git a/kernel_driver/la9310shiva/la9310_modinfo.c b/kernel_driver/la9310shiva/la9310_modinfo.c
+index b47f43f..7c2d9f3 100644
+--- a/kernel_driver/la9310shiva/la9310_modinfo.c
++++ b/kernel_driver/la9310shiva/la9310_modinfo.c
+@@ -61,10 +61,27 @@ static int la9310_modinfo_mmap(struct file *filp, struct vm_area_struct *vma)
+ 
+ 	if ((offset >= scratch_buf_phys_addr) &&
+ 	    ((offset + size) <= scratch_buf_phys_addr + scratch_buf_size)) {
++		/* scratch buffer: cacheable reserved carveout.
++		 * VM_IO|VM_PFNMAP are required so remap_pfn_range accepts
++		 * PFNs for which pfn_valid() returns false (no-map carveout). */
+ 		vma->vm_page_prot = pgprot_cached(vma->vm_page_prot);
++		vm_flags_set(vma, VM_IO | VM_PFNMAP | VM_DONTEXPAND | VM_DONTDUMP);
+ 		dev_dbg(la9310_dev->dev,
+ 			"request to mmap %llx:%lx marked cacheable\n",
+ 			offset, size);
++	} else if ((offset >= RFNM_IQFLOOD_MEMADDR) &&
++		   ((offset + size) <= RFNM_IQFLOOD_MEMADDR +
++					LA9310_IQPLAYER_IQFLOOD_SIZE)) {
++		/* iqflood carveout: cacheable reserved carveout.
++		 * /dev/mem write is blocked by CONFIG_STRICT_DEVMEM on the
++		 * RFNM kernel; userspace must mmap via this driver fd instead.
++		 * VM_IO|VM_PFNMAP are required so remap_pfn_range accepts
++		 * no-map carveout PFNs (pfn_valid() == false). */
++		vma->vm_page_prot = pgprot_cached(vma->vm_page_prot);
++		vm_flags_set(vma, VM_IO | VM_PFNMAP | VM_DONTEXPAND | VM_DONTDUMP);
++		dev_dbg(la9310_dev->dev,
++			"request to mmap iqflood %llx:%lx cacheable\n",
++			offset, size);
+ 	} else
+ 		return -EINVAL;
+ 

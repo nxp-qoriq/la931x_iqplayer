@@ -1,0 +1,40 @@
+From f7069e4ec251afdb8e65c4c25d1ac410c0f0a5c9 Mon Sep 17 00:00:00 2001
+From: nxa15228 <nxa15228@nxp.com>
+Date: Tue, 10 Nov 2026 12:50:16 +0100
+Subject: [PATCH] la9310rfnm: rfnm_rx_park_fault parameter to silence RX lane
+ park with IQ Player
+
+---
+ kernel_driver/la9310rfnm/la9310_rfnm.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/kernel_driver/la9310rfnm/la9310_rfnm.c b/kernel_driver/la9310rfnm/la9310_rfnm.c
+index 8089d6d..0a885b8 100644
+--- a/kernel_driver/la9310rfnm/la9310_rfnm.c
++++ b/kernel_driver/la9310rfnm/la9310_rfnm.c
+@@ -792,6 +792,13 @@ static inline int rfnm_host_ctrl_alive(void) {
+ 	return last && time_before(jiffies, last + HZ);
+ }
+ 
++/* rfnm_rx_park_fault=0: do not log or fault on RX lane park (rx_regate_cnt is not
++ * driven by a non-RFNM VSPA kernel such as IQ Player). Default 1 keeps the stock behaviour.
++ */
++static int rfnm_rx_park_fault = 1;
++module_param(rfnm_rx_park_fault, int, 0644);
++MODULE_PARM_DESC(rfnm_rx_park_fault, "treat RX lane park after overrun as a session fault (0 = silent, for IQ Player)");
++
+ // runtime kill switch for the producer stand-down (diagnosis aid: 0 restores the old
+ // always-processing producer, e.g. to reproduce the dead-session LA-ring runaway)
+ static int rfnm_rx_standdown_en = 1;
+@@ -2079,7 +2086,7 @@ sched_setscheduler(current, SCHED_FIFO, &sparam);
+ 		if(rc != 0 && rc != park_seen) {
+ 			park_seen = rc;
+ 			park_last_change = jiffies;
+-			if(!pattern) {
++			if(!pattern && rfnm_rx_park_fault) {
+ 				pr_unflood(4, "phytimer: fw parked an RX lane after overrun (cnt %u)\n", rc);
+ 				rfnm_session_fault("rx lane park");
+ 			}
+-- 
+2.43.0
+

@@ -17,7 +17,7 @@ DEST_DIR ?= ${PROJ_DIR}/install
 
 export FSVSPAIncludes DEST_DIR PROJ_DIR LA9310_COMMON_HEADERS UAPI_DIR 
 
-DIRS := iq_monitor lib_iqplayer iq_app iq_trace vspa_mbox memtool
+DIRS := iq_monitor lib_iqplayer iq_app iq_trace vspa_mbox memtool rf_tune
 
 all: ${DIRS}
 	$(foreach b, $(DIRS), ${MAKE} -C ${b}  all;)

@@ -1,0 +1,153 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: mxstrk <Maximilian.stark@tuhh.de>
+Date: Sun, 16 Aug 2026 18:05:23 +0200
+Subject: [PATCH 3/3] avi/rfic: stop the MBOX0 refusal from flooding the target
+ log
+
+With LA9310_HOST_OWNS_MBOX0 the M4 refuses every MBOX0 access, and it logged
+one line per refusal. On the board that fills target_log within seconds: the
+refusals are not occasional, they come from bounded retry loops.
+
+The worst offender is vLa9310MbxReceive(), which polls the mailbox up to
+MAILBOX_VALID_STATUS_RETRIES * 10 = 2000 times with a 10 us yield between
+attempts. Handing MBOX0 to the host makes every one of those refuse, so each
+call produced 2000 log lines and spent its full ~20 ms budget on a receive that
+cannot succeed. RFNM's rfic_core.c event handler also reads VSPA inbox 0 on
+every com event that is not a sw_cmd, to spot their iqflood notification and
+raise MSI_IRQ_FLOOD_0 -- likewise dead in this configuration, since the ISR mask
+already keeps MBOX0 out of the M4's hands.
+
+Two-part fix. The AVI layer now logs only the first refusal in each direction
+and stays silent afterwards, as a backstop for any caller. The three RFIC call
+sites short-circuit instead: vLa9310MbxReceive() returns pdFAIL immediately,
+vLa9310MbxDrain() returns 0, and the inbox-0 read in rfic_core.c is compiled
+out. That removes the wasted M4 time as well as the noise.
+
+All of it sits inside the LA9310_HOST_OWNS_MBOX0 guards, so the switch remains
+provably inert when off: an OFF build is still byte-identical to an unpatched
+be3536c build, sha256 49b4153515a2ab154b7380c96b825446e11b5022c1d752c0aa74baa6876fbc20.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ .../drivers/avi/la9310_avi.c                  | 33 ++++++++++++++++---
+ .../drivers/rfic/rfic_avi_ctrl.c              | 15 +++++++++
+ .../drivers/rfic/rfic_core.c                  |  8 +++++
+ 3 files changed, 52 insertions(+), 4 deletions(-)
+
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/avi/la9310_avi.c b/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/avi/la9310_avi.c
+index b3e24dc..cb1882b 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/avi/la9310_avi.c
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/avi/la9310_avi.c
+@@ -93,10 +93,22 @@ int iLa9310AviHostSendMboxToVspa( void * AviHndlr,
+     /* MBOX0 belongs to the PCIe host (IQ Player). This write path is NOT
+      * driven by the ISR -- it stores host_out_0_msb/lsb directly -- so masking
+      * the ISR alone would still let an RFIC command clobber a host round-trip
+-     * in flight. Fail loudly instead of corrupting silently. */
++     * in flight. Refuse it.
++     *
++     * Log only the first refusal: callers retry in bounded loops, so an
++     * unconditional log_err() here floods the target log (see the recv path
++     * below, which is polled up to 2000 times per call). */
+     if( 0 == mbox_index )
+     {
+-        log_err( "ERR: MBOX0 reserved for host (IQ Player), send refused\n\r" );
++        static uint8_t ucSendRefusedLogged = 0;
++
++        if( !ucSendRefusedLogged )
++        {
++            ucSendRefusedLogged = 1;
++            log_err( "MBOX0 reserved for host (IQ Player), send refused"
++                     " -- further refusals are silent\n\r" );
++        }
++
+         retval = -AVI_MBOX_NOT_AVAILABLE;
+         goto hndl_retval;
+     }
+@@ -215,10 +227,23 @@ int iLa9310AviHostRecvMboxFromVspa( void * AviHndlr,
+ 
+ #ifdef LA9310_HOST_OWNS_MBOX0
+     /* MBOX0 belongs to the PCIe host (IQ Player): draining it here would eat
+-     * the reply the host is waiting for. */
++     * the reply the host is waiting for.
++     *
++     * First refusal only. vLa9310MbxReceive() polls this up to 2000 times per
++     * call, so logging every refusal fills the target log within seconds. The
++     * RFIC callers are short-circuited in rfic_avi_ctrl.c / rfic_core.c so they
++     * do not spin here at all; this stays as the backstop for any other caller. */
+     if( 0 == mbox_index )
+     {
+-        log_err( "ERR: MBOX0 reserved for host (IQ Player), recv refused\n\r" );
++        static uint8_t ucRecvRefusedLogged = 0;
++
++        if( !ucRecvRefusedLogged )
++        {
++            ucRecvRefusedLogged = 1;
++            log_err( "MBOX0 reserved for host (IQ Player), recv refused"
++                     " -- further refusals are silent\n\r" );
++        }
++
+         retval = AVI_MBOX_RCV_FAIL;
+         goto hndl_retval;
+     }
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/rfic/rfic_avi_ctrl.c b/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/rfic/rfic_avi_ctrl.c
+index 0f02760..a30691f 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/rfic/rfic_avi_ctrl.c
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/rfic/rfic_avi_ctrl.c
+@@ -40,6 +40,13 @@ uint32_t vLa9310MbxDrain( void )
+     struct avi_mbox vspa_mbox;
+     uint32_t n = 0;
+ 
++#ifdef LA9310_HOST_OWNS_MBOX0
++    /* MBOX0 is the host's: there is nothing here for us to drain, and every
++     * attempt would be refused. Nothing stale can exist from our side either,
++     * since we never post to it. */
++    return 0;
++#endif
++
+     if( NULL != avihndl )
+     {
+         while( n < 4 && 0 == iLa9310AviHostRecvMboxFromVspa( avihndl, &vspa_mbox, 0 ) )
+@@ -60,6 +67,14 @@ BaseType_t vLa9310MbxReceive(struct la9310_mbox_v2h *mbox_v2h)
+     struct avi_mbox vspa_mbox;
+     uint32_t retries = 0;
+ 
++#ifdef LA9310_HOST_OWNS_MBOX0
++    /* MBOX0 is the host's, so this can never succeed. Fail immediately instead
++     * of spending the full retry budget on it: the loop below polls 2000 times
++     * with a 10 us yield, i.e. ~20 ms of M4 time per call, and every poll would
++     * be refused. */
++    return pdFAIL;
++#endif
++
+     avihndl = iLa9310AviHandle();
+     if( NULL != avihndl )
+     {
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/rfic/rfic_core.c b/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/rfic/rfic_core.c
+index 6f69ac8..60515a1 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/rfic/rfic_core.c
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/drivers/rfic/rfic_core.c
+@@ -232,6 +232,13 @@ void vRficCoreTask( void * pvParameters )
+ 	{
+ 	//    log_err( "%s: Invalid com event.\n\r", __func__ );
+ 
++#ifdef LA9310_HOST_OWNS_MBOX0
++    /* RFNM reads VSPA inbox 0 here to spot their own iqflood notification and
++     * raise MSI_IRQ_FLOOD_0. With MBOX0 handed to the PCIe host that read can
++     * never succeed -- the ISR mask already keeps MBOX0 out of our hands -- so
++     * skip it entirely. Leaving it in place would refuse (and log) on every
++     * com event that is not a sw_cmd. */
++#else
+     struct avi_hndlr *avihndl = NULL;
+     struct avi_mbox vspa_mbox;
+ 
+@@ -268,6 +275,7 @@ void vRficCoreTask( void * pvParameters )
+     } else {
+         log_err( "%s: iLa9310AviHandle error\n\r", __func__ );
+     }
++#endif /* LA9310_HOST_OWNS_MBOX0 */
+ 
+ 
+ 
+-- 
+2.43.0
+

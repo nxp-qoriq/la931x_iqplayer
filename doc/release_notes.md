@@ -53,6 +53,62 @@ Known limitations:
 - Fix mirrored RX spectrum on RFNM/LMS7002 (a +f tone was seen at -f): the AXIQ RX FIFOs now
   swap I/Q in hardware (RX_IQ_SWAP, default 1; build with -DRX_IQ_SWAP=0 to disable).
   Re-run RX QEC calibration after updating, previous phase/DC values change sign.
+- iq_app / iq-app-rx.sh / iq-app-tx.sh: saved RX and TX QEC files are applied at start
+  (same files for every firmware), QEC directory is <script dir>/qec by default
+  (-Q dir to change, -q / QEC_NOLOAD=1 to skip)
+- iq-app-rx.sh -X: key w writes an IQ snapshot of all channels,
+  <base>_<rate>Msps_ch<N>_<timestamp>.bin, default <script dir>/capture/rx and 1 ms
+  (-W base [size|<N>ms])
+- iq_app -X / -P: per-channel saturation line (peak I/Q dBFS, clip count, crest factor,
+  [CLIP] / [HIGH] flags); -X key t toggles a time-domain I/Q chart (as compute_tone_params.py):
+  auto 1-2-5 Y scale (key a: fixed +-1 FS with clip rails), 1 sample per column by
+  default, keys +/- zoom (min/max envelope above 1 sample per column)
+- rf_tune (host-utils/rf_tune): interactive RF panel for the RFNM Lime / Granita / Yucca
+  daughterboards (sysfs rfnm_primary/secondary), board ranges and paths, TX/RX loop
+  budget guard (-G/-x/-o), PA-step / bias-tee / loopback confirmations, Lime RX-then-TX
+  apply order, -s status, -c ch.field=value, profiles (s/l keys, -l, txrx_en.sh profile)
+- rf_tune defaults: built-in per-board table (Lime = txrx_en.sh values), saved next-run
+  defaults /etc/rf_tune/<board>.cfg (--save / S, -d / L, .bak kept), --reset / R to the
+  built-in values; txrx_en.sh defaults / reset
+- rf_tune 1.1 panel: nothing written at start; channels on in sysfs are live, channels
+  off are prepared from the saved defaults (or built-in) and applied, guards checked,
+  when enabled; edits to off channels are held (-n: sysfs only). Keys o (cabled / over
+  the air) and x (external attenuation), saved in the cfg; refusal message shows how to
+  change the budget. Refusal / confirmation on background colours with !! / ?? prefixes,
+  value marks * pending, ~ held, ! driver; -m / NO_COLOR for no colours
+- Reference manual simplified and updated (current scripts, variants, QEC save/load);
+  development history moved to doc/iqplayer_design_notes.rst; 1T4R removed
+- RFNM SDK porting guide rewritten: generic variables, M4 DCS full/half rate build,
+  manual restore of the stock RFNM stack
+- RFNM: IQ Player builds from the RFNM la9310-driver / la9310-freertos repositories plus
+  doc/patches/ only (modinfo port, iqflood mapping, mailbox 0 host ownership, iqflood mmap,
+  DCS_FULL_RATE); uapi/la9310_modinfo.h comes from la9310-driver patch 0001.
+  host-utils iq_app no longer defaults to a local bring-up tree for LA9310_COMMON_HEADERS
+- RFNM: la9310-freertos patch 0005 adds the AXIQ_LOOPBACK cmake option (-DAXIQ_LOOPBACK=ON,
+  M4 enables AXIQ digital loopback at start; build-tested only). Patches must be applied
+  with git apply --index. RF configuration on RFNM (sysfs rfnm_primary/secondary,
+  txrx_en.sh) documented, versus dpdk-dfe_app on NXP/Lime platforms
+- RFNM: optional la9310-driver patch (doc/patches/la9310-driver/optional/) adds the
+  la9310rfnm rfnm_rx_park_fault parameter; load-rfnm.sh sets it to 0 when present, which
+  silences the "phytimer: fw parked an RX lane" console messages during captures.
+  RFNM porting guide: Known Trap 6 and Annex A (example build/deploy on a development host)
+- iq-reload-vspa.sh: VSPA software reset, per-section DMA check (exit 1 on timeout),
+  apm.eld update, VSPA boot handshake (0x70000000/0xF0700000, previously it swallowed
+  the next mailbox) and checked IQFLOOD proxy offset resend after the load (the new image
+  previously ran with the default proxy offset, iq_mon showed zero counters); a single
+  command replaces iq-swreset.sh + iq-reload-vspa.sh + stats.sh. Obsolete apm.eld md5
+  warning removed from load-la9310.sh / load-rfnm.sh (iq_trace reads the ELD at runtime)
+- apm.eld is now a copy of the selected ELD instead of a symlink (make install and
+  iq-reload-vspa.sh), so deploy.sh (scp -r) installs a regular file
+- txrx_en.sh: limetxrx (RX then TX, TX at 1860 MHz), off and status modes; limerx
+  re-applies tx0 when it is on (rfnm_lime keeps the port owned by TX on an RX apply,
+  TX to RX coupling +35 dB). RFNM porting guide Known Trap 7
+- iq_app -T / -X: terminal always restored on exit (atexit), Ctrl-C handled as the quit
+  key; iq-app-tx.sh / iq-app-rx.sh wait for iq_app on Ctrl-C (prompt no longer
+  misaligned, VSPA TX always stopped after -T)
+- RFNM quick start guide marked legacy (discontinued NXP LA9310 BSP); for a recent kernel
+  use the RFNM SDK and iqplayer_porting_guide_RFNM-SDK.rst. readme.md and LimeSDR-Micro
+  porting guide updated (variants, iq-app usage, QEC save/load, doc index)
 
 Known limitations:
 - 0T4R: a few AXIQ overruns counted at stream start, before host drain threads run

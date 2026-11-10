@@ -129,7 +129,8 @@ all: $(foreach v,$(VARIANTS),$(PROJ_DIR)/Debug_IQPLAYER_$(v)/apm-iqplayer-$(v).e
 clean:
 	rm -rf $(PROJ_DIR)/Debug_IQPLAYER_*
 
-# CONFIG: firmware variant to symlink as apm.eld (default 1T1R).
+# CONFIG: firmware variant copied as apm.eld (default 1T1R). A copy, not a
+# symlink, so that deploy.sh (scp -r) installs a regular file on the board.
 # Override at install time to select a different active firmware, e.g.:
 #   make install CONFIG=1T2R
 #   make install CONFIG=0T4R
@@ -141,5 +142,6 @@ FIRMWARES = $(CONFIGS) $(VARIANTS)
 install:
 	mkdir -p ${FIRM_DIR}
 	cp $(foreach f,$(FIRMWARES),$(PROJ_DIR)/Debug_IQPLAYER_$(f)/apm-iqplayer-$(f).eld) ${FIRM_DIR}/
-	ln -sf apm-iqplayer-$(CONFIG).eld ${FIRM_DIR}/apm.eld
-	@echo "apm.eld -> apm-iqplayer-$(CONFIG).eld"
+	rm -f ${FIRM_DIR}/apm.eld
+	cp ${FIRM_DIR}/apm-iqplayer-$(CONFIG).eld ${FIRM_DIR}/apm.eld
+	@echo "apm.eld = copy of apm-iqplayer-$(CONFIG).eld"

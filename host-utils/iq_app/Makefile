@@ -3,7 +3,7 @@
 
 PROJ_DIR ?= $(CURDIR)
 DEST_DIR ?= ${PROJ_DIR}/install
-LA9310_COMMON_HEADERS ?= $(CURDIR)/../../../la931x_iqplayer_rfnm-iqplayer-bringup/rfnm-bringup/la9310-freertos/common_headers
+LA9310_COMMON_HEADERS ?= $(CURDIR)/../../../la93xx_freertos/common_headers
 UAPI_DIR ?= $(CURDIR)/../../../la93xx_host_sw/uapi
 LA9310_IQPLAYER_LIB_HEADERS ?= $(CURDIR)/../lib_iqplayer
 

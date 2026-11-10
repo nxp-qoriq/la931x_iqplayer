@@ -11,11 +11,6 @@ scratch_size=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/
 [ -f /lib/firmware/la9310_dfe.bin ] || { echo "***ERROR: missing /lib/firmware/la9310_dfe.bin. You are using old BSP, upgrade to BSP 0.4 or above, or rename la9310.bin to la9310_dfe.bin. Boot failed"; exit 1; }
 [ -f /lib/firmware/apm-iqplayer-1T1R.eld ] || { echo "***ERROR: missing /lib/firmware/apm-iqplayer-1T1R.eld. You are using old BSP, upgrade to BSP 0.4.3 or above, or rename la9310.bin to la9310_dfe.bin. Boot failed"; exit 1; }
 
-eld_md5sum="$(md5sum /lib/firmware/apm-iqplayer-1T1R.eld | cut -f 1 -d " ")"
-iq_trace_version="$(iq_trace -v|cut -f 1 -d " ")"
-if [[ "$eld_md5sum" != "$iq_trace_version" ]]; then
-        echo "***WARNING: mismatch between apm-iqplayer-1T1R.eld md5sum and iq_trace :" $eld_md5sum "!=" $iq_trace_version
-fi
 adcm=0xf
 dacm=0x1
 if [ $# -eq 1 ];then

@@ -1,7 +1,17 @@
 .. sectnum::
 
-**IQ Player — Quick Start Guide on RFNM Board (i.MX8M Plus)** 
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+**IQ Player — Quick Start Guide on RFNM Board (i.MX8M Plus), legacy NXP BSP**
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+.. note::
+
+   **Legacy document.** This guide describes the discontinued NXP LA9310 Linux BSP
+   (i.MX8MP-LA9310 BSP 1.0, Linux 5.15) with RFNM board support. It is kept for
+   reference only and is no longer updated.
+
+   For a recent Linux kernel and updates, use the RFNM SDK and follow
+   ``iqplayer_porting_guide_RFNM-SDK.rst``. IQ Player usage (firmware variants,
+   iq-app scripts, QEC save/load) is described in ``iqplayer_reference_manual.rst``.
 
 Overview
 ********
@@ -86,8 +96,8 @@ Download and deploy pre-built images
 ::
 
  zstd -d nxp-image-real-time-edge-imx8mp-sdr.rootfs.wic.zst 
- sudo dd if= nxp-image-real-time-edge-imx8mp-sdr.rootfs.wic of=/dev/sdb bs=8M oflag=direct status=progress
- Sync
+ sudo dd if=nxp-image-real-time-edge-imx8mp-sdr.rootfs.wic of=/dev/sdb bs=8M oflag=direct status=progress
+ sync
 
 3/ Boot from SD card
 - Insert the SD card
@@ -109,7 +119,8 @@ UART access requires a 3.3 V TTL‑to‑UART adapter.
 
 ::
 
- minicom -D /dev/ttyUSB0 -b 115200 stty -F /dev/ttyUSB0 115200
+ minicom -D /dev/ttyUSB0 -b 115200
+ # or: stty -F /dev/ttyUSB0 115200
 
 
 Play and Capture I/Q Waveforms
@@ -120,10 +131,12 @@ Load and start VSPA firmware
 
  ./load-la9310.sh
 
-Confugre LimeRF
+Configure LimeRF (``config_run_rf.sh`` was part of the legacy BSP image; this repository
+provides ``txrx_en.sh``, see ``iqplayer_porting_guide_RFNM-SDK.rst``)
 ::
 
- ./config_run_rf.sh <limetx|/limerx>
+ ./config_run_rf.sh <limetx|limerx>     # legacy BSP image
+ ./txrx_en.sh <limetx|limerx>           # this repository
 
 Replay waveform (continuous TX)
 ::
@@ -148,7 +161,7 @@ Python script for manual TX/RX QEC calibration.
 Inputs are specified in dB and degrees, coefficients are computed and applied to VSPA.
 ::
 
-  imb2qec.py <tx|rx> <iq_gain_imb_dB> <iq_phase_imb_deg> <dc_re> <dc_im>
+  imb2qec.py <tx|rx> <iq_gain_imb_dB> <iq_phase_imb_deg> <dc_re> <dc_im> [--ch N | --all]
 
 
 Support for MT3812 RF Module (Yucca)

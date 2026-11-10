@@ -19,11 +19,6 @@ scratch_size=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/
 [ -f /lib/firmware/la9310_dfe_122.bin ] || { echo "***ERROR: missing /lib/firmware/la9310_dfe_122.bin. Boot failed"; exit 1; }
 [ -f /lib/firmware/apm.eld ] || { echo "***ERROR: missing /lib/firmware/apm.eld Boot failed"; exit 1; }
 
-eld_md5sum="$(md5sum /lib/firmware/apm.eld | cut -f 1 -d " ")"
-iq_trace_version="$(iq_trace -v|cut -f 1 -d " ")"
-if [[ "$eld_md5sum" != "$iq_trace_version" ]]; then
-        echo "***WARNING: mismatch between apm.eld md5sum and iq_trace :" $eld_md5sum "!=" $iq_trace_version
-fi
 
 adcm=0xf   # adc_mask: bitmask of enabled ADC channels (0xf = all 4 channels)
 adcr=0     # adc_rate_mask: per-channel half-rate flag (0=122.88 MHz, 0xf=61.44 MHz)
@@ -54,8 +49,9 @@ insmod $KMOD_DIR/la9310shiva.ko scratch_buf_size=$scratch_size scratch_buf_phys_
 
 # la9310rfnm.ko exports rfnm_* symbols required by rfnm_lalib and RF daughterboard modules
 [ -f $KMOD_DIR/la9310rfnm.ko ]        && insmod $KMOD_DIR/la9310rfnm.ko
-# iqplayer does not own rx_regate_cnt; disable the lane-park session fault to avoid
-# log spam and spurious rfnm_session_dead when running iqplayer captures.
+# Silence "phytimer: fw parked an RX lane after overrun" during IQ Player captures.
+# The parameter only exists with doc/patches/la9310-driver/optional/0001 applied;
+# with the stock module this line does nothing.
 [ -f /sys/module/la9310rfnm/parameters/rfnm_rx_park_fault ] && \
     echo 0 > /sys/module/la9310rfnm/parameters/rfnm_rx_park_fault
 
@@ -89,6 +85,5 @@ echo proxy_addr $proxy_addr
 memtool -d /dev/shiva0 -a "$proxy_addr" -z 1024
 $SCRIPT_DIR/set-proxy-offset.sh $proxy_offset
 
-# ADC/DAC sample rate is set at boot via adc_rate_mask/dac_rate_mask insmod params above.
-# Do NOT write samp_rate_hz here: rfnm_la9310_stream() stops the RFNM stream state machine
-# which sends a close word to M4 and kills the iqplayer DDR capture (iq_mon -> 0 MB/s).
+# ADC/DAC sample rate is fixed by the M4 binary (la9310.bin -> la9310_dfe_61/122.bin,
+# DCS_FULL_RATE cmake option).

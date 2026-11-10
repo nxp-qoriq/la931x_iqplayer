@@ -1,0 +1,30 @@
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt b/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
+index 9f25d21..b102660 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
+@@ -77,6 +77,9 @@ endif()
+ if(DCS)
+     SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}  -D__DCS")
+ endif()
++if(DCS_FULL_RATE)
++    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}  -DDCS_FULL_RATE")
++endif()
+ 
+ if(DAC)
+     SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}  -DDAC")
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/main.c b/Demo/CORTEX_M4_NXP_LA9310_GCC/main.c
+index cac3c7d..fbfa02f 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/main.c
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/main.c
+@@ -447,7 +447,11 @@ int iInitHandler ( void )
+     iLa9310AviConfig();
+ 
+     #if __DCS
++#ifdef DCS_FULL_RATE
++        vDcsInit(Full_Freq);
++#else
+         vDcsInit(Half_Freq);
++#endif
+     #endif
+ 
+     if( rfnm_tdd_init() )

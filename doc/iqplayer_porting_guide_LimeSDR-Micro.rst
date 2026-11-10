@@ -111,9 +111,9 @@ start linux tinyDistro on the target from u-boot
 
  u-boot=> tftp lsdk2512_poky_tiny_IMX_arm64.itb
  u-boot=> bootm 0x90400000#imx95frdm
- u-boot=> bootm 0x40400000#imx98mpfrdm
+ u-boot=> bootm 0x40400000#imx8mpfrdm
 
-copy images into ramfs /var/volatile or nfs mount location (solve size limiatations)
+copy images into ramfs /var/volatile or nfs mount location (solve size limitations)
 
 nfs mount
 ::
@@ -125,7 +125,7 @@ Deploy images
 ::
 
  root@TinyLinux:/mnt/nfs# flex-installer -f firmware_imx8mpfrdm_sdboot.img -d /dev/mmcblk1 -m imx8mpfrdm
- root@TinyLinux:/mnt/nfs# flex-installer -b boot_IMX_arm64_lts_6.12.20.tar.zst -r rootfs_lsdk2512_debian_imx95frdm.tar.zst -d /dev/mmcblk1 -m imx8mpfrdm
+ root@TinyLinux:/mnt/nfs# flex-installer -b boot_IMX_arm64_lts_6.12.20.tar.zst -r rootfs_lsdk2512_debian_imx8mpfrdm.tar.zst -d /dev/mmcblk1 -m imx8mpfrdm
 
 Add LA9310 support 
 ******************
@@ -147,7 +147,7 @@ ARMv8 tool chain
 ~~~~~~~~~~~~~~~~
 ::
 
-   sudo apt-get apt install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev zlib1g-dev bc
+   sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev libelf-dev zlib1g-dev bc
    sudo apt-get install gcc-aarch64-linux-gnu
 
 
@@ -187,14 +187,14 @@ clone linux source code
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 NXP provides a specific kernel branch with necessary patches to support LA9310 and LA12xx devices.
-User has choice to use this branch or port the commits listed below onto their kenrel tree
+User has choice to use this branch or port the commits listed below onto their kernel tree
 
 ::
 
  git clone https://github.com/nxp-qoriq/linux/ -b la12xx-linux-6.12-rt
  cd linux
 
-Relevent commits  
+Relevant commits
 ~~~~~~~~~~~~~~~~
 
   - f49a00ec7bea arm64: imx_v8_defconfig: add SCTP config by default
@@ -377,11 +377,18 @@ Default VSPA tools path:
 
  VSPA_TOOL ?= /opt/VSPA_Tools_vbeta_14_00_781
 
+IQ Player has two external header dependencies, taken from the NXP GitHub repositories
+cloned above: ``LA9310_COMMON_HEADERS`` (``la93xx_freertos/common_headers``,
+``la9310_host_if.h``) and ``UAPI_DIR`` (``la93xx_host_sw/uapi``, ``la9310_modinfo.h``).
+The defaults expect both trees next to ``la931x_iqplayer``; otherwise pass them explicitly.
+
 clone and compile IQPlayer
 ::
 
  git clone https://github.com/nxp-qoriq/la931x_iqplayer.git
  cd la931x_iqplayer
+ export LA9310_COMMON_HEADERS=$PWD/../la93xx_freertos/common_headers
+ export UAPI_DIR=$PWD/../la93xx_host_sw/uapi
  make
  make install
  scp -r install/* root@<targetIP>:/
@@ -394,7 +401,9 @@ load and start VSPA firmware
 
  ./load-la9310.sh
 
-confugre LimeRF using dfe_app
+configure LimeRF using dfe_app. On NXP platforms the RF chain is controlled by the M4
+firmware through ``dpdk-dfe_app`` (on RFNM it is configured by Linux sysfs instead, see
+``iqplayer_porting_guide_RFNM-SDK.rst``)
 ::
 
   echo 100 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
@@ -402,6 +411,11 @@ confugre LimeRF using dfe_app
   DFE> lime tx 1 freq 1200000000
   DFE> lime rx 1 freq 1210000000
   DFE> quit
+
+optional: AXIQ digital loopback (TX looped back to RX inside the LA9310, no RF)
+::
+
+  dpdk-dfe_app -c "axiq_lb enable"
  
 
 play (repeat) waveform from file
@@ -427,12 +441,23 @@ Check LA9310 freeRTOS console
 
   cat /sys/devices/platform/soc@0/33800000.pcie/pci0000:00/0000:00:00.0/0000:01:00.0/la9310sysfs/target_log
 
-display received spectrum
+display received spectrum (on a PC, after copying iqdata.bin)
 ::
 
-  python compute_tone_params.py -f 61440000 -i C:\Temp\iqdata.bin
+  python compute_tone_params.py -f 61440000 -i ./iqdata.bin
 
-.. image:: pictures/iq_player_single_tone_Frequency_spectrum.png 
+.. image:: pictures/iq_player_single_tone_Frequency_spectrum.png
+
+Streaming with iq_app (spectrum, QEC, snapshot)
+::
+
+  ./iq-app-tx.sh -T                     # interactive tone and TX QEC
+  ./iq-app-rx.sh -X                     # live RX spectrum and RX QEC, key w = IQ snapshot
+  ./iq-app-rx.sh -D ./rx.bin 4915200    # capture to rx_ch<N>.bin
+  ./iq-stop.sh
+
+Saved QEC files (key ``s``) in ``<script dir>/qec`` are applied at start. Firmware variants,
+script options and QEC details are described in ``iqplayer_reference_manual.rst``.
 
 Testing FR1FR2TestTool playing and capturing 5G waveform
 ........................................................

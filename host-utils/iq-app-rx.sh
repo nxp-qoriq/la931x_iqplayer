@@ -336,11 +336,18 @@ echo ""
 # the cores not used by TX/RX, so it can run in parallel with iq-app-tx.sh
 if [ "$MODE" = "spectrum" ]; then
     echo "Starting spectrum mode (foreground): iq_app -X -n $N_RX -c 0 -F $ch0_fifo_offset_hex $fifo_bytes -N $FFT_N -Y $CONV_MHZ -K $DB_TOP -B $DB_BOT -M $NAVG -L $ROWS $HANN -Q $QEC_DIR $QEC_NOLOAD -w $SNAP_BASE -d $SNAP_SIZE"
+    # Ctrl-C reaches iq_app as a key (ISIG off in raw mode); SIGINT is
+    # ignored here so the script waits for iq_app to restore the terminal.
+    tty_saved=$(stty -g 2>/dev/null)
+    trap '' INT
     iq_app -X -n "$N_RX" -c 0 -C "$QEC_CH" -Y "$CONV_MHZ" \
         -K "$DB_TOP" -B "$DB_BOT" -M "$NAVG" -L "$ROWS" \
         -F "$ch0_fifo_offset_hex" "$fifo_bytes" \
         -N "$FFT_N" $HANN -Q "$QEC_DIR" $QEC_NOLOAD \
         -w "$SNAP_BASE" -d "$SNAP_SIZE"
+    trap - INT
+    [ -n "$tty_saved" ] && stty "$tty_saved" 2>/dev/null
+    printf '\033[0m\033[?25h\r'
 else
     echo "Starting capture mode (background): iq_app -r -n $N_RX -c 0 -f $OUT_FILE -s $FILE_SIZE -F $ch0_fifo_offset_hex $fifo_bytes -Y $CONV_MHZ -Q $QEC_DIR $QEC_NOLOAD"
     iq_app -r -n "$N_RX" -c 0 -Y "$CONV_MHZ" -Q "$QEC_DIR" $QEC_NOLOAD \

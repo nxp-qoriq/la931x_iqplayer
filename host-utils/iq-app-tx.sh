@@ -126,7 +126,16 @@ if [ $tone_mode -eq 1 ]; then
         # Foreground: keyboard control needs the terminal. Stop VSPA TX on exit.
         # iq_app pins its own threads: feeder on IQ_CPU_TX (3), UI on the
         # cores not used by TX/RX, so it can run in parallel with iq-app-rx.sh
+        # Ctrl-C reaches iq_app as a key (ISIG off in raw mode); ignore
+        # SIGINT here anyway so the script never exits before iq_app has
+        # restored the terminal, and always stops VSPA TX. stty is the
+        # backstop if iq_app is killed.
+        tty_saved=$(stty -g 2>/dev/null)
+        trap '' INT
         iq_app -T -Y $CONV_MHZ $QEC_OPT -F 0x00000000 $fifo
+        trap - INT
+        [ -n "$tty_saved" ] && stty "$tty_saved" 2>/dev/null
+        printf '\033[0m\033[?25h\r'
         echo "Tone TX stopped. Stopping VSPA TX ..."
         vspa_mbox send 0 0 0x05000000 0x0
         vspa_mbox recv 0 0
