@@ -9,6 +9,39 @@ Overview
 This guide describes how to build the RFNM SDK (https://github.com/rfnm/sdk) and how to
 replace the RFNM stock radio stack with IQ Player on an RFNM Blue board (i.MX8MP + LA9310).
 
+The LA9310 can run several software stacks. They use different M4 / VSPA firmware and host
+software and cannot run at the same time:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 27 25 30
+
+   * - Stack
+     - LA9310 firmware (M4 / VSPA)
+     - Host side
+     - Use it for
+   * - Stock RFNM
+     - RFNM ``la9310-freertos`` / RFNM VSPA
+     - ``la9310rfnm``, librfnm, SoapySDR / GNU Radio
+     - RFNM applications, timestamped streaming, RFNM web GUI
+   * - Stock LimeSDR-Micro
+     - Lime firmware
+     - LimeSuiteNG
+     - Lime tools and SDR applications (LimeSDR-Micro board only)
+   * - IQ Player (this repository)
+     - patched RFNM M4 / IQ Player VSPA
+     - ``iq_app``, ``libiqplayer``, host-utils; RF set through the RFNM sysfs
+     - raw time-domain I/Q capture and replay, open VSPA source
+   * - fr1_fr2_test_tool (DFE)
+     - NXP ``la93xx_freertos`` (DFE) / 5G DFE VSPA
+     - DPDK ``dfe_app``
+     - 5G low PHY in the VSPA (symbol sync, cyclic prefix, FFT / iFFT); the host exchanges
+       frequency-domain samples. FDD on LimeSDR-Micro, TDD on RFNM
+
+This guide covers IQ Player only. fr1_fr2_test_tool on LimeSDR-Micro is described in
+``iqplayer_porting_guide_LimeSDR-Micro.rst``; its RFNM port (including TDD) needs a different
+M4 firmware and driver build and will be documented separately.
+
 The stock RFNM image cannot run IQ Player as is:
 
 - its M4 firmware uses VSPA mailbox 0, which IQ Player reserves for the host;
@@ -794,18 +827,15 @@ References
 Annex A: Example build on a development host
 ********************************************
 
-A complete build and deploy, as run on one development host. Paths, board name and
-password are examples; adapt them. The RFNM SDK was already initialized (``./rfnm-sdk
-init`` and ``./rfnm-sdk build``), so ``sources/imx8mp-kernel`` has its ``.config`` and
-``Module.symvers``. The board ``blue1`` is reached through a jump host declared in
-``~/.ssh/config``::
+A complete build and deploy, as run on one development host. Paths and board name are
+examples; adapt them. The RFNM SDK was already initialized (``./rfnm-sdk init`` and
+``./rfnm-sdk build``), so ``sources/imx8mp-kernel`` has its ``.config`` and
+``Module.symvers``. The board is reached as ``$BOARD``, an ``~/.ssh/config`` alias with
+an SSH key installed (add ``ProxyJump`` if the board is behind a jump host)::
 
-    Host blue1
-        HostName 172.16.0.181
+    Host rfnm-blue
+        HostName <board ip>
         User root
-        ProxyJump lab-jump
-
-The board has no SSH key, so ``sshpass -p rfnm`` is used in front of ``ssh`` / ``scp``.
 
 Environment
 -----------
@@ -813,16 +843,16 @@ Environment
 Set ``S`` in its own ``export`` line: in ``export A=x B=$A`` the second variable does not
 see the first one::
 
-    export S=/home/nxa15228/github/rfnm-sdk/sources
+    export S=$HOME/work/rfnm-sdk/sources
+    export IQP=$HOME/work/la931x_iqplayer
     export KDIR=$S/imx8mp-kernel
     export DRIVER=$S/la93xx_host_sw-iqp       # patched copy of RFNM la9310-driver
     export M4SRC=$S/la93xx_freertos-iqp       # patched copy of RFNM la9310-freertos
-    export IQP=/home/nxa15228/bitbucket/LA9310/la931x_iqplayer
     export ARMGCC_DIR=/opt/gcc-arm-none-eabi-6-2017-q2-update
     export LA9310_COMMON_HEADERS=$M4SRC/common_headers
     export UAPI_DIR=$DRIVER/uapi
     export OUT=/tmp/iqp_rfnm_out
-    export SSHP="sshpass -p rfnm"
+    export BOARD=rfnm-blue
     mkdir -p $OUT
 
 Patched source trees
@@ -891,13 +921,13 @@ Deploy
 Back up everything that is overwritten, then copy::
 
     F=$(cd $IQP/install && find . -type f | sed 's|^\./||' | tr '\n' ' ')
-    $SSHP ssh blue1 "cd / && tar czf /root/iqp_backup_\$(date +%Y%m%d_%H%M).tgz --ignore-failed-read $F
+    ssh $BOARD "cd / && tar czf /root/iqp_backup_\$(date +%Y%m%d_%H%M).tgz --ignore-failed-read $F
                      cd /rfnm/kernel && cp -n la9310shiva.ko la9310shiva.ko.prev
                      cd /lib/firmware && for f in la9310*.bin; do cp -n \$f \$f.prev; done"
-    $SSHP scp $OUT/la9310shiva.ko blue1:/rfnm/kernel/
-    $SSHP scp $OUT/la9310_dfe_61.bin $OUT/la9310_dfe_122.bin blue1:/lib/firmware/
-    $SSHP ssh blue1 'ln -sf /lib/firmware/la9310_dfe_61.bin /lib/firmware/la9310.bin; sync'
-    cd $IQP && $SSHP ./deploy.sh blue1
+    scp $OUT/la9310shiva.ko $BOARD:/rfnm/kernel/
+    scp $OUT/la9310_dfe_61.bin $OUT/la9310_dfe_122.bin $BOARD:/lib/firmware/
+    ssh $BOARD 'ln -sf /lib/firmware/la9310_dfe_61.bin /lib/firmware/la9310.bin; sync'
+    cd $IQP && ./deploy.sh $BOARD
 
 ``la9310_dfe_61.bin`` is used for every variant except 1T1R at 122.88 MSPS (link
 ``la9310_dfe_122.bin`` instead).
@@ -941,8 +971,8 @@ optional patch, against the new ``la9310shiva`` symbols::
 Deploy the modules that ``load-rfnm.sh`` loads, keeping ``.prev`` copies::
 
     M="la9310rfnm rfnm_gpio rfnm_lalib rfnm_daughterboard rfnm_lime"
-    $SSHP ssh blue1 "cd /rfnm/kernel && for m in $M; do cp -n \$m.ko \$m.ko.prev; done"
-    for m in $M; do $SSHP scp $RFNMOPT/kernel_driver/la9310rfnm/$m.ko blue1:/rfnm/kernel/; done
+    ssh $BOARD "cd /rfnm/kernel && for m in $M; do cp -n \$m.ko \$m.ko.prev; done"
+    for m in $M; do scp $RFNMOPT/kernel_driver/la9310rfnm/$m.ko $BOARD:/rfnm/kernel/; done
 
 After ``./load-rfnm.sh``, ``cat /sys/module/la9310rfnm/parameters/rfnm_rx_park_fault``
 returns 0.
@@ -952,6 +982,6 @@ Rollback
 
 ::
 
-    $SSHP ssh blue1 'cd /rfnm/kernel && for f in *.ko.prev; do cp -a $f ${f%.prev}; done
+    ssh $BOARD 'cd /rfnm/kernel && for f in *.ko.prev; do cp -a $f ${f%.prev}; done
                      cd /lib/firmware && for f in la9310*.bin.prev; do cp -a $f ${f%.prev}; done
                      cd / && tar xzf /root/iqp_backup_<date>.tgz && sync'

@@ -328,7 +328,51 @@ lib_iqplayer RX tuning (environment variables):
   DMEM (default ``0x8000``). Smaller values reopen the VSPA gate sooner at the cost of more
   PCIe writes.
 - ``IQ_RX_KICK``: when non-zero (default 1), each ACK is followed by a mailbox-1 GO event so
-  VSPA re-evaluates the gate immediately.
+  VSPA re-evaluates the gate immediately. Keep it on with flow control: see below.
+
+Host flow control and GO events
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+VSPA does not poll DMEM. After each pass of its main loop the VCPU halts (``__idle()``)
+and wakes on a GO event: a DMA completion or a host mailbox message. The host updates
+each flow-control counter in two steps (``tx_fc_notify`` / ``rx_fc_notify`` in
+``lib_iqplayer``):
+
+1. direct write of the counter in VSPA DMEM over PCIe
+2. mailbox-1 host-to-VSPA message, MSB then LSB (the LSB write raises the GO event)
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 40 46
+
+   * - Direction
+     - Counter written in DMEM
+     - Mailbox-1 message (MSB / LSB)
+   * - TX
+     - ``host_produced_size`` (TX host proxy)
+     - ``0xF2000000`` (``MBOX_OPC_TX_GO``) / produced bytes
+   * - RX
+     - ``la9310_fifo_consumed_size`` of the channel, at the AHB address VSPA exports in
+       ``rx_fc_addr[ch]``
+     - ``0xF3000000`` (``MBOX_OPC_RX_GO``) / consumed bytes
+
+The direct DMEM write alone does not wake the VCPU. While data flows, DMA completions
+keep VSPA running and it reads the new counter on the next pass. When VSPA stops on flow
+control (TX: no data produced, RX: ring full), no DMA is running and only the mailbox
+wakes it; without it VSPA would sleep until the next unrelated event. On
+``MBOX_OPC_TX_GO`` / ``MBOX_OPC_RX_GO`` VSPA sends no ACK, it re-runs ``PUSH_TX_DATA()`` /
+``PUSH_RX_DATA()`` and re-reads the counters.
+
+Rules for a host application that does not use ``lib_iqplayer``:
+
+- write the DMEM counter before posting the mailbox, so VSPA reads the new value when it
+  wakes
+- serialise the MSB / LSB pair when several threads post on mailbox 1 (``lib_iqplayer``
+  uses a mutex: two RX drain threads can ack at the same time)
+- the mailbox is mapped from the CCSR base passed to ``iq_player_init()``
+  (``la9310_modem_info``, CCSR + 0x1000000 + 0x688). With a zero CCSR base the library
+  only writes DMEM; this works only while DMA events keep VSPA running, and RX can stall
+  for good after a ring-full stop. ``IQ_RX_KICK=0`` has the same effect on RX.
 
 QEC and DC Offset
 *****************

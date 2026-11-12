@@ -6,9 +6,42 @@
 Overview
 ********
 
-This document describes how to add support for LA9310 on NXP platforms.
-This guide provides an example of enabling the LimeSDR-Micro M.2 board (LA9310 + LMS7002M) on various NXP platforms such as
-FRDM-IMX8MPLUS, FRDM-IMX95, LS1043ARDB, LS1046ARDB, LX2160ARDB, HoneyComb LX2.
+This guide describes how to add support for LA9310 IQ Player and the LimeSDR-Micro M.2 board (LA9310 + LMS7002M)
+on NXP platforms such as FRDM-IMX8MPLUS, FRDM-IMX95, LS1043ARDB, LS1046ARDB, LX2160ARDB and HoneyComb LX2.
+It replaces the LimeSuiteNG stock radio stack with IQ Player.
+
+The LA9310 can run several software stacks. They use different M4 / VSPA firmware and host
+software and cannot run at the same time:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 27 25 30
+
+   * - Stack
+     - LA9310 firmware (M4 / VSPA)
+     - Host side
+     - Use it for
+   * - Stock LimeSDR-Micro
+     - Lime firmware
+     - LimeSuiteNG
+     - Lime tools and SDR applications that need timestamped streaming
+   * - Stock RFNM
+     - RFNM ``la9310-freertos`` / RFNM VSPA
+     - ``la9310rfnm``, librfnm, SoapySDR / GNU Radio
+     - RFNM applications (RFNM board only)
+   * - IQ Player (this repository)
+     - NXP or patched RFNM M4 / IQ Player VSPA
+     - ``iq_app``, ``libiqplayer``, host-utils
+     - raw time-domain I/Q capture and replay, open VSPA source, starting point for new
+       platforms
+   * - fr1_fr2_test_tool (DFE)
+     - NXP ``la93xx_freertos`` (DFE) / 5G DFE VSPA
+     - DPDK ``dfe_app``
+     - 5G low PHY in the VSPA (symbol sync, cyclic prefix, FFT / iFFT); the host exchanges
+       frequency-domain samples. FDD on LimeSDR-Micro, TDD on RFNM only
+
+This guide covers IQ Player and fr1_fr2_test_tool on LimeSDR-Micro. IQ Player on RFNM is
+described in ``iqplayer_porting_guide_RFNM-SDK.rst``.
 
 Hardware Requirements
 *********************
@@ -462,6 +495,13 @@ script options and QEC details are described in ``iqplayer_reference_manual.rst`
 Testing FR1FR2TestTool playing and capturing 5G waveform
 ........................................................
 
+IQ Player streams raw time-domain I/Q samples. LimeSuiteNG adds features such as timestamping,
+required by some SDR use cases. NXP also provides a firmware for OFDM processing, a 5G low PHY
+also called DFE, used by ``fr1_fr2_test_tool``: the VSPA does 5G symbol synchronization and
+delineation, cyclic prefix insertion / removal and FFT / iFFT, and exchanges frequency-domain
+samples with the host. The VSPA implements the L1 low PHY; the host implements the high PHY and
+the upper layers.
+
 clone Fr1FR2Tool  
 :: 
 
@@ -490,6 +530,12 @@ configure lime
 Capture time domain waveform ( QEC disabled )
 
 .. image:: pictures/TM3.3_10MHz_15kHz_FDD_freq_spectrum_taken_with_RFNM_sdrpp.png 
+
+The fr1_fr2_test_tool VSPA firmware source code is available at
+https://github.com/nxp-qoriq/la931x_vspa_5g_dfe
+
+Known limitation: TDD is not supported on LimeSDR-Micro (FDD only). TDD is supported on the
+RFNM board only.
 
 Tips 
 ****

@@ -124,6 +124,58 @@ Default 512 KB RX FIFO per channel in DDR, channel count read from the loaded fi
  ./iq-stop.sh
 ```
 
+```sh
+RX QEC ch 0/1  gain  +0.10 dB  phase  +0.50 deg  DC I -0.030  DC Q -0.010   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 (RxChan 0)  Fs 61.44 MHz  FFT 8192 x8  RBW 7.5 kHz  rect/mag
+  RSSI -31.1  floor -94.9  DC -32.6 dBFS
+  spurs: -37.2@+2.88 -47.3@-2.88 -49.1@+5.76 -56.9@-5.76 MHz
+  peak I -28.1  Q -30.3 dBFS  clip 0 (0.000%)  crest 6.0 dB
++0.050 |                                                                                |
++0.047 |                                                                                |
++0.045 |                                                                                |
++0.043 |                                                                                |
++0.040 |                                                                                |
++0.038 |                                                                                |
++0.035 |                                                                                |
++0.032 |                                                                                |
++0.030 |                                                                                |
++0.027 |                                                                                |
++0.025 |                                                                                |
++0.023 |                                                                                |
++0.020 |                                                                                |
++0.017 |                                                                                |
++0.015 |                                                                                |
++0.012 |                                                                                |
++0.010 |                                                                                |
++0.008 |                                                                                |
++0.005 |       o                    ooo                  oo                   ooo       |
++0.003 |        oo                 o                                             o      |
++0.000 |     oo                        o                o  oo                           |
+-0.003 |    o     o           *   o                    o                 *              |
+-0.005 |* *                 **                    **                   ** *  o    o     |
+-0.007 | *                **   * +      o       **  **       o        *    *o           |
+-0.010 |           o     *      *              *      +             **      *      o    |
+-0.012 |   ***      o             *      o    *        *      o            o *          |
+-0.015 |   o                    o  *                 o  *      o   *                o   |
+-0.018 |  o             *                    *                    *       o   *         |
+-0.020 |      *      o                    oo*                   o                    o *|
+-0.023 |oo     *      o*oo    oo    *        o    o o    *       *o oo   o     *      +o|
+-0.025 |              *o  ooo        *     *o oooo o      *      o o  ooo               |
+-0.027 |        *    *       o                             *    *               **   *  |
+-0.030 |           **                 *   *                    *                        |
+-0.032 |         *                       *                  **                      *   |
+-0.035 |          *                    **                     *                   **    |
+-0.037 |                                                                                |
+-0.040 |                                                                                |
+-0.043 |                                                                                |
+-0.045 |                                                                                |
+-0.048 |                                                                                |
+       ++-------------------+-------------------+-------------------+-------------------+
+        0 .. 1.302 us, 80 samples, 1/col  scale +-0.05 FS (auto)  keys: +/- zoom, a=auto/fixed, t=spectrum
+```
+
+
 ## QEC
 
 - Press `s` in `iq-app-rx.sh -X` / `iq-app-tx.sh -T` to save the QEC to `<script dir>/qec`.

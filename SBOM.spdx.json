@@ -1,0 +1,35 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "spdxVersion": "SPDX-2.3",
+  "creationInfo": {
+    "created": "2026-11-12T09:33:00Z",
+    "creators": [
+      "Organization: NXP"
+    ],
+    "licenseListVersion": "3.28"
+  },
+  "name": "la931x_iqplayer-v1.2",
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://nxp.com/spdx/2ad52dfe-8b0b-4653-a398-10faf82efdd4",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-package-2ad52dfe-8b0b-4653-a398-10faf82efdd4",
+      "name": "la931x_iqplayer",
+      "versionInfo": "v1.2",
+      "licenseConcluded": "(BSD-3-Clause)",
+      "licenseDeclared": "(BSD-3-Clause)",
+      "downloadLocation": "NOASSERTION",
+      "originator": "Organization: la931x_iqplayer",
+      "supplier": "NOASSERTION",
+      "externalRefs": [],
+      "filesAnalyzed": false
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-package-2ad52dfe-8b0b-4653-a398-10faf82efdd4"
+    }
+  ]
+}

@@ -332,6 +332,15 @@ int iq_player_send_data(uint32_t *v_buffer, uint32_t size)
     /* check new transfer opportunity */
     app_TX_total_consumed_size = tx_vspa_proxy_ro->la9310_fifo_enqueued_size;
     busy_size = app_TX_total_produced_size - app_TX_total_consumed_size;
+    if ((int32_t)busy_size < 0) {
+        /* VSPA fetched past what the host produced: VSPA flow control was
+         * not synchronised with this host session (stale host_produced_size
+         * from a previous run). Data sent to the DAC is garbage. */
+        printf("\n TX VSPA read ahead of host (stale flow control), exit (busy=0x%08x app_TX_total_produced_size=0x%08x app_TX_total_consumed_size=0x%08x)\n",
+               busy_size, app_TX_total_produced_size, app_TX_total_consumed_size);
+        fflush(stdout);
+        exit(0);
+    }
     if (busy_size > tx_modem_ddr_fifo_size) {
         printf("\n TX underrun , exit (busy=0x%08x app_TX_total_produced_size=0x%08x app_TX_total_consumed_size=0x%08x)\n",
                busy_size, app_TX_total_produced_size, app_TX_total_consumed_size);

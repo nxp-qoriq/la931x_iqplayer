@@ -1,5 +1,5 @@
 From f7069e4ec251afdb8e65c4c25d1ac410c0f0a5c9 Mon Sep 17 00:00:00 2001
-From: nxa15228 <nxa15228@nxp.com>
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
 Date: Tue, 10 Nov 2026 12:50:16 +0100
 Subject: [PATCH] la9310rfnm: rfnm_rx_park_fault parameter to silence RX lane
  park with IQ Player

@@ -320,6 +320,23 @@ none above). 4 x 245 MB/s AXIQ, 4 x 122 MB/s DDR and app. Lossless in steady sta
 flow control on and off (iq_app ``-X`` and ``-D``), no ``DDR_WR_OVR`` increase.
 
 
+Event-driven main loop and host flow control
+********************************************
+
+In v1.1 the VSPA main loop kept running and read the host flow-control counters from
+DMEM on every pass. With 4 RX channels the extra DMEM reads compete with the DMA, IPPU and
+PCIe slave accesses (DMEM access priority: DMA write, DMA read, AXI slave, IPPU, debug,
+VCPU) and the loop missed the 2048-cycle budget.
+
+v1.2 halts the VCPU with ``__idle()`` at the end of each pass. It wakes on a GO event:
+a DMA completion (``DMA_GO_STAT``) or a host mailbox message. The host still writes the
+produced / consumed counter directly in DMEM (a posted PCIe write, no read), then posts
+``MBOX_OPC_TX_GO`` (0xF2) or ``MBOX_OPC_RX_GO`` (0xF3) on mailbox 1. A DMEM write does not
+wake the VCPU. During streaming, DMA completions are enough. After a flow-control stop
+(TX empty, RX ring full) no DMA is running, so only the mailbox brings the VSPA back.
+RX acks are batched (``IQ_RX_ACK_MIN``, default 32 KB) to limit the mailbox and PCIe
+traffic.
+
 1T1R and 1T2R accounting fixes
 ******************************
 

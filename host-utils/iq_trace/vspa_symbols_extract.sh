@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright 2024 NXP
 ####################################################################
-#nxp@nxp-Precision-5820-Tower:~/Freescale/tmp/VSPA_Tools/bin$ ./vspa-elfdump -y /home/nxp/apm.eld |grep RX_total_produced_size
+#$ vspa-elfdump -y apm.eld |grep RX_total_produced_size
 #    0x000033f8  0x00000000    LOCAL       NOTYPE         NONE       17  aiqmod_rx_ab_8__RX_total_produced_size
 #    0x000072a0  0x00000004   GLOBAL       OBJECT     VARIABLE        1  _RX_total_produced_size
 #set -x

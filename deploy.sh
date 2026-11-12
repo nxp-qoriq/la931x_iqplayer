@@ -7,7 +7,7 @@
 print_usage()
 {
 echo "usage: ./deploy.sh <target ipaddr>"
-echo "ex : ./deploy.sh 172.16.0.156"
+echo "ex : ./deploy.sh 192.168.1.100"
 }
 
 # check parameters

@@ -187,9 +187,16 @@ void TX_IQ_DATA_FROM_DDR(void) {
         DDR_rd_counter = 0;
         ddr_rd_dma_xfr_size = TX_DDR_STEP;
 
-        if (0 == TX_total_ddr_ready_size) {
+        /* host_produced_size lives in DMEM and is written by the host over
+         * BAR2; it keeps the last value of the previous run. Reusing it on
+         * restart lets VSPA fetch ring data the new host feeder has not
+         * written yet (VSPA consumed > host produced, host reports TX
+         * underrun). With flow control, start from 0 and wait for the host
+         * to notify. Without flow control, keep the prefill window. */
+        if (host_flow_control_disable)
             TX_total_ddr_ready_size = TX_NUM_BUF * TX_DDR_STEP;
-        }
+        else
+            TX_total_ddr_ready_size = 0;
         TX_total_ddr_enqueued_size = 0;
         TX_total_ddr_fetched_size = 0;
         TX_total_dmem_QECced_size = 0;
@@ -264,6 +271,7 @@ void TX_IQ_DATA_FROM_DDR(void) {
         host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
 
         DDR_rd_base_address = 0xdeadbeef;
+        TX_total_ddr_ready_size = 0;
         TX_total_ddr_fetched_size = 0;
         TX_total_axiq_consumed_size = 0;
 
