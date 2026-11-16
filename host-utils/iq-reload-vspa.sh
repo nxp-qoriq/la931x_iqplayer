@@ -43,14 +43,34 @@ fi
 eld="$(readlink -f "$1")"
 [ -f "$eld" ] || { echo "*** ERROR: $1 not found"; exit 1; }
 
+# LA9310 CCSR (BAR0) host physical address, from the driver. It depends on
+# the host PCIe memory map (0x18000000 on i.MX8MP, 0x910000000 on i.MX95):
+# never hardcode it, a write to a wrong host address can hang the host bus.
+ccsr=0x$(la9310_modem_info | grep "CCSR phys" | cut -f 2 -d "x" | cut -f 1 -d " ")
+if [ "$ccsr" = "0x" ] || [ $((ccsr)) -eq 0 ]; then
+        echo "*** ERROR: cannot read the LA9310 CCSR address, is la9310shiva loaded ?"
+        exit 1
+fi
+vspa=$((ccsr + 0x1000000))
 # VSPA debug DMA registers (VSPA IP registers 0xB0..0xC8)
-DMA_DST=0x190000B0       # VSPA destination address
-DMA_SRC=0x190000B4       # source address, LA9310 (EP) view
-DMA_SIZE=0x190000B8      # byte count
-DMA_CTRL=0x190000BC      # 0x200 = program memory, 0x000 = data memory
-DMA_STAT=0x190000C8      # bit 0 = transfer complete, write 1 to clear
-# scratch buffer as seen by the LA9310 (outbound window of la9310shiva)
-ep_scratch=0xa0000000
+DMA_DST=$(printf "0x%X" $((vspa + 0xB0)))    # VSPA destination address
+DMA_SRC=$(printf "0x%X" $((vspa + 0xB4)))    # source address, LA9310 (EP) view
+DMA_SIZE=$(printf "0x%X" $((vspa + 0xB8)))   # byte count
+DMA_CTRL=$(printf "0x%X" $((vspa + 0xBC)))   # 0x200 = program memory, 0x000 = data memory
+DMA_STAT=$(printf "0x%X" $((vspa + 0xC8)))   # bit 0 = transfer complete, write 1 to clear
+# scratch buffer as seen by the LA9310 (outbound window of la9310shiva):
+# modem address of the first scratch region (VSPA OVERLAY)
+ep_scratch=$(la9310_modem_info | grep "VSPA OVERLAY" | cut -f 3 -d "|" | tr -d ' \t')
+if [ -z "$ep_scratch" ]; then
+        echo "*** ERROR: cannot read the scratch buffer modem address"
+        exit 1
+fi
+# memtool through /dev/shiva0 (works with CONFIG_STRICT_DEVMEM); falls back
+# to /dev/mem with an unpatched la9310shiva
+memtool_regs()
+{
+        memtool -d /dev/shiva0 "$@" 2>/dev/null || memtool "$@"
+}
 # .idram is loaded at the start of the IPPU data memory bank
 IDRAM_DST=0x4000
 
@@ -66,7 +86,7 @@ mbox_send()
 
 dma_stat()
 {
-        memtool -32 $DMA_STAT 1 | grep -i "${DMA_STAT}:" | cut -f 2 -d ":" | sed 's/ //g'
+        memtool_regs -32 $DMA_STAT 1 | grep -i "${DMA_STAT}:" | cut -f 2 -d ":" | sed 's/ //g'
 }
 
 dma_load()
@@ -83,11 +103,11 @@ dma_load()
         src=$(printf "0x%X" $((ep_scratch + 0x$offset)))
         echo "  $section: dst $dst size 0x$size src $src"
 
-        memtool -32 $DMA_STAT=1 > /dev/null   # clear a stale completion
-        memtool -32 $DMA_DST=$dst > /dev/null
-        memtool -32 $DMA_SRC=$src > /dev/null
-        memtool -32 $DMA_SIZE=0x$size > /dev/null
-        memtool -32 $DMA_CTRL=$ctrl > /dev/null
+        memtool_regs -32 $DMA_STAT=1 > /dev/null   # clear a stale completion
+        memtool_regs -32 $DMA_DST=$dst > /dev/null
+        memtool_regs -32 $DMA_SRC=$src > /dev/null
+        memtool_regs -32 $DMA_SIZE=0x$size > /dev/null
+        memtool_regs -32 $DMA_CTRL=$ctrl > /dev/null
 
         counter=1000
         stat=0
@@ -96,11 +116,11 @@ dma_load()
                 counter=$((counter - 1))
                 if [ $counter -eq 0 ]; then
                         echo "*** ERROR: $section DMA timeout (status $stat)"
-                        memtool -32 $DMA_DST 8
+                        memtool_regs -32 $DMA_DST 8
                         exit 1
                 fi
         done
-        memtool -32 $DMA_STAT=1 > /dev/null
+        memtool_regs -32 $DMA_STAT=1 > /dev/null
 }
 
 # 1. VSPA software reset: VSPA goes to done state before its memory is rewritten

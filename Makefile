@@ -15,6 +15,10 @@ export FSVSPAIncludes DEST_DIR LA9310_COMMON_HEADERS VSPA_TOOL UAPI_DIR
 
 DIRS := iqplayer_cwproj host-utils
 
+# install/ is also the default DEST_DIR: without .PHONY, make sees the
+# directory as an up-to-date "install" target and skips the install.
+.PHONY: all clean install
+
 all: ${DIRS}
 	$(foreach b, $(DIRS), ${MAKE} -C ${b}  all;)
 

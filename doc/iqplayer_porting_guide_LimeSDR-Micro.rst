@@ -184,12 +184,15 @@ ARMv8 tool chain
    sudo apt-get install gcc-aarch64-linux-gnu
 
 
-e200 tool chain 
-~~~~~~~~~~~~~~~~
+M4 tool chain
+~~~~~~~~~~~~~
 ::
 
    download and install gcc-arm-none-eabi-6-2017-q2-update-linux.tar.bz2
-   wget https://www.nxp.com/lgfiles/geul/Tools/gcc-4.9.4-Ee200-eabivlex86_64-linux-g2724867.tar.bz2
+   wget https://www.nxp.com/lgfiles/geul/Tools/gcc-arm-none-eabi-6-2017-q2-update-linux.tar.bz2
+
+   $ sudo ln -s /opt/gcc-arm-none-eabi-6-2017-q2-update/bin/arm-none-eabi-gcc /usr/bin/arm-none-eabi-gcc
+   $ sudo ln -s /opt/gcc-arm-none-eabi-6-2017-q2-update/bin/arm-none-eabi-g++ /usr/bin/arm-none-eabi-g++
 
 VSPA tool chain
 ~~~~~~~~~~~~~~~
@@ -296,15 +299,46 @@ deploy kernel headers on the target
 la93xx_host_sw
 ..............
 
-clone la93xx_host_sw linux kernel module source code  
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+clone and patch la93xx_host_sw linux kernel module source code
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ::
 
  git clone  https://github.com/nxp-qoriq/la93xx_host_sw.git
  cd la93xx_host_sw
+ git checkout bc0a100
+ git apply --index <la931x_iqplayer>/doc/patches/la93xx_host_sw/*.patch
 
-Recompile the shiva driver against the newly built kernel
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Patch
+     - Change
+   * - ``la93xx_host_sw/0001-la9310shiva-modinfo-mmap-scratch-iqflood-and-PCIe-BA.patch``
+     - ``la9310_modinfo`` mmap of the scratch buffer, the IQFLOOD buffer and the
+       CCSR/TCML/TCMU BARs on ``/dev/shiva0``. The IQ Player host-utils then do
+       not need ``/dev/mem`` and work on kernels built with ``CONFIG_STRICT_DEVMEM=y``.
+       Without it, the host-utils fall back to ``/dev/mem`` (needs
+       ``CONFIG_STRICT_DEVMEM`` not set).
+
+Recompile the shiva driver against the kernel running on the board
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``KERNEL_DIR`` must be a fully built tree of the kernel running on the board, with
+the same ``.config``: the kernel uses ``CONFIG_MODVERSIONS``, so a different
+configuration gives a different ``Module.symvers`` and the module load fails
+with ``disagrees about version of symbol``. To rebuild a matching tree from the
+board configuration (same kernel commit as the board ``uname -r``):
+
+::
+
+ cd linux
+ ssh root@<targetIP> 'zcat /proc/config.gz' > .config
+ make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+ make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- kernelrelease   # must match uname -r
+ make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image modules
+
+Build the driver:
 
 ::
 
@@ -318,6 +352,7 @@ Recompile the shiva driver against the newly built kernel
  export ARCH=arm64
  make clean
  CONFIG_ENABLE_FLOAT_BYPASS=y make
+ modinfo -F vermagic kernel_driver/la9310shiva/la9310shiva.ko   # must match uname -r
 
 .. note::
 
@@ -332,7 +367,13 @@ Deploy images
 copy la9310shiva.ko to:
 ::
 
- cp /kernel_module/* /lib/modules/$(uname -r)/extra/  
+ cp /kernel_module/* /lib/modules/$(uname -r)/extra/
+
+.. note::
+
+   ``la9310shiva`` cannot be unloaded once loaded (``rmmod`` reports the module in
+   use). To change the driver, install the new ``.ko`` in
+   ``/lib/modules/$(uname -r)/extra/``, reboot, then run ``load-la9310.sh``.
 
 la93xx_firmware (LA9310 FreeRTOS)
 .................................

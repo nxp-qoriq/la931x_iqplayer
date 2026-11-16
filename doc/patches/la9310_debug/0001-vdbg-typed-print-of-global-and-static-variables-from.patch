@@ -1,0 +1,828 @@
+From 89424f532b411ca137d6e738995f1a47225237c3 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Fri, 6 Nov 2026 09:57:27 +0100
+Subject: [PATCH 1/2] vdbg: typed print of global and static variables from
+ DWARF
+
+Add vspadwarf.py, a small .debug_info reader, and a gdb-style
+print[/x|/d|/u] command (REPL and DAP Watch/hover): structs, arrays,
+enums, bitfields, floats and Q15 values.
+
+Developed with AI assistance (Claude).
+
+Signed-off-by: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+---
+ vspadwarf.py | 801 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 801 insertions(+)
+ create mode 100644 vspadwarf.py
+
+diff --git a/vspadwarf.py b/vspadwarf.py
+new file mode 100644
+index 0000000..2f6de3c
+--- /dev/null
++++ b/vspadwarf.py
+@@ -0,0 +1,801 @@
++#!/usr/bin/env python3
++# SPDX-License-Identifier: Apache-2.0
++"""DWARF variable types for the VSPA: decode and print C values.
++
++A small reader for the .debug_info/.debug_abbrev the VSPA C compiler emits
++(DWARF 2; 3 and 4 also parse), enough to type a global or static variable
++and print it the way gdb does:
++
++    vspa_core_stats = {
++      busy_cycles = 1234,
++      ext_go_count = 5,
++      go_count = 5
++    }
++
++VSPA notes, seen in the toolchain's output:
++- `char` is 16 bits (DW_AT_byte_size 2); sizes and offsets are bytes.
++- DW_AT_location of a static object is DW_OP_addr with the DMEM byte
++  address, the same value as the ELF symbol (`_name`).
++- Bitfields use the DWARF 2 big-endian DW_AT_bit_offset (counted from the
++  MSB of the storage unit), but the compiler counts it within a 32-bit unit
++  even for a 16-bit member, e.g. `short pa_on:8` has byte_size 2 and
++  bit_offset 24.
++- Anonymous structs and unions are named "struct" and "union".
++- "half fixed" (DW_ATE_signed_fixed, 2 bytes) is Q1.15.
++Locals live in registers or on the stack through location lists, so only
++objects with a static address can be printed.
++"""
++from __future__ import annotations
++
++import re
++import struct
++from pathlib import Path
++
++# Tags
++TAG_ARRAY = 0x01
++TAG_ENUM = 0x04
++TAG_MEMBER = 0x0D
++TAG_POINTER = 0x0F
++TAG_REFERENCE = 0x10
++TAG_COMPILE_UNIT = 0x11
++TAG_STRUCT = 0x13
++TAG_SUBROUTINE_TYPE = 0x15
++TAG_TYPEDEF = 0x16
++TAG_UNION = 0x17
++TAG_SUBRANGE = 0x21
++TAG_BASE = 0x24
++TAG_CONST = 0x26
++TAG_ENUMERATOR = 0x28
++TAG_VARIABLE = 0x34
++TAG_VOLATILE = 0x35
++TAG_RESTRICT = 0x37
++
++# Attributes
++AT_LOCATION = 0x02
++AT_NAME = 0x03
++AT_BYTE_SIZE = 0x0B
++AT_BIT_OFFSET = 0x0C
++AT_BIT_SIZE = 0x0D
++AT_CONST_VALUE = 0x1C
++AT_UPPER_BOUND = 0x2F
++AT_COUNT = 0x37
++AT_DATA_MEMBER_LOCATION = 0x38
++AT_DECLARATION = 0x3C
++AT_ENCODING = 0x3E
++AT_TYPE = 0x49
++AT_DATA_BIT_OFFSET = 0x6B
++
++# Base type encodings
++ATE_BOOLEAN = 0x02
++ATE_FLOAT = 0x04
++ATE_SIGNED = 0x05
++ATE_SIGNED_CHAR = 0x06
++ATE_UNSIGNED = 0x07
++ATE_UNSIGNED_CHAR = 0x08
++ATE_SIGNED_FIXED = 0x0D
++ATE_UNSIGNED_FIXED = 0x0E
++
++OP_ADDR = 0x03
++
++MAX_ELEMENTS = 200   # array elements printed before "..." (gdb's default)
++REPEAT_MIN = 10      # identical neighbours folded into "<repeats N times>"
++LINE_WIDTH = 100
++
++
++class DwarfError(RuntimeError):
++    pass
++
++
++def _uleb(data, pos):
++    result = shift = 0
++    while True:
++        byte = data[pos]
++        pos += 1
++        result |= (byte & 0x7F) << shift
++        shift += 7
++        if byte < 0x80:
++            return result, pos
++
++
++def _sleb(data, pos):
++    result = shift = 0
++    while True:
++        byte = data[pos]
++        pos += 1
++        result |= (byte & 0x7F) << shift
++        shift += 7
++        if byte < 0x80:
++            if byte & 0x40:
++                result -= 1 << shift
++            return result, pos
++
++
++def _sections(data):
++    """{name: bytes} of an ELF32 little-endian file."""
++    shoff = struct.unpack_from("<I", data, 0x20)[0]
++    shentsize, shnum, shstrndx = struct.unpack_from("<HHH", data, 0x2E)
++    headers = [struct.unpack_from("<10I", data, shoff + i * shentsize)
++               for i in range(shnum)]
++    strtab = headers[shstrndx][4]
++    out = {}
++    for h in headers:
++        end = data.index(b"\0", strtab + h[0])
++        name = data[strtab + h[0]:end].decode()
++        if h[1] != 8:  # not SHT_NOBITS
++            out[name] = data[h[4]:h[4] + h[5]]
++    return out
++
++
++class Die:
++    __slots__ = ("offset", "tag", "attrs", "children", "parent")
++
++    def __init__(self, offset, tag, attrs, parent):
++        self.offset, self.tag, self.attrs = offset, tag, attrs
++        self.children, self.parent = [], parent
++
++    def get(self, attr, default=None):
++        return self.attrs.get(attr, default)
++
++    @property
++    def name(self):
++        return self.attrs.get(AT_NAME)
++
++
++class Variable:
++    """A statically allocated object: name, DMEM address, type DIE."""
++
++    def __init__(self, name, addr, type_die, file_scope):
++        self.name, self.addr, self.type = name, addr, type_die
++        self.file_scope = file_scope
++
++
++class DebugInfo:
++    """Types and statically allocated variables of one image."""
++
++    def __init__(self, path):
++        data = Path(path).read_bytes()
++        sections = _sections(data)
++        self.info = sections.get(".debug_info", b"")
++        self.abbrev = sections.get(".debug_abbrev", b"")
++        self.strings = sections.get(".debug_str", b"")
++        self.dies = {}          # section offset -> Die
++        self.variables = {}     # name -> [Variable] (definitions first)
++        self.declarations = {}  # name -> [type Die] of extern declarations
++        self._abbrev_tables = {}
++        self._parse()
++
++    # -- parsing ----------------------------------------------------------
++
++    def _abbrevs(self, offset):
++        if offset in self._abbrev_tables:
++            return self._abbrev_tables[offset]
++        table = {}
++        data, pos = self.abbrev, offset
++        while True:
++            code, pos = _uleb(data, pos)
++            if code == 0:
++                break
++            tag, pos = _uleb(data, pos)
++            children = data[pos]
++            pos += 1
++            specs = []
++            while True:
++                attr, pos = _uleb(data, pos)
++                form, pos = _uleb(data, pos)
++                if attr == 0 and form == 0:
++                    break
++                specs.append((attr, form))
++            table[code] = (tag, bool(children), specs)
++        self._abbrev_tables[offset] = table
++        return table
++
++    def _form(self, form, pos, cu, addr_size, version):
++        """(value, next pos) of one attribute value."""
++        data = self.info
++        if form == 0x01:  # addr
++            return int.from_bytes(data[pos:pos + addr_size], "little"), pos + addr_size
++        if form in (0x0B, 0x11):  # data1, ref1
++            value = data[pos]
++            return (cu + value if form == 0x11 else value), pos + 1
++        if form in (0x05, 0x12):  # data2, ref2
++            value = struct.unpack_from("<H", data, pos)[0]
++            return (cu + value if form == 0x12 else value), pos + 2
++        if form in (0x06, 0x13, 0x17):  # data4, ref4, sec_offset
++            value = struct.unpack_from("<I", data, pos)[0]
++            return (cu + value if form == 0x13 else value), pos + 4
++        if form in (0x07, 0x14, 0x20):  # data8, ref8, ref_sig8
++            value = struct.unpack_from("<Q", data, pos)[0]
++            return (cu + value if form == 0x14 else value), pos + 8
++        if form == 0x0D:  # sdata
++            return _sleb(data, pos)
++        if form in (0x0F, 0x15):  # udata, ref_udata
++            value, pos = _uleb(data, pos)
++            return (cu + value if form == 0x15 else value), pos
++        if form == 0x08:  # string
++            end = data.index(b"\0", pos)
++            return data[pos:end].decode(errors="replace"), end + 1
++        if form == 0x0E:  # strp
++            off = struct.unpack_from("<I", data, pos)[0]
++            end = self.strings.index(b"\0", off)
++            return self.strings[off:end].decode(errors="replace"), pos + 4
++        if form == 0x0A:  # block1
++            n = data[pos]
++            return bytes(data[pos + 1:pos + 1 + n]), pos + 1 + n
++        if form == 0x03:  # block2
++            n = struct.unpack_from("<H", data, pos)[0]
++            return bytes(data[pos + 2:pos + 2 + n]), pos + 2 + n
++        if form == 0x04:  # block4
++            n = struct.unpack_from("<I", data, pos)[0]
++            return bytes(data[pos + 4:pos + 4 + n]), pos + 4 + n
++        if form in (0x09, 0x18):  # block, exprloc
++            n, pos = _uleb(data, pos)
++            return bytes(data[pos:pos + n]), pos + n
++        if form == 0x0C:  # flag
++            return data[pos], pos + 1
++        if form == 0x19:  # flag_present
++            return 1, pos
++        if form == 0x10:  # ref_addr: address-sized in DWARF 2, else offset-sized
++            size = addr_size if version == 2 else 4
++            return int.from_bytes(data[pos:pos + size], "little"), pos + size
++        if form == 0x16:  # indirect
++            real, pos = _uleb(data, pos)
++            return self._form(real, pos, cu, addr_size, version)
++        raise DwarfError(f"unsupported DWARF form 0x{form:x} at 0x{pos:x}")
++
++    def _parse(self):
++        data, pos = self.info, 0
++        while pos + 11 <= len(data):
++            cu = pos
++            length, version = struct.unpack_from("<IH", data, pos)
++            if length >= 0xFFFFFFF0:
++                raise DwarfError("64-bit DWARF is not supported")
++            end = pos + 4 + length
++            if not 2 <= version <= 4:  # DWARF 5 has a different header
++                pos = end
++                continue
++            abbrev_off, addr_size = struct.unpack_from("<IB", data, pos + 6)
++            abbrevs = self._abbrevs(abbrev_off)
++            pos += 11
++            stack = []
++            cu_die = None
++            while pos < end:
++                offset = pos
++                code, pos = _uleb(data, pos)
++                if code == 0:
++                    if stack:
++                        stack.pop()
++                    continue
++                tag, has_children, specs = abbrevs[code]
++                attrs = {}
++                for attr, form in specs:
++                    attrs[attr], pos = self._form(form, pos, cu, addr_size, version)
++                parent = stack[-1] if stack else None
++                die = Die(offset, tag, attrs, parent)
++                self.dies[offset] = die
++                if parent is not None:
++                    parent.children.append(die)
++                if cu_die is None:
++                    cu_die = die
++                if tag == TAG_VARIABLE:
++                    self._add_variable(die, cu_die)
++                if has_children:
++                    stack.append(die)
++            pos = end
++
++    def _add_variable(self, die, cu_die):
++        name, type_off = die.name, die.get(AT_TYPE)
++        if not name or type_off is None:
++            return
++        location = die.get(AT_LOCATION)
++        if isinstance(location, bytes) and location[:1] == bytes([OP_ADDR]):
++            addr = int.from_bytes(location[1:5], "little")
++            var = Variable(name, addr, type_off, die.parent is cu_die)
++            entries = self.variables.setdefault(name, [])
++            # File-scope definitions before function statics of the same name.
++            if var.file_scope:
++                entries.insert(sum(v.file_scope for v in entries), var)
++            else:
++                entries.append(var)
++        elif die.get(AT_DECLARATION):
++            self.declarations.setdefault(name, []).append(type_off)
++
++    # -- types ------------------------------------------------------------
++
++    def die(self, offset):
++        if offset is None:
++            return None
++        try:
++            return self.dies[offset]
++        except KeyError:
++            raise DwarfError(f"bad DWARF type reference 0x{offset:x}")
++
++    def strip(self, die):
++        """The type under typedefs and qualifiers (None for void)."""
++        while die is not None and die.tag in (TAG_TYPEDEF, TAG_CONST,
++                                              TAG_VOLATILE, TAG_RESTRICT):
++            die = self.die(die.get(AT_TYPE))
++        return die
++
++    def array_parts(self, die):
++        """(element type, element counts outermost first) of an array type."""
++        if isinstance(die, SubArray):
++            return die.elem, die.dims
++        return self.die(die.get(AT_TYPE)), self.array_dims(die)
++
++    def array_dims(self, die):
++        """Element counts of an array type, outermost first (0: unknown)."""
++        dims = []
++        for sub in die.children:
++            if sub.tag != TAG_SUBRANGE:
++                continue
++            if AT_COUNT in sub.attrs:
++                count = sub.attrs[AT_COUNT]
++            elif AT_UPPER_BOUND in sub.attrs:
++                upper = sub.attrs[AT_UPPER_BOUND]
++                count = upper + 1 if isinstance(upper, int) and upper < 0x80000000 else 0
++            else:
++                count = 0
++            dims.append(max(count, 0))
++        return dims or [0]
++
++    def sizeof(self, die):
++        die = self.strip(die)
++        if die is None:
++            return 0
++        if die.tag == TAG_ARRAY:
++            elem, dims = self.array_parts(die)
++            n = 1
++            for d in dims:
++                n *= d
++            return n * self.sizeof(elem) if n else die.get(AT_BYTE_SIZE, 0)
++        if die.tag in (TAG_POINTER, TAG_REFERENCE):
++            return die.get(AT_BYTE_SIZE, 4)
++        if die.tag == TAG_SUBROUTINE_TYPE:
++            return 0
++        return die.get(AT_BYTE_SIZE, 0)
++
++    def type_name(self, die):
++        if die is None:
++            return "void"
++        tag = die.tag
++        if tag in (TAG_BASE, TAG_TYPEDEF):
++            return die.name or "?"
++        if tag in (TAG_STRUCT, TAG_UNION, TAG_ENUM):
++            kind = {TAG_STRUCT: "struct", TAG_UNION: "union", TAG_ENUM: "enum"}[tag]
++            name = die.name
++            if not name or name == kind:
++                return f"{kind} {{...}}"
++            return f"{kind} {name}"
++        if tag in (TAG_CONST, TAG_VOLATILE, TAG_RESTRICT):
++            word = {TAG_CONST: "const", TAG_VOLATILE: "volatile",
++                    TAG_RESTRICT: "restrict"}[tag]
++            return f"{word} {self.type_name(self.die(die.get(AT_TYPE)))}"
++        if tag in (TAG_POINTER, TAG_REFERENCE):
++            target = self.die(die.get(AT_TYPE))
++            if target is not None and self.strip(target) is not None \
++                    and self.strip(target).tag == TAG_SUBROUTINE_TYPE:
++                return "void (*)()"
++            return f"{self.type_name(target)} *"
++        if tag == TAG_ARRAY:
++            # The compiler nests `T a[2][3]` as array[2] of array[3] of T.
++            dims = []
++            while die is not None and die.tag == TAG_ARRAY:
++                elem, d = self.array_parts(die)
++                dims += d
++                die = self.strip(elem)
++            dims = "".join(f"[{d}]" if d else "[]" for d in dims)
++            return f"{self.type_name(elem)} {dims}"
++        if tag == TAG_SUBROUTINE_TYPE:
++            return "void ()"
++        return "?"
++
++    def members(self, die):
++        return [m for m in die.children if m.tag == TAG_MEMBER]
++
++    @staticmethod
++    def member_offset(member):
++        loc = member.get(AT_DATA_MEMBER_LOCATION, 0)
++        if isinstance(loc, int):
++            return loc
++        return _const_expr(loc)
++
++    # -- lookup -----------------------------------------------------------
++
++    def lookup(self, name):
++        """(Variable or None, declaration type DIE or None) for a name."""
++        for candidate in (name, name[1:] if name.startswith("_") else None):
++            if candidate and (candidate in self.variables
++                              or candidate in self.declarations):
++                defs = self.variables.get(candidate, [])
++                decls = self.declarations.get(candidate, [])
++                return (defs[0] if defs else None,
++                        self.die(decls[0]) if decls else None)
++        return None, None
++
++    def names(self):
++        return set(self.variables) | set(self.declarations)
++
++
++def _const_expr(expr):
++    """Value of a constant DWARF expression (member offsets)."""
++    stack, pos = [], 0
++    while pos < len(expr):
++        op = expr[pos]
++        pos += 1
++        if op == 0x08:      # const1u
++            stack.append(expr[pos]); pos += 1
++        elif op == 0x0A:    # const2u
++            stack.append(struct.unpack_from("<H", expr, pos)[0]); pos += 2
++        elif op == 0x0C:    # const4u
++            stack.append(struct.unpack_from("<I", expr, pos)[0]); pos += 4
++        elif op == 0x10:    # constu
++            value, pos = _uleb(expr, pos); stack.append(value)
++        elif op == 0x23:    # plus_uconst
++            value, pos = _uleb(expr, pos)
++            stack.append((stack.pop() if stack else 0) + value)
++        elif op == 0x22:    # plus
++            b, a = stack.pop(), stack.pop(); stack.append(a + b)
++        else:
++            raise DwarfError(f"unsupported member location op 0x{op:02x}")
++    return stack[-1] if stack else 0
++
++
++# -- expressions -----------------------------------------------------------
++
++class Place:
++    """Where a (sub)object lives: type DIE, DMEM byte address, and for a
++    bitfield (bit_offset, bit_size) in DWARF 2 terms."""
++
++    def __init__(self, type_die, addr, bits=None):
++        self.type, self.addr, self.bits = type_die, addr, bits
++
++
++_TOKEN = re.compile(r"\s*(?:(\.)\s*([A-Za-z_]\w*)|\[\s*([^\]]+?)\s*\]|(->))")
++
++
++def parse_expression(text):
++    """'name.member[3].x' -> ('name', [('.', 'member'), ('[]', 3), ...]).
++    A leading '&' asks for the address."""
++    text = text.strip()
++    address_of = text.startswith("&")
++    text = text.lstrip("&").strip()
++    m = re.match(r"([A-Za-z_]\w*)", text)
++    if not m:
++        raise DwarfError(f"expected a variable name: {text!r}")
++    name, pos, path = m.group(1), m.end(), []
++    while pos < len(text):
++        t = _TOKEN.match(text, pos)
++        if not t:
++            raise DwarfError(f"cannot parse expression at {text[pos:]!r}")
++        if t.group(4):
++            raise DwarfError("pointer dereference ('->', '*') is not supported: "
++                             "VSPA pointers count DMEM in half-words; print "
++                             "the pointer and dump its target with dmem")
++        if t.group(1):
++            path.append((".", t.group(2)))
++        else:
++            try:
++                path.append(("[]", int(t.group(3), 0)))
++            except ValueError:
++                raise DwarfError(f"array index must be a number: {t.group(3)!r}")
++        pos = t.end()
++    return name, path, address_of
++
++
++def resolve(dwarf, symbols, text):
++    """Place of an expression; symbols: ELF {name: address} for objects whose
++    definition carries no DWARF location (assembly-defined, or extern)."""
++    name, path, address_of = parse_expression(text)
++    if not dwarf.dies:
++        raise DwarfError("this image has no DWARF debug info (built without "
++                         "-g, or stripped)")
++    var, decl = dwarf.lookup(name)
++    if var is not None:
++        type_die, addr = dwarf.die(var.type), var.addr
++        # An incomplete definition (e.g. `x[]`) is completed by a declaration.
++        stripped = dwarf.strip(type_die)
++        if decl is not None and stripped is not None and stripped.tag == TAG_ARRAY \
++                and not all(dwarf.array_dims(stripped)):
++            type_die = decl
++    elif decl is not None:
++        addr = next((symbols[c] for c in (name, "_" + name) if c in symbols), None)
++        if addr is None:
++            raise DwarfError(f"{name} is declared but has no address in the ELF")
++        type_die = decl
++    else:
++        addr = next((symbols[c] for c in (name, "_" + name) if c in symbols), None)
++        if addr is not None:
++            raise DwarfError(f"{name} @ 0x{addr:04X} has no type in the debug "
++                             f"info (assembly symbol?); use 'dmem 0x{addr:x}'")
++        raise DwarfError(f"no variable named {name} with a static address "
++                         "(locals live in registers: see 'regs')")
++    place = Place(type_die, addr)
++    shown = name
++    for kind, arg in path:
++        t = dwarf.strip(place.type)
++        if place.bits is not None:
++            raise DwarfError(f"{shown} is a bitfield")
++        if kind == ".":
++            if t is None or t.tag not in (TAG_STRUCT, TAG_UNION):
++                raise DwarfError(f"{shown} is not a struct or union "
++                                 f"({dwarf.type_name(place.type)})")
++            member = next((m for m in dwarf.members(t) if m.name == arg), None)
++            if member is None:
++                names = ", ".join(m.name or "?" for m in dwarf.members(t))
++                raise DwarfError(f"{dwarf.type_name(place.type)} has no member "
++                                 f"{arg} (members: {names})")
++            bits = None
++            if AT_BIT_SIZE in member.attrs:
++                bits = (member.get(AT_BIT_OFFSET, 0), member.attrs[AT_BIT_SIZE],
++                        member.get(AT_BYTE_SIZE))
++            place = Place(dwarf.die(member.get(AT_TYPE)),
++                          place.addr + DebugInfo.member_offset(member), bits)
++            shown += f".{arg}"
++        else:
++            if t is None or t.tag != TAG_ARRAY:
++                raise DwarfError(f"{shown} is not an array "
++                                 f"({dwarf.type_name(place.type)})")
++            elem, dims = dwarf.array_parts(t)
++            if dims[0] and not 0 <= arg < dims[0]:
++                raise DwarfError(f"index {arg} out of range for {shown}[{dims[0]}]")
++            row = SubArray(elem, dims[1:]) if dims[1:] else elem
++            place = Place(row, place.addr + arg * dwarf.sizeof(row))
++            shown += f"[{arg}]"
++    if address_of and place.bits is not None:
++        raise DwarfError(f"cannot take the address of bitfield {shown}")
++    return place, address_of
++
++
++class SubArray:
++    """A row of a multi-dimensional array, e.g. the type of m[2] for
++    `int m[4][8]` (it has no DIE of its own)."""
++    tag = TAG_ARRAY
++    name = None
++
++    def __init__(self, elem, dims):
++        self.elem, self.dims = elem, dims
++
++    def get(self, attr, default=None):
++        return default
++
++
++def bitfield_unit(bits):
++    """Bits in a bitfield's storage unit (see the module notes)."""
++    bit_offset, bit_size, byte_size = bits
++    unit = 8 * (byte_size or 4)
++    return 32 if bit_offset + bit_size > unit else unit
++
++
++def place_size(dwarf, place):
++    """Bytes to read for a place."""
++    if place.bits is not None:
++        return bitfield_unit(place.bits) // 8
++    return dwarf.sizeof(place.type)
++
++
++# -- formatting -------------------------------------------------------------
++
++class Formatter:
++    """Render bytes of a typed object. fmt: None (natural) or 'x' (hex
++    integers). compact: one line (DAP); otherwise gdb's pretty layout."""
++
++    def __init__(self, dwarf, fmt=None, compact=False, max_elements=MAX_ELEMENTS):
++        if fmt not in (None, "x", "d", "u"):
++            raise DwarfError(f"unknown format /{fmt} (use /x, /d or /u)")
++        self.dwarf, self.fmt, self.compact = dwarf, fmt, compact
++        self.max_elements = max_elements
++
++    def value(self, place, data):
++        """Text of the object whose bytes are `data` (starting at place.addr)."""
++        if place.bits is not None:
++            return self._bitfield(place, data)
++        return self._format(place.type, data, 0)
++
++    def address(self, place):
++        name = self.dwarf.type_name(place.type)
++        stripped = self.dwarf.strip(place.type)
++        if stripped is not None and stripped.tag == TAG_ARRAY:
++            base, _, dims = name.partition(" [")
++            return f"({base} (*)[{dims}) 0x{place.addr:04X}"
++        return f"({name} *) 0x{place.addr:04X}"
++
++    # scalars
++
++    def _int(self, raw, size, signed):
++        if signed and raw >= 1 << (8 * size - 1):
++            raw -= 1 << (8 * size)
++        if self.fmt == "x":
++            return f"0x{raw & ((1 << (8 * size)) - 1):0{2 * size}X}"
++        if self.fmt == "u":
++            return str(raw & ((1 << (8 * size)) - 1))
++        return str(raw)
++
++    def _base(self, die, data):
++        size = die.get(AT_BYTE_SIZE, len(data))
++        raw = int.from_bytes(data[:size], "little")
++        enc = die.get(AT_ENCODING, 0)
++        signed = enc in (ATE_SIGNED, ATE_SIGNED_CHAR, ATE_SIGNED_FIXED)
++        if self.fmt == "x" or (self.fmt and enc != ATE_FLOAT):
++            # Integers in the asked radix; fixed point and (with /x) float
++            # as their raw bits.
++            return self._int(raw, size, signed or self.fmt == "d")
++        if enc == ATE_FLOAT:
++            code = {2: "<e", 4: "<f", 8: "<d"}.get(size)
++            if code is None:
++                return f"0x{raw:0{2 * size}X}"
++            value = struct.unpack(code, data[:size])[0]
++            return f"{value:.{ {2: 5, 4: 9, 8: 17}[size] }g}"
++        if enc in (ATE_SIGNED_FIXED, ATE_UNSIGNED_FIXED):
++            if signed and raw >= 1 << (8 * size - 1):
++                raw -= 1 << (8 * size)
++            frac = 8 * size - (1 if signed else 0)
++            return f"{raw / (1 << frac):.6g}"
++        if enc == ATE_BOOLEAN:
++            return "true" if raw else "false"
++        if enc in (ATE_SIGNED_CHAR, ATE_UNSIGNED_CHAR):
++            text = self._int(raw, size, signed)
++            value = raw - (1 << (8 * size)) if signed and raw >= 1 << (8 * size - 1) else raw
++            return f"{text} {_char_literal(value)}" if 0 <= value < 0x80 else text
++        if enc in (ATE_SIGNED, ATE_UNSIGNED):
++            return self._int(raw, size, signed)
++        return f"0x{raw:0{2 * size}X}"  # word64, label array, ...
++
++    def _enum(self, die, data):
++        size = die.get(AT_BYTE_SIZE, len(data))
++        raw = int.from_bytes(data[:size], "little")
++        if self.fmt:
++            return self._int(raw, size, self.fmt == "d")
++        mask = (1 << (8 * size)) - 1
++        for e in die.children:
++            if e.tag == TAG_ENUMERATOR and (e.get(AT_CONST_VALUE, 0) & mask) == raw:
++                return e.name
++        signed = raw - (1 << (8 * size)) if raw >> (8 * size - 1) else raw
++        return str(signed)
++
++    def _bitfield(self, place, data):
++        bit_offset, bit_size, _ = place.bits
++        unit = bitfield_unit(place.bits)
++        raw = int.from_bytes(data[:unit // 8].ljust(unit // 8, b"\0"), "little")
++        value = (raw >> (unit - bit_offset - bit_size)) & ((1 << bit_size) - 1)
++        die = self.dwarf.strip(place.type)
++        enc = die.get(AT_ENCODING, ATE_UNSIGNED) if die is not None else ATE_UNSIGNED
++        if die is not None and die.tag == TAG_ENUM:
++            size = (bit_size + 7) // 8
++            return self._enum(die, value.to_bytes(max(size, 1), "little"))
++        signed = enc in (ATE_SIGNED, ATE_SIGNED_CHAR)
++        if self.fmt == "x":
++            return f"0x{value:X}"
++        if signed and self.fmt != "u" and value >> (bit_size - 1):
++            value -= 1 << bit_size
++        return str(value)
++
++    # aggregates
++
++    def _format(self, type_die, data, depth):
++        die = self.dwarf.strip(type_die)
++        if die is None:
++            return "void"
++        tag = die.tag
++        if tag == TAG_BASE:
++            return self._base(die, data)
++        if tag == TAG_ENUM:
++            return self._enum(die, data)
++        if tag in (TAG_POINTER, TAG_REFERENCE):
++            size = die.get(AT_BYTE_SIZE, 4)
++            raw = int.from_bytes(data[:size], "little")
++            return f"0x{raw:0{2 * size}X}"
++        if tag in (TAG_STRUCT, TAG_UNION):
++            return self._struct(die, data, depth)
++        if tag == TAG_ARRAY:
++            elem, dims = self.dwarf.array_parts(die)
++            return self._array(elem, dims, data, depth)
++        return "<unsupported type>"
++
++    def _struct(self, die, data, depth):
++        fields = []
++        for m in self.dwarf.members(die):
++            off = DebugInfo.member_offset(m)
++            sub = data[off:]
++            if AT_BIT_SIZE in m.attrs:
++                bits = (m.get(AT_BIT_OFFSET, 0), m.attrs[AT_BIT_SIZE],
++                        m.get(AT_BYTE_SIZE))
++                text = self._bitfield(Place(self.dwarf.die(m.get(AT_TYPE)), 0, bits), sub)
++            else:
++                text = self._format(self.dwarf.die(m.get(AT_TYPE)), sub, depth + 1)
++            fields.append(f"{m.name or '<anonymous>'} = {text}")
++        return self._group(fields, depth)
++
++    def _array(self, elem, dims, data, depth):
++        count = dims[0]
++        inner_dims = dims[1:]
++        elem_size = self.dwarf.sizeof(elem)
++        for d in inner_dims:
++            elem_size *= d
++        if not count or not elem_size:
++            return "{<unknown length>}" if not count else "{}"
++        stripped = self.dwarf.strip(elem)
++        if not inner_dims and self.fmt is None and stripped is not None \
++                and stripped.tag == TAG_BASE \
++                and stripped.get(AT_ENCODING) in (ATE_SIGNED_CHAR, ATE_UNSIGNED_CHAR):
++            text = _string(data, elem_size, count)
++            if text is not None:
++                return text
++        runs = []  # [text, first index, count]: identical neighbours fold
++        truncated = False
++        for i in range(count):
++            chunk = data[i * elem_size:(i + 1) * elem_size]
++            if inner_dims:
++                text = self._array(elem, inner_dims, chunk, depth + 1)
++            else:
++                text = self._format(elem, chunk, depth + 1)
++            if runs and runs[-1][0] == text:
++                runs[-1][2] += 1
++            elif len(runs) >= self.max_elements:
++                truncated = True
++                break
++            else:
++                runs.append([text, i, 1])
++        parts, labels = [], []
++        for text, first, n in runs:
++            if n >= REPEAT_MIN:
++                parts.append(f"{text} <repeats {n} times>")
++                labels.append(f"[{first}..{first + n - 1}] = ")
++            else:
++                parts += [text] * n
++                labels += [f"[{first + k}] = " for k in range(n)]
++        if truncated or len(parts) > self.max_elements:
++            parts, labels = parts[:self.max_elements], labels[:self.max_elements]
++            parts.append("...")
++            labels.append("")
++        scalar = not inner_dims and stripped is not None and stripped.tag in (
++            TAG_BASE, TAG_ENUM, TAG_POINTER)
++        return self._group(parts, depth, scalar=scalar,
++                           labels=None if scalar else labels)
++
++    def _group(self, parts, depth, scalar=False, labels=None):
++        """Brace a list of member or element texts; labels ("[i] = ")
++        prefix aggregate array elements when laid out one per line."""
++        one_line = "{" + ", ".join(parts) + "}"
++        if self.compact or (len(one_line) + 2 * depth <= LINE_WIDTH
++                            and "\n" not in one_line and (scalar or len(parts) <= 4)):
++            return one_line
++        pad = "  " * (depth + 1)
++        if scalar:
++            # Rows of values, wrapped to the line width.
++            lines, row = [], ""
++            for p in parts:
++                piece = p + ","
++                if row and len(pad) + len(row) + 1 + len(piece) > LINE_WIDTH:
++                    lines.append(pad + row)
++                    row = piece
++                else:
++                    row = f"{row} {piece}" if row else piece
++            if row:
++                lines.append(pad + row.rstrip(","))
++            return "{\n" + "\n".join(lines) + "\n" + "  " * depth + "}"
++        labels = labels or [""] * len(parts)
++        body = ",\n".join(pad + label + p for label, p in zip(labels, parts))
++        return "{\n" + body + "\n" + "  " * depth + "}"
++
++
++def _char_literal(value):
++    escapes = {0: "\\0", 7: "\\a", 8: "\\b", 9: "\\t", 10: "\\n", 11: "\\v",
++               12: "\\f", 13: "\\r", 39: "\\'", 92: "\\\\"}
++    if value in escapes:
++        return f"'{escapes[value]}'"
++    if 0x20 <= value < 0x7F:
++        return f"'{chr(value)}'"
++    return f"'\\{value:03o}'"
++
++
++def _string(data, elem_size, count):
++    """A char array as a C string literal, or None if it holds non-text."""
++    chars = [int.from_bytes(data[i * elem_size:(i + 1) * elem_size], "little")
++             for i in range(count)]
++    if 0 in chars:
++        chars = chars[:chars.index(0)]
++    if any(not (0x20 <= c < 0x7F or c in (9, 10, 13)) for c in chars):
++        return None
++    text = "".join(chr(c) for c in chars)
++    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') \
++        .replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r") + '"'
+-- 
+2.43.0
+

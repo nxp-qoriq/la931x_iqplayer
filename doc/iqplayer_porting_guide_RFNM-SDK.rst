@@ -320,6 +320,9 @@ Sources
    * - imx8mp-kernel
      - https://github.com/rfnm/imx8mp-kernel, ``rfnm_6.6.36``
      - branch head (used for ``Module.symvers`` only)
+   * - la9310_debug (optional, VSPA debugger)
+     - https://git.6g-for-all.de/6g4all/la9310_debug.git, ``main``
+     - ``2328871`` + ``doc/patches/la9310_debug/*.patch``
    * - la931x_iqplayer
      - this repository
      - -
@@ -343,7 +346,11 @@ https://github.com/mxstrk/la9310-freertos, exported with ``git format-patch``:
      - make the NXP IQ Player host stack work on the RFNM driver
    * - ``la9310-driver/0004-la9310shiva-modinfo-mmap-iqflood-carveout.patch``
      - ``la9310_modinfo`` mmap of the IQFLOOD and scratch carveouts (``VM_IO|VM_PFNMAP``);
-       needed because ``/dev/mem`` is blocked by ``CONFIG_STRICT_DEVMEM``
+       needed because ``/dev/mem`` is blocked by ``CONFIG_STRICT_DEVMEM``. The NXP
+       ``la93xx_host_sw`` equivalent (also covering the PCIe BARs) is
+       ``doc/patches/la93xx_host_sw/0001-*.patch``. The BARs are still mapped through
+       ``/dev/mem`` on RFNM (MMIO, allowed with ``CONFIG_STRICT_DEVMEM``); host-utils
+       print ``note: ... using /dev/mem`` once
    * - ``la9310-freertos/0001-sw_cmd_engine-LA9310_SW_CMD_VSPA_DBG-proxy-for-the-V.patch``
      - ``LA9310_SW_CMD_VSPA_DBG`` proxy for the VSPA debug block
    * - ``la9310-freertos/0002-avi-let-the-PCIe-host-own-VSPA-mailbox-0-LA9310_HOST.patch``
@@ -355,6 +362,12 @@ https://github.com/mxstrk/la9310-freertos, exported with ``git format-patch``:
    * - ``la9310-freertos/0005-axiq-loopback-cmake-option.patch``
      - ``AXIQ_LOOPBACK`` cmake option: defines ``AXIQ_LOOPBACK_ENABLE``, the M4 enables the
        AXIQ digital loopback at start (see `AXIQ loopback`_)
+   * - ``la9310_debug/0001-vdbg-typed-print-of-global-and-static-variables-from.patch``
+     - ``vdbg``: typed print of global and static variables from DWARF (needed by 0002)
+   * - ``la9310_debug/0002-Add-RFNM-board-support-rfnm-transport.patch``
+     - ``rfnm`` transport for ``vdbg``, ``profile`` and the DAP server: VSPA debug requests
+       sent as ``LA9310_SW_CMD_VSPA_DBG`` sw_cmds (served by ``la9310-freertos/0001``); see
+       `VSPA debugger on RFNM`_
 
 Optional patch, not applied by the commands below (the ``*.patch`` glob does not enter
 ``optional/``):
@@ -765,6 +778,38 @@ Restore the stock RFNM stack
 If the RFNM image shipped a real ``la9310.bin`` file or its own ``apm.eld``, back
 them up before the first activation and restore them here, or redeploy with
 ``./rfnm-sdk deploy blue0``.
+
+VSPA debugger on RFNM
+---------------------
+
+Optional. ``la9310_debug`` (``vdbg``, ``profile``, DAP server for VS Code) runs on the
+RFNM board with the ``rfnm`` transport: attach to the running VSPA, read memory while
+streaming, breakpoints, watchpoints, profiling and reload. The requests go to the M4
+through the HIF ``sw_cmd_desc`` (``LA9310_SW_CMD_VSPA_DBG``), served by the M4 image built
+with ``la9310-freertos/0001`` (part of the standard build above). The host side finds
+CCSR/TCML/TCMU through the ``la9310shiva`` modinfo ioctl and maps them through
+``/dev/mem`` (PCIe MMIO, allowed with ``CONFIG_STRICT_DEVMEM``).
+
+Clone and patch::
+
+    git clone https://git.6g-for-all.de/6g4all/la9310_debug.git $DBG
+    git -C $DBG checkout 2328871
+    git -C $DBG apply --index $IQP/doc/patches/la9310_debug/*.patch
+    python3 $DBG/tests/test_rfnm_port.py      # offline, no board needed
+
+Copy ``$DBG`` to the board (Python 3 is enough; the VSPA toolchain is only needed for
+source lines and disassembly), then as root::
+
+    python3 rfnm_port.py heartbeat        # M4 answers VSPA debug requests
+    python3 rfnm_port.py info             # VSPA state snapshot
+    python3 vdbg.py --transport rfnm --attach /lib/firmware/apm.eld
+    python3 profile.py --transport rfnm /lib/firmware/apm.eld --seconds 10
+    python3 rfnm_port.py load /lib/firmware/apm.eld   # reload a hung VSPA
+
+Halting the VSPA (breakpoint, watchpoint) stops the stream; restart with
+``rfnm_port.py load`` or ``iq-reload-vspa.sh``. Details: ``docs/rfnm.md`` in
+``la9310_debug``. Status: offline tests against a simulated M4; on-board verification on
+RFNM still to be recorded.
 
 Known Traps
 ***********

@@ -19,6 +19,10 @@ export FSVSPAIncludes DEST_DIR PROJ_DIR LA9310_COMMON_HEADERS UAPI_DIR
 
 DIRS := iq_monitor lib_iqplayer iq_app iq_trace vspa_mbox memtool rf_tune
 
+# install/ is also the default DEST_DIR: without .PHONY, make sees the
+# directory as an up-to-date "install" target and skips the install.
+.PHONY: all clean install
+
 all: ${DIRS}
 	$(foreach b, $(DIRS), ${MAKE} -C ${b}  all;)
 

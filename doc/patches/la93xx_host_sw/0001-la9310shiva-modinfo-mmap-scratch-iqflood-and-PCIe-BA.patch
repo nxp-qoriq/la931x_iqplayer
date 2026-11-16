@@ -1,0 +1,135 @@
+From 209a1b37fa601cbea25225f4880d77a814b2f065 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Fri, 13 Nov 2026 18:47:46 +0100
+Subject: [PATCH] la9310shiva: modinfo mmap scratch, iqflood and PCIe BARs
+
+la9310_modinfo_mmap() only accepted offsets inside
+[scratch_buf_phys_addr, +scratch_buf_size). Userspace gets
+scratch_buf_host_phys_addr and iq_mem_host_addr from
+IOCTL_LA93XX_MODINFO_GET, so mmap of the IQFLOOD buffer (and of the
+scratch buffer when the DMA and CPU addresses differ) failed with
+EINVAL, and the iqplayer host tools had to fall back to /dev/mem.
+
+Accept the scratch buffer and the IQFLOOD buffer at their host
+physical or DMA address (cached), and the CCSR/TCML/TCMU BARs
+(uncached). Everything else still returns -EINVAL.
+
+With this the iqplayer host tools (iq_app, iq_mon, iq_trace, memtool)
+map everything through /dev/shiva0 and work on kernels built with
+CONFIG_STRICT_DEVMEM=y.
+
+Tested on i.MX95 FRDM + LimeSDR-Micro, kernel 6.12.34-rt11.
+---
+ kernel_driver/la9310shiva/la9310_modinfo.c | 86 ++++++++++++++++++----
+ 1 file changed, 73 insertions(+), 13 deletions(-)
+
+diff --git a/kernel_driver/la9310shiva/la9310_modinfo.c b/kernel_driver/la9310shiva/la9310_modinfo.c
+index 711b02f..487f317 100644
+--- a/kernel_driver/la9310shiva/la9310_modinfo.c
++++ b/kernel_driver/la9310shiva/la9310_modinfo.c
+@@ -50,29 +50,89 @@ extern int modem_rf_data_size;
+ #define la9310_MODINFO_MINOR_CNT 1
+ #define LA9310_BOARD_NAME "imx8mp-rfnm"
+ 
++/*
++ * Return true if [offset, offset + size) lies inside [base, base + len).
++ * len is rounded up to a full page: the DMA buffers are allocated with
++ * kzalloc() and own the whole tail page, and userspace mmap() lengths are
++ * always page multiples.
++ */
++static bool la9310_mmap_in_region(phys_addr_t offset, size_t size,
++				  u64 base, u64 len)
++{
++	u64 end;
++
++	if (!base || !len)
++		return false;
++	end = base + PAGE_ALIGN(len);
++	if (offset + size < offset)
++		return false;
++	return (offset >= base) && (offset + size <= end);
++}
++
++/*
++ * mmap() on /dev/shiva<N> gives userspace access to the driver memory
++ * regions without /dev/mem, so the host tools work with
++ * CONFIG_STRICT_DEVMEM=y. The file offset is the host physical address
++ * reported by IOCTL_LA93XX_MODINFO_GET.
++ *
++ * Allowed regions:
++ *   - scratch DMA buffer (host phys and DMA address), cached
++ *   - IQFLOOD DMA buffer (host phys and DMA address), cached
++ *   - PCIe BARs (CCSR, TCML, TCMU), uncached
++ */
+ static int la9310_modinfo_mmap(struct file *filp, struct vm_area_struct *vma)
+ {
+-	int rc;
++	int rc, i;
+ 	struct la9310_dev *la9310_dev = filp->private_data;
+ 	phys_addr_t offset = (phys_addr_t)vma->vm_pgoff << PAGE_SHIFT;
+ 	size_t size = vma->vm_end - vma->vm_start;
+-
+-
+-	if (!la9310_dev) {
++	const char *region = NULL;
++	static const int bars[] = {
++		LA9310_MEM_REGION_CCSR,
++		LA9310_MEM_REGION_TCML,
++		LA9310_MEM_REGION_TCMU,
++	};
++
++	if (!la9310_dev)
+ 		return -EINVAL;
+-	}
+ 
+-	dev_dbg(la9310_dev->dev, "request to mmap %llx:%lx\n", offset, size);
++	if (la9310_mmap_in_region(offset, size, scratch_buf_host_phys_addr,
++				  scratch_buf_size) ||
++	    la9310_mmap_in_region(offset, size, scratch_buf_phys_addr,
++				  scratch_buf_size)) {
++		region = "scratch";
++	} else if (la9310_mmap_in_region(offset, size, iq_mem_host_addr,
++					 iq_mem_size) ||
++		   la9310_mmap_in_region(offset, size, iq_mem_addr,
++					 iq_mem_size)) {
++		region = "iqflood";
++	}
+ 
+-	if ((offset >= scratch_buf_phys_addr) &&
+-		((offset + size) <= scratch_buf_phys_addr +
+-					scratch_buf_size)) {
++	if (region) {
+ 		vma->vm_page_prot = pgprot_cached(vma->vm_page_prot);
+-		dev_dbg(la9310_dev->dev,
+-			"request to mmap %llx:%lx marked cacheable\n",
+-			offset, size);
+-	} else
++	} else {
++		for (i = 0; i < ARRAY_SIZE(bars); i++) {
++			struct la9310_mem_region_info *r =
++				&la9310_dev->mem_regions[bars[i]];
++
++			if (la9310_mmap_in_region(offset, size, r->phys_addr,
++						  r->size)) {
++				region = "bar";
++				vma->vm_page_prot =
++					pgprot_noncached(vma->vm_page_prot);
++				break;
++			}
++		}
++	}
++
++	if (!region) {
++		dev_dbg(la9310_dev->dev, "mmap %llx:%zx rejected\n",
++			(u64)offset, size);
+ 		return -EINVAL;
++	}
++
++	dev_dbg(la9310_dev->dev, "mmap %llx:%zx %s\n", (u64)offset, size,
++		region);
+ 
+ 	rc = remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff, size,
+ 				vma->vm_page_prot);
+-- 
+2.43.0
+

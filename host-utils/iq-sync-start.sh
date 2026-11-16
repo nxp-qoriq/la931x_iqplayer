@@ -5,13 +5,17 @@
 #set -x
 
 la9310_ccsr_base=0x`la9310_modem_info | grep CCSR |cut -f 2 -d "x"|cut -f 1 -d " "`
+if [ "$la9310_ccsr_base" = "0x" ] || [ $(($la9310_ccsr_base)) -eq 0 ]; then
+	echo "*** ERROR: cannot read the LA9310 CCSR address, is la9310shiva loaded ?"
+	exit 1
+fi
 phytimer_base=$[$la9310_ccsr_base + 0x1020000]
 
 # configure C21 to capture counter
-devmem 0x190200ac w 0xa0
+devmem $[$phytimer_base + 0xac] w 0xa0
 
 # read current time 
-phytimer_counter=`devmem 0x190200b0`
+phytimer_counter=`devmem $[$phytimer_base + 0xb0]`
 
 # configure all channels to start in 1s
 # 1s = 61440000 incr

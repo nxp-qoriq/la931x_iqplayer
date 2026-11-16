@@ -31,6 +31,8 @@
 /* LA9310_DEV_NAME_PREFIX is defined in the NXP-tree la9310_host_if.h.
  * On RFNM builds neither header tree defines it; supply the RFNM driver
  * device name prefix so host-utils can open /dev/shiva<n>. */
+#include "shiva_map.h"
+
 #ifndef LA9310_DEV_NAME_PREFIX
 #define LA9310_DEV_NAME_PREFIX  "shiva"
 #endif
@@ -93,7 +95,7 @@ static int get_modem_info(int modem_id) {
 }
 
 int map_physical_regions(void) {
-    int devmem_fd, i;
+    int i;
     // void *scr_p;
     // uint32_t mapsize;
     // uint64_t k_page;
@@ -102,44 +104,21 @@ int map_physical_regions(void) {
      * map memory regions
      */
 
-    devmem_fd = open("/dev/mem", O_RDWR);
-    if (-1 == devmem_fd) {
-        perror("/dev/mem open failed");
+    v_iqflood_ddr_addr = shiva_map_region("iqflood", mi.iqflood.host_phy_addr, mi.iqflood.size);
+    if (v_iqflood_ddr_addr == MAP_FAILED)
         return -1;
-    }
-
-    v_iqflood_ddr_addr = mmap(NULL, mi.iqflood.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.iqflood.host_phy_addr);
-    if (v_iqflood_ddr_addr == MAP_FAILED) {
-        perror("Mapping v_iqflood_ddr_addr buffer failed\n");
+    v_scratch_ddr_addr = shiva_map_region("scratch", mi.scratchbuf.host_phy_addr, mi.scratchbuf.size);
+    if (v_scratch_ddr_addr == MAP_FAILED)
         return -1;
-    }
-
-    //	printf("\n map iqflood_ddr :");
-    //	la9310_hexdump(v_iqflood_ddr_addr,64);
-
-    v_scratch_ddr_addr = mmap(NULL, mi.scratchbuf.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.scratchbuf.host_phy_addr);
-    if (v_scratch_ddr_addr == MAP_FAILED) {
-        perror("Mapping v_scratch_ddr_addr buffer failed\n");
+    BAR0_addr = shiva_map_region("ccsr", mi.ccsr.host_phy_addr, mi.ccsr.size);
+    if (BAR0_addr == MAP_FAILED)
         return -1;
-    }
-
-    BAR0_addr = mmap(NULL, mi.ccsr.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.ccsr.host_phy_addr);
-    if (BAR0_addr == MAP_FAILED) {
-        perror("Mapping BAR0_addr buffer failed\n");
+    BAR1_addr = shiva_map_region("tcml", mi.tcml.host_phy_addr, mi.tcml.size);
+    if (BAR1_addr == MAP_FAILED)
         return -1;
-    }
-
-    BAR1_addr = mmap(NULL, mi.tcml.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.tcml.host_phy_addr);
-    if (BAR1_addr == MAP_FAILED) {
-        perror("Mapping BAR1_addr buffer failed\n");
+    BAR2_addr = shiva_map_region("tcmu", mi.tcmu.host_phy_addr, mi.tcmu.size);
+    if (BAR2_addr == MAP_FAILED)
         return -1;
-    }
-
-    BAR2_addr = mmap(NULL, mi.tcmu.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.tcmu.host_phy_addr);
-    if (BAR2_addr == MAP_FAILED) {
-        perror("Mapping BAR2_addr buffer failed\n");
-        return -1;
-    }
 
     /* use last 256 bytes of iqflood as shared vspa dmem proxy , vspa will write mirrored dmem value to avoid PCI read from host */
 	if(g_iqflood_proxy_offset==-1){
@@ -159,8 +138,6 @@ int map_physical_regions(void) {
     /* use dmem structure at hardcoded address to write host status/request */
     v_tx_vspa_proxy_wo = (uint32_t *)((uint64_t)BAR2_addr + 0x400000 + 0x00000000);
     v_rx_vspa_proxy_wo = (uint32_t *)((uint64_t)BAR2_addr + 0x400000 + 0x00000040);
-
-    close(devmem_fd);
 
     return 0;
 }

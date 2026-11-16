@@ -35,6 +35,8 @@
 /* LA9310_DEV_NAME_PREFIX is defined in the NXP-tree la9310_host_if.h.
  * On RFNM builds neither header tree defines it; supply the RFNM driver
  * device name prefix so host-utils can open /dev/shiva<n>. */
+#include "shiva_map.h"
+
 #ifndef LA9310_DEV_NAME_PREFIX
 #define LA9310_DEV_NAME_PREFIX  "shiva"
 #endif
@@ -163,52 +165,23 @@ static int get_modem_info(int modem_id)
 
 static int map_physical_regions(void)
 {
-    int devmem_fd, shiva_fd;
-    char dev_name[32];
-
     /*
-     * Open /dev/mem for MMIO regions (BAR2/tcmu).
-     * The iqflood and scratch carveouts are normal RAM pages; use /dev/shiva<N>
-     * to bypass CONFIG_STRICT_DEVMEM restrictions.
+     * All regions go through /dev/shiva<N> (works with CONFIG_STRICT_DEVMEM);
+     * shiva_map_region() falls back to /dev/mem for older drivers.
      */
-    sprintf(dev_name, "/dev/%s%d", LA9310_DEV_NAME_PREFIX, 0);
-    shiva_fd = open(dev_name, O_RDWR);
-    if (shiva_fd < 0) {
-        perror("shiva device open failed");
+    v_scratch_ddr_addr = shiva_map_region("scratch", mi.scratchbuf.host_phy_addr,
+                                          mi.scratchbuf.size);
+    if (v_scratch_ddr_addr == MAP_FAILED)
         return -1;
-    }
 
-    v_scratch_ddr_addr = mmap(NULL, mi.scratchbuf.size, PROT_READ | PROT_WRITE,
-                               MAP_SHARED, shiva_fd, mi.scratchbuf.host_phy_addr);
-    if (v_scratch_ddr_addr == MAP_FAILED) {
-        perror("Mapping v_scratch_ddr_addr buffer failed");
-        close(shiva_fd);
+    v_iqflood_ddr_addr = shiva_map_region("iqflood", mi.iqflood.host_phy_addr,
+                                          mi.iqflood.size);
+    if (v_iqflood_ddr_addr == MAP_FAILED)
         return -1;
-    }
 
-    v_iqflood_ddr_addr = mmap(NULL, mi.iqflood.size, PROT_READ | PROT_WRITE,
-                               MAP_SHARED, shiva_fd, mi.iqflood.host_phy_addr);
-    if (v_iqflood_ddr_addr == MAP_FAILED) {
-        perror("Mapping v_iqflood_ddr_addr buffer failed");
-        close(shiva_fd);
+    v_la9310_bar2 = shiva_map_region("tcmu", mi.tcmu.host_phy_addr, mi.tcmu.size);
+    if (v_la9310_bar2 == MAP_FAILED)
         return -1;
-    }
-    close(shiva_fd);
-
-    devmem_fd = open("/dev/mem", O_RDWR);
-    if (devmem_fd < 0) {
-        perror("/dev/mem open failed");
-        return -1;
-    }
-
-    v_la9310_bar2 = mmap(NULL, mi.tcmu.size, PROT_READ | PROT_WRITE,
-                          MAP_SHARED, devmem_fd, mi.tcmu.host_phy_addr);
-    if (v_la9310_bar2 == MAP_FAILED) {
-        perror("Mapping v_la9310_bar2 buffer failed");
-        close(devmem_fd);
-        return -1;
-    }
-    close(devmem_fd);
     return 0;
 }
 

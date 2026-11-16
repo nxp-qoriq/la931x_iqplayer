@@ -54,6 +54,8 @@
 /* LA9310_DEV_NAME_PREFIX is defined in the NXP-tree la9310_host_if.h.
  * On RFNM builds neither header tree defines it; supply the RFNM driver
  * device name prefix so host-utils can open /dev/shiva<n>. */
+#include "shiva_map.h"
+
 #ifndef LA9310_DEV_NAME_PREFIX
 #define LA9310_DEV_NAME_PREFIX  "shiva"
 #endif
@@ -441,33 +443,15 @@ static int get_modem_info(int modem_id) {
 }
 
 int map_physical_regions(void) {
-    int devmem_fd;
-
-    devmem_fd = open("/dev/mem", O_RDWR);
-    if (-1 == devmem_fd) {
-        perror("/dev/mem open failed");
+    BAR0_addr = shiva_map_region("ccsr", mi.ccsr.host_phy_addr, mi.ccsr.size);
+    if (BAR0_addr == MAP_FAILED)
         return -1;
-    }
-
-    BAR0_addr = mmap(NULL, mi.ccsr.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.ccsr.host_phy_addr);
-    if (BAR0_addr == MAP_FAILED) {
-        perror("Mapping BAR0_addr buffer failed\n");
+    BAR1_addr = shiva_map_region("tcml", mi.tcml.host_phy_addr, mi.tcml.size);
+    if (BAR1_addr == MAP_FAILED)
         return -1;
-    }
-
-    BAR1_addr = mmap(NULL, mi.tcml.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.tcml.host_phy_addr);
-    if (BAR1_addr == MAP_FAILED) {
-        perror("Mapping BAR1_addr buffer failed\n");
+    BAR2_addr = shiva_map_region("tcmu", mi.tcmu.host_phy_addr, mi.tcmu.size);
+    if (BAR2_addr == MAP_FAILED)
         return -1;
-    }
-
-    BAR2_addr = mmap(NULL, mi.tcmu.size, PROT_READ | PROT_WRITE, MAP_SHARED, devmem_fd, mi.tcmu.host_phy_addr);
-    if (BAR2_addr == MAP_FAILED) {
-        perror("Mapping BAR2_addr buffer failed\n");
-        return -1;
-    }
-
-    close(devmem_fd);
 
     return 0;
 }
