@@ -30,7 +30,12 @@ New features
    - builds from the RFNM SDK plus doc/patches
    - guide: doc/iqplayer_porting_guide_RFNM-SDK.rst
    - optional VSPA debugger (vdbg, profile, DAP) on RFNM: la9310_debug +
-     doc/patches/la9310_debug (rfnm transport)
+     doc/patches/la9310_debug (shiva transport)
+   - the same debugger on LimeSDR-Micro + i.MX95 with the NXP BSP:
+     doc/patches/la93xx_freertos/0004 (VSPA_DBG sw_cmd, sw_cmd engine started)
+     and la9310_debug patch 0003 (transport rfnm renamed shiva, rfnm kept as
+     alias; NXP HIF layout). Verified on imx95frdm + LimeSDR-Micro: heartbeat,
+     info, attach, live dmem, profile while streaming, breakpoint
 2. Event-driven VSPA and host flow control
    - the VSPA sleeps between passes and wakes on GO events (DMA completion or
      host mailbox) instead of polling DMEM: lower DMEM load, needed for 4R
@@ -46,6 +51,9 @@ New features
      address ignored the selected channel. rx-chan.sh now also accepts an
      explicit list per slot (e.g. "rx-chan.sh 3 1" = both LimeSDR-Micro
      LMS7002M RX channels in 1T2R). Invalid or duplicated chanIDs are NACKed.
+   - explicit list flag moved from LSB bit 8 to bit 16: bit 8 overlapped slot 2,
+     so a 4-slot list ("rx-chan.sh 3 1 2 0", LimeSDR-Micro default) was NACKed
+     by 0T4R. rx-chan.sh and the firmware must be updated together
    - LimeSDR-Micro M4: "lime rx 2" powers up LMS7002M RX channel B
 4. Application examples
    - iq-app-rx.sh -X: live RX spectrum per channel, saturation indicator,
@@ -86,8 +94,14 @@ New features
      firmware has no TX channel (0T4R)
 
 Other changes
-- Firmware variants: 1T1R, 1T2R, 0T4R (+ _DIAG / _PROF)
-- iq-reload-vspa.sh: one command for a runtime VSPA image swap
+- Firmware variants: 1T1R, 1T2R, 0T4R only. The CodeWarrior project builds the same
+  three ELDs as make (same defines, sources and LCF; 0T4R uses
+  LCF/la9310_iqplayer_0T4R.lcf with a 0x480 stack). _DIAG / _PROF variants, the
+  0T1R / 1T0R / 1T4R and Debug_CAS (simulator) CW configurations are removed
+- iq-reload-vspa.sh: one command for a runtime VSPA image swap (run iq-stop.sh first).
+  The software reset now stops all VSPA DMA before its ACK, so a late DMA
+  event can no longer restart the old image during the reload (reply
+  0xF1000000 instead of the ACK, then no boot handshake)
 - iq_mon: real-interval rates, VSPA cycle meters
 - NXP BSP (LimeSDR-Micro): la93xx_host_sw needs one patch (doc/patches/la93xx_host_sw,
   CONFIG_STRICT_DEVMEM support), no other patches with LSDK 25.12 / SDK 4.0; iq_app

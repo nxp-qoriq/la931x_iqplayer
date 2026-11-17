@@ -368,6 +368,9 @@ https://github.com/mxstrk/la9310-freertos, exported with ``git format-patch``:
      - ``rfnm`` transport for ``vdbg``, ``profile`` and the DAP server: VSPA debug requests
        sent as ``LA9310_SW_CMD_VSPA_DBG`` sw_cmds (served by ``la9310-freertos/0001``); see
        `VSPA debugger on RFNM`_
+   * - ``la9310_debug/0003-Rename-the-rfnm-transport-to-shiva-support-the-NXP-l.patch``
+     - transport renamed ``shiva`` (``rfnm`` kept as alias), NXP la93xx_freertos HIF layout
+       (LimeSDR-Micro on the NXP BSP), ``/dev/shiva0`` mmap with ``/dev/mem`` fallback
 
 Optional patch, not applied by the commands below (the ``*.patch`` glob does not enter
 ``optional/``):
@@ -783,31 +786,32 @@ VSPA debugger on RFNM
 ---------------------
 
 Optional. ``la9310_debug`` (``vdbg``, ``profile``, DAP server for VS Code) runs on the
-RFNM board with the ``rfnm`` transport: attach to the running VSPA, read memory while
+RFNM board with the ``shiva`` transport (``rfnm`` is an alias): attach to the running VSPA, read memory while
 streaming, breakpoints, watchpoints, profiling and reload. The requests go to the M4
 through the HIF ``sw_cmd_desc`` (``LA9310_SW_CMD_VSPA_DBG``), served by the M4 image built
 with ``la9310-freertos/0001`` (part of the standard build above). The host side finds
 CCSR/TCML/TCMU through the ``la9310shiva`` modinfo ioctl and maps them through
-``/dev/mem`` (PCIe MMIO, allowed with ``CONFIG_STRICT_DEVMEM``).
+``/dev/shiva0`` when the driver allows it, else ``/dev/mem`` (PCIe MMIO, allowed with
+``CONFIG_STRICT_DEVMEM``).
 
 Clone and patch::
 
     git clone https://git.6g-for-all.de/6g4all/la9310_debug.git $DBG
     git -C $DBG checkout 2328871
     git -C $DBG apply --index $IQP/doc/patches/la9310_debug/*.patch
-    python3 $DBG/tests/test_rfnm_port.py      # offline, no board needed
+    python3 $DBG/tests/test_shiva_port.py     # offline, no board needed
 
 Copy ``$DBG`` to the board (Python 3 is enough; the VSPA toolchain is only needed for
 source lines and disassembly), then as root::
 
-    python3 rfnm_port.py heartbeat        # M4 answers VSPA debug requests
-    python3 rfnm_port.py info             # VSPA state snapshot
-    python3 vdbg.py --transport rfnm --attach /lib/firmware/apm.eld
-    python3 profile.py --transport rfnm /lib/firmware/apm.eld --seconds 10
-    python3 rfnm_port.py load /lib/firmware/apm.eld   # reload a hung VSPA
+    python3 shiva_port.py heartbeat        # M4 answers VSPA debug requests
+    python3 shiva_port.py info             # VSPA state snapshot
+    python3 vdbg.py --transport shiva --attach /lib/firmware/apm.eld
+    python3 profile.py --transport shiva /lib/firmware/apm.eld --seconds 10
+    python3 shiva_port.py load /lib/firmware/apm.eld   # reload a hung VSPA
 
 Halting the VSPA (breakpoint, watchpoint) stops the stream; restart with
-``rfnm_port.py load`` or ``iq-reload-vspa.sh``. Details: ``docs/rfnm.md`` in
+``shiva_port.py load`` or ``iq-reload-vspa.sh``. Details: ``docs/shiva.md`` in
 ``la9310_debug``. Status: offline tests against a simulated M4; on-board verification on
 RFNM still to be recorded.
 

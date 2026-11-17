@@ -78,8 +78,10 @@ if [ $# -eq 1 ];then
         # contiguous mode (legacy)
         lsb=$(printf "0x%X" $1)
 else
-        # explicit list: bit 8 set, 4 bits per slot
-        lsb=0x100
+        # explicit list: bit 16 set, 4 bits per slot in bits 15..0
+        # (needs the matching firmware: older images used bit 8, which
+        # overlaps slot 2, so a 4-slot list was NACKed)
+        lsb=0x10000
         i=0
         for c in "$@"; do
                 lsb=$(( lsb | (c << (4 * i)) ))

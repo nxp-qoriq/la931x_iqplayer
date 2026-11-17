@@ -1,0 +1,1484 @@
+From e89e00ee14b34e18b3d3f488314c8b5de2a2472b Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Tue, 17 Nov 2026 12:05:23 +0100
+Subject: [PATCH] Rename the rfnm transport to shiva; support the NXP
+ la93xx_freertos HIF
+
+The transport is not RFNM specific: it works on any host with the NXP
+la9310shiva driver, including the LimeSDR-Micro on an i.MX95 with the
+NXP BSP.
+
+- rfnm_port.py -> shiva_port.py, RfnmPort -> ShivaPort; rfnm_port.py
+  stays as a compatibility alias and --transport rfnm still works.
+- Pick the sw_cmd_desc location from DCFG SCRATCHRW[3] (HIF offset
+  published by the NXP firmware): NXP tree HIF at TCML+0x1B000 with
+  sw_cmd_desc at +0x240, RFNM tree TCML+0x1C000 / +0x218 (default).
+  SHIVA_HIF_OFFSET / SHIVA_SW_CMD_OFFSET override.
+- Map CCSR/TCML/TCMU through /dev/shiva0 when the driver accepts it
+  (la93xx_host_sw modinfo mmap patch), fall back to /dev/mem.
+- SHIVA_DEVICE env (RFNM_SHIVA_DEVICE still accepted).
+- docs/rfnm.md -> docs/shiva.md, README tables, tests renamed plus HIF
+  layout tests.
+---
+ README.md                                     |  12 +-
+ docs/rfnm.md                                  |  71 ---
+ docs/shiva.md                                 | 119 ++++
+ rfnm_port.py                                  | 492 +---------------
+ shiva_port.py                                 | 541 ++++++++++++++++++
+ .../{test_rfnm_port.py => test_shiva_port.py} |  46 +-
+ vdbg.py                                       |   9 +-
+ 7 files changed, 716 insertions(+), 574 deletions(-)
+ delete mode 100644 docs/rfnm.md
+ create mode 100644 docs/shiva.md
+ create mode 100644 shiva_port.py
+ rename tests/{test_rfnm_port.py => test_shiva_port.py} (74%)
+
+diff --git a/README.md b/README.md
+index 2dc97f9..22bc5b6 100644
+--- a/README.md
++++ b/README.md
+@@ -69,7 +69,7 @@ engines) and its **Cortex-M4** on real silicon:
+ | **Self-hosted** (default) | PCIe → debug proxy in the M4 firmware → VSPA debug block | the M4 firmware in `firmware/`; no extra hardware |
+ | **OpenOCD** (`--transport openocd`) | JTAG probe → OpenOCD (Tcl port) → VSPA debug block | a probe OpenOCD supports and `openocd/la9310.cfg`; the M4 can be debugged at the same time |
+ | **GDB server** (`--transport jtag`) | a probe's GDB server (J-Link, OpenOCD) → VSPA debug block | a probe and its GDB server (`jlink/gdbserver.sh`) |
+-| **RFNM** (`--transport rfnm`) | PCIe (`/dev/shiva0` + `/dev/mem`) → RFNM M4 firmware sw_cmd `VSPA_DBG` → VSPA debug block | an RFNM board with `la9310shiva` and the sw_cmd debug handler; see [docs/rfnm.md](docs/rfnm.md) |
++| **la9310shiva hosts** (`--transport shiva`, alias `rfnm`) | PCIe (`/dev/shiva0`, or `/dev/mem`) → M4 firmware sw_cmd `VSPA_DBG` → VSPA debug block | RFNM, or LimeSDR-Micro on i.MX95 with the NXP BSP: `la9310shiva` and the sw_cmd debug handler; see [docs/shiva.md](docs/shiva.md) |
+ 
+ All features work on every transport, except M4 debugging and the
+ synchronized halt, which need a probe. Diagrams and the proxy protocol:
+@@ -288,7 +288,7 @@ reset through a JTAG probe: `openocd/recover-m4.tcl`, described in
+ | `profile.py <firmware.eld>` | PC-sampling profile of the running firmware |
+ | `simrun.py <kernel.eld>` | run, trace or profile on NXP's simulator |
+ | `selfhosted.py <verb>` | board checks and recovery: `heartbeat`, `dvr`, `info`, `watch`, `status`, `halt`, `run`, `load` |
+-| `rfnm_port.py <verb>` | the same verbs on an RFNM board ([docs/rfnm.md](docs/rfnm.md)) |
++| `shiva_port.py <verb>` | the same verbs on a la9310shiva host: RFNM, LimeSDR-Micro on the NXP BSP ([docs/shiva.md](docs/shiva.md)) |
+ | `openocd/la9310.cfg`, `openocd/recover-m4.tcl` | OpenOCD configuration and hung-M4 recovery |
+ | `jlink/gdbserver.sh` | J-Link GDB server with safe options |
+ 
+@@ -317,7 +317,7 @@ then the examples.
+ | [docs/interactive-debugging.md](docs/interactive-debugging.md) | REPL commands, VS Code, DAP clients, watchpoints, limits |
+ | [docs/m4-vspa-interaction.md](docs/m4-vspa-interaction.md) | debugging M4 and VSPA together: use cases, synchronized halt |
+ | [docs/jtag-probe.md](docs/jtag-probe.md) | probe setup and safety, VSPA over JTAG, M4 debugging with GDB, hung-M4 recovery |
+-| [docs/rfnm.md](docs/rfnm.md) | RFNM board: `rfnm` transport, sw_cmd request layout, use |
++| [docs/shiva.md](docs/shiva.md) | la9310shiva hosts (RFNM, LimeSDR-Micro on the NXP BSP): `shiva` transport, sw_cmd request layout, use |
+ | [firmware/README.md](firmware/README.md) | the M4 firmware image: load, provenance, rebuild |
+ | [vscode/README.md](vscode/README.md) | installing the VS Code extension |
+ 
+@@ -329,7 +329,7 @@ then the examples.
+ | `vdbg_dap.py` | Debug Adapter Protocol server |
+ | `profile.py` | PC-sampling profiler |
+ | `selfhosted.py` | self-hosted transport (M4 debug proxy) and the VSPA debug-block driver |
+-| `rfnm_port.py` | RFNM transport (M4 sw_cmd engine over `/dev/shiva0` and `/dev/mem`) |
++| `shiva_port.py` | `shiva` transport (M4 sw_cmd engine over `/dev/shiva0`, `/dev/mem` fallback); `rfnm_port.py` is a compatibility alias |
+ | `vspadwarf.py` | DWARF reader: typed `print` of global and static variables |
+ | `jtag.py` | JTAG transports: OpenOCD Tcl, GDB remote protocol |
+ | `vspaelf.py` | ELF parsing and loading |
+@@ -339,7 +339,7 @@ then the examples.
+ | `jlink/` | J-Link script for this SoC and a safe GDB server launcher |
+ | `firmware/` | prebuilt M4 firmware with the debug proxy, its patch and notices |
+ | `examples/` | example programs: `dft` (self-checking kernel test) and `diffft-bitrev` (VCPU FFT + IPPU bit reversal) from NXP's `la931x_vspa_common`, `overlays` (code overlays with NXP's `ovly.c`), and a VS Code `launch.json` template |
+-| `tests/` | `test_jtag.py` and `test_rfnm_port.py` (offline); `test_dap.py`, `test_dap_ippu.py` and `test_dap_overlays.py` (need a board) |
++| `tests/` | `test_jtag.py` and `test_shiva_port.py` (offline); `test_dap.py`, `test_dap_ippu.py` and `test_dap_overlays.py` (need a board) |
+ | `CONTRIBUTING.md` | contribution rules: tests, licences, AI-assistance disclosure, DCO sign-off |
+ 
+ ## Known limits
+@@ -399,7 +399,7 @@ transports.
+ | M4 debugging with GDB and Cortex-Debug | silicon, by hand |
+ | Recovery: VSPA reload (`selfhosted.py load`), M4 over JTAG | silicon, by hand (M4 recovery also on M.2 v1.1) |
+ | `tests/test_jtag.py` | offline unit tests |
+-| RFNM transport, `tests/test_rfnm_port.py` | offline unit tests against a simulated M4 (request layout, chunking, errors, timeout); on-board verification on an RFNM board still to be recorded |
++| `shiva` transport, `tests/test_shiva_port.py` | offline unit tests against a simulated M4 (request layout, HIF layout, chunking, errors, timeout); on imx95frdm + LimeSDR-Micro (NXP BSP): heartbeat, info, attach, dmem, profile and breakpoint verified (see [docs/shiva.md](docs/shiva.md)); RFNM on-board run still to be recorded |
+ 
+ ## License
+ 
+diff --git a/docs/rfnm.md b/docs/rfnm.md
+deleted file mode 100644
+index 6f77b86..0000000
+--- a/docs/rfnm.md
++++ /dev/null
+@@ -1,71 +0,0 @@
+-# RFNM board support
+-
+-The same debugger runs on an RFNM board (LA9310 with an i.MX8M Plus host)
+-with the `rfnm` transport. Every self-hosted feature works: attach, memory
+-reads while streaming, breakpoints, watchpoints that name the writer,
+-profiling, and `load`.
+-
+-## How it connects
+-
+-| | LimeSDR-Micro (`selfhosted`) | RFNM (`rfnm`) |
+-|---|---|---|
+-| Kernel driver | `la9310_limesdr` | `la9310shiva` (`/dev/shiva0`) |
+-| Finding the windows | fixed mmap window ids on the driver node | `IOCTL_LA93XX_MODINFO_GET` returns the host physical addresses of CCSR, TCML and TCMU |
+-| Mapping | mmap of the driver node | `/dev/mem` (`O_SYNC`); the shiva mmap handler only maps the scratch carveout |
+-| M4 request block | `struct vspa_dbg_proxy`, address published in DCFG SCRATCHRW32 | `sw_cmd_desc` in the HIF (TCML + 0x1C000), command `LA9310_SW_CMD_VSPA_DBG` |
+-| Doorbell | MSG unit MSIIR3 | MSG unit 2 MSIIR (CCSR + 0x1FC0008) |
+-| Words per request | up to 256 | up to 28 (sw_cmd data area: 32 words) |
+-
+-Request layout in `sw_cmd_desc.data[]`, written before the status is set
+-to POSTED and the doorbell rung:
+-
+-| word | host writes | M4 writes back |
+-|---|---|---|
+-| `data[0]` | op word: bits 7-0 op (1 read, 2 write), bit 8 fixed address, bits 23-16 count | error code (0 = ok) |
+-| `data[1]` | debug-block byte offset | - |
+-| `data[2..]` | write values | read values |
+-
+-The M4 sets `status = DONE (5)` last. `rfnm_port.RfnmPort` has the same
+-interface as `selfhosted.M4Proxy`, so all the tools use it unchanged.
+-
+-## Requirements
+-
+-- RFNM M4 firmware with the `LA9310_SW_CMD_VSPA_DBG` sw_cmd handler.
+-- `la9310shiva.ko` loaded; run as root (`/dev/mem`).
+-- Python 3 on the board. Copy this repository to the board (or its NFS
+-  root); the VSPA toolchain is only needed for source lines and
+-  disassembly.
+-
+-## Use
+-
+-```sh
+-python3 rfnm_port.py heartbeat        # M4 answers VSPA debug requests
+-python3 rfnm_port.py info             # VSPA state snapshot
+-python3 vdbg.py --transport rfnm --attach /lib/firmware/apm-iqplayer-1T1R.eld
+-python3 profile.py --transport rfnm <firmware.eld> --seconds 10
+-python3 rfnm_port.py load <firmware.eld>   # reload a hung VSPA
+-```
+-
+-`rfnm_port.py` takes the same verbs as `selfhosted.py`. Override the
+-device with `RFNM_SHIVA_DEVICE`, and the request size with
+-`VSPA_DBG_MAX_WORDS` (at most 28).
+-
+-## Example: who writes a word of the RX ring
+-
+-In the iqplayer 1T1R build, `input_qec_buffer` is in IPPU DMEM at byte
+-address 0x4000; sample n (4 bytes) is at `0x4000 + 4*n`. During streaming:
+-
+-```
+-(vdbg) dmem 0x4078 4          # samples 30..33, the core keeps running
+-(vdbg) watch 0x407C w dma     # halts on the first DMA write to sample 31
+-(vdbg) continue
+-```
+-
+-The watchpoint compares the address, not the value, and halting stops the
+-stream; restore with `rfnm_port.py load <eld>`.
+-
+-## Tests
+-
+-`tests/test_rfnm_port.py` checks the request layout, chunking, error and
+-timeout handling against an in-memory TCML/CCSR and a simulated M4 (no
+-board needed).
+diff --git a/docs/shiva.md b/docs/shiva.md
+new file mode 100644
+index 0000000..268932c
+--- /dev/null
++++ b/docs/shiva.md
+@@ -0,0 +1,119 @@
++# la9310shiva hosts (`shiva` transport): RFNM and LimeSDR-Micro on the NXP BSP
++
++The debugger runs on any host that drives the LA9310 with the NXP
++`la9310shiva` kernel driver, using the `shiva` transport:
++
++- RFNM board (i.MX8M Plus host, RFNM la93xx_freertos);
++- LimeSDR-Micro on an i.MX95 FRDM with the NXP BSP (NXP la93xx_freertos).
++
++Every self-hosted feature works: attach, memory reads while streaming,
++breakpoints, watchpoints that name the writer, profiling, and `load`.
++
++`--transport rfnm` and `rfnm_port.py` are kept as aliases of
++`--transport shiva` and `shiva_port.py`.
++
++## How it connects
++
++| | LimeSDR-Micro, LimeSuiteNG (`selfhosted`) | la9310shiva hosts (`shiva`) |
++|---|---|---|
++| Kernel driver | `la9310_limesdr` | `la9310shiva` (`/dev/shiva0`) |
++| Finding the windows | fixed mmap window ids on the driver node | `IOCTL_LA93XX_MODINFO_GET` returns the host physical addresses of CCSR, TCML and TCMU |
++| Mapping | mmap of the driver node | mmap of `/dev/shiva0` when the driver accepts the PCIe BARs (la93xx_host_sw modinfo mmap patch), else `/dev/mem` (`O_SYNC`) |
++| M4 request block | `struct vspa_dbg_proxy`, address published in DCFG SCRATCHRW32 | `sw_cmd_desc` in the HIF, command `LA9310_SW_CMD_VSPA_DBG` |
++| Doorbell | MSG unit MSIIR3 | MSG unit 2 MSIIR (CCSR + 0x1FC0008) |
++| Words per request | up to 256 | up to 28 (sw_cmd data area: 32 words) |
++
++Where `sw_cmd_desc` is depends on the firmware tree:
++
++| Firmware | HIF | `sw_cmd_desc` |
++|---|---|---|
++| RFNM la93xx_freertos | TCML + 0x1C000 | TCML + 0x1C218 |
++| NXP la93xx_freertos | TCML + 0x1B000 | TCML + 0x1B240 |
++
++The NXP firmware publishes the HIF offset in DCFG SCRATCHRW[3];
++`ShivaPort` reads it and picks the layout, and falls back to the RFNM
++layout otherwise. Override with `SHIVA_HIF_OFFSET` and
++`SHIVA_SW_CMD_OFFSET` (offset of `sw_cmd_desc` inside the HIF).
++
++Request layout in `sw_cmd_desc.data[]`, written before the status is set
++to POSTED and the doorbell rung:
++
++| word | host writes | M4 writes back |
++|---|---|---|
++| `data[0]` | op word: bits 7-0 op (1 read, 2 write), bit 8 fixed address, bits 23-16 count | error code (0 = ok) |
++| `data[1]` | debug-block byte offset | - |
++| `data[2..]` | write values | read values |
++
++The M4 sets `status = DONE (5)` last. `shiva_port.ShivaPort` has the same
++interface as `selfhosted.M4Proxy`, so all the tools use it unchanged.
++
++## Requirements
++
++- M4 firmware with the `LA9310_SW_CMD_VSPA_DBG` sw_cmd handler and the
++  sw_cmd engine started:
++  - RFNM: la9310-freertos patch 0001 from la931x_iqplayer `doc/patches`;
++  - NXP la93xx_freertos (LimeSDR-Micro): patch
++    `0004-sw_cmd_engine-LA9310_SW_CMD_VSPA_DBG-proxy-for-the-V.patch`
++    from la931x_iqplayer `doc/patches/la93xx_freertos`.
++- `la9310shiva.ko` loaded; run as root. With the la93xx_host_sw modinfo
++  mmap patch `/dev/mem` is not needed (works with `CONFIG_STRICT_DEVMEM`).
++- Python 3 on the board. Copy this repository to the board (or its NFS
++  root); the VSPA toolchain is only needed for source lines and
++  disassembly.
++
++## Use
++
++```sh
++python3 shiva_port.py heartbeat        # M4 answers VSPA debug requests
++python3 shiva_port.py info             # VSPA state snapshot
++python3 vdbg.py --transport shiva --attach /lib/firmware/apm-iqplayer-1T1R.eld
++python3 profile.py --transport shiva <firmware.eld> --seconds 10
++python3 shiva_port.py load <firmware.eld>   # reload a hung VSPA
++```
++
++`shiva_port.py` takes the same verbs as `selfhosted.py`. Override the
++device with `SHIVA_DEVICE` (`RFNM_SHIVA_DEVICE` still accepted), and the
++request size with `VSPA_DBG_MAX_WORDS` (at most 28).
++
++## Status on hardware
++
++imx95frdm + LimeSDR-Micro, NXP BSP, NXP la93xx_freertos with
++la931x_iqplayer `doc/patches/la93xx_freertos` 0001-0005, iqplayer 1T1R:
++
++| Check | Result |
++|---|---|
++| `shiva_port.py heartbeat` | OK |
++| `shiva_port.py info` (running core) | OK: RUNNING, `idbg_en=0`, IP regs not readable until a halt or breakpoint |
++| `vdbg.py --attach`, `dmem` while streaming | OK, words change while TX/RX stream |
++| `profile.py` idle | OK: 100% `___internal_done` (event-driven VSPA sleeps between passes) |
++| `profile.py` TX + RX streaming, 10 s | OK: 667 samples, `_PUSH_RX_DATA` 24%, `_PUSH_TX_DATA` 23%, `_meter_end` 13%, `_VSPA_PROXY_update` 9%, idle 6% |
++| `break _PUSH_RX_DATA`, `continue` | OK: stopped at `0x10B8 <_PUSH_RX_DATA> at iqmod_rx.c:353` |
++| `regs` while halted, clear + `continue`, `detach`, `load`, `--transport rfnm` | not recorded yet |
++
++The RFNM board has only the offline tests so far.
++
++## Example: halt in the RX path
++
++During streaming:
++
++```
++(vdbg) dmem <addr> 4          # live read, the core keeps running
++(vdbg) break _PUSH_RX_DATA
++(vdbg) continue
++stopped: breakpoint/comparator 0
++  0x10B8 <_PUSH_RX_DATA> at iqmod_rx.c:353
++```
++
++Get buffer addresses from the ELF (`print &input_qec_buffer`); they
++depend on the build. Words that read `DEADBEEF` were not written since
++boot (crt0 fills DMEM with that pattern). `watch <addr> w dma` halts on
++the first DMA write to a word.
++
++The watchpoint compares the address, not the value, and halting stops the
++stream; restore with `shiva_port.py load <eld>`.
++
++## Tests
++
++`tests/test_shiva_port.py` checks the request layout, the HIF layout
++selection, chunking, error and timeout handling against an in-memory
++TCML/CCSR and a simulated M4 (no board needed).
+diff --git a/rfnm_port.py b/rfnm_port.py
+index f58f303..133ec77 100644
+--- a/rfnm_port.py
++++ b/rfnm_port.py
+@@ -1,494 +1,16 @@
+ #!/usr/bin/env python3
+ # SPDX-License-Identifier: Apache-2.0
+-"""RFNM Blue board transport adapter for the la9310_debug self-hosted path.
++"""Compatibility alias: the RFNM transport is now shiva_port (it works on
++any host with the la9310shiva driver, RFNM and LimeSDR-Micro on the NXP
++BSP). Kept so that existing scripts importing rfnm_port keep working."""
+ 
+-Replaces M4Proxy (Lime driver, window-based mmap) with RfnmPort (RFNM
+-la9310shiva driver, physical-address mmap).
+-
+-The adapter uses two file descriptors:
+-
+-  /dev/shiva0  -- ioctl IOCTL_LA93XX_MODINFO_GET (discover host phys addrs)
+-                  and fcntl.flock for proxy mutual exclusion.
+-                  The shiva mmap handler only accepts the scratch carveout
+-                  range; CCSR/TCML/TCMU are PCIe BAR regions and are rejected
+-                  with EINVAL by the driver.
+-
+-  /dev/mem     -- mmap for CCSR, TCML, TCMU (PCIe BAR windows).
+-                  Opened O_RDWR|O_SYNC so writes are not reordered by the
+-                  CPU store buffer.
+-
+-RfnmPort provides exactly the same public interface as M4Proxy so it can be
+-passed directly to SelfHostedClient(port=RfnmPort()) and to
+-vspa_boot_handshake(port, ...).
+-
+-VSPA debug access uses the RFNM M4 firmware sw_cmd engine:
+-  - LA9310_SW_CMD_VSPA_DBG (cmd=1) via la9310_sw_cmd_desc in HIF (TCML)
+-  - MSG unit 2 MSIIR doorbell at CCSR+0x1FC0008 kicks the M4 sw_cmd task
+-  - Firmware fills data[] and sets status=DONE (5)
+-
+-Typical use on the RFNM Blue board:
+-    from rfnm_port import RfnmPort
+-    from selfhosted import SelfHostedClient
+-    client = SelfHostedClient(port=RfnmPort())
+-
+-Or from the command line (wraps selfhosted.py CLI):
+-    python3 rfnm_port.py heartbeat
+-    python3 rfnm_port.py info
+-    python3 rfnm_port.py load /lib/firmware/apm.eld
+-"""
+-
+-import ctypes
+-import fcntl
+-import mmap
+-import os
+-import struct
+ import sys
+-import time
+-
+-# ---------------------------------------------------------------------------
+-# modinfo ioctl definitions (uapi/la9310_modinfo.h)
+-# ---------------------------------------------------------------------------
+-
+-SHIVA_DEVICE = os.environ.get("RFNM_SHIVA_DEVICE", "/dev/shiva0")
+-
+-LA9310_MODINFO_MAGIC = ord('R')
+-
+-_IOC_WRITE = 1
+-
+-
+-def _IOW(type_, nr, size):
+-    return ((_IOC_WRITE << 30) | (size << 16) | (type_ << 8) | nr) & 0xFFFFFFFF
+-
+-
+-IOCTL_LA93XX_MODINFO_GET = _IOW(LA9310_MODINFO_MAGIC, 1, 8)  # sizeof(modinfo_t *)
+-
+-
+-class _AddrMap(ctypes.Structure):
+-    _fields_ = [
+-        ("host_phy_addr", ctypes.c_uint64),
+-        ("modem_phy_addr", ctypes.c_uint32),
+-        ("size", ctypes.c_uint32),
+-    ]
+-
+-
+-class _Modinfo(ctypes.Structure):
+-    _fields_ = [
+-        ("active", ctypes.c_uint32),
+-        ("id", ctypes.c_uint32),
+-        ("rev", ctypes.c_uint32),
+-        ("board_name", ctypes.c_char * 64),
+-        ("name", ctypes.c_char * 64),
+-        ("pci_addr", ctypes.c_char * 64),
+-        ("fw_name", ctypes.c_char * 64),
+-        ("ccsr", _AddrMap),
+-        ("tcml", _AddrMap),
+-        ("tcmu", _AddrMap),
+-        ("dbg", _AddrMap),
+-        ("iqr", _AddrMap),
+-        ("ov", _AddrMap),
+-        ("nlmops", _AddrMap),
+-        ("hif", _AddrMap),
+-        ("vspa", _AddrMap),
+-        ("fw", _AddrMap),
+-        ("stdfw", _AddrMap),
+-        ("pciwin", _AddrMap),
+-        ("scratchbuf", _AddrMap),
+-        ("iqflood", _AddrMap),
+-        ("rfcal", _AddrMap),
+-        ("dac_mask", ctypes.c_int),
+-        ("adc_mask", ctypes.c_int),
+-        ("adc_rate_mask", ctypes.c_int),
+-        ("dac_rate_mask", ctypes.c_int),
+-    ]
+-
+-
+-def _modinfo_get(fd):
+-    """Issue IOCTL_LA93XX_MODINFO_GET and return the filled _Modinfo struct."""
+-    mi = _Modinfo()
+-    buf = bytearray(ctypes.sizeof(mi))
+-    try:
+-        fcntl.ioctl(fd, IOCTL_LA93XX_MODINFO_GET, buf)
+-    except OSError as e:
+-        raise RfnmPortError(f"IOCTL_LA93XX_MODINFO_GET failed: {e}") from None
+-    ctypes.memmove(ctypes.addressof(mi), bytes(buf), ctypes.sizeof(mi))
+-    return mi
+-
+-
+-# ---------------------------------------------------------------------------
+-# HIF ctypes structs (mirror la9310_host_if.h) for sw_cmd_desc offset
+-#
+-# la9310_hif is __attribute__((packed)); the inner structs la9310_stats and
+-# la9310_eDMA are NOT packed and retain their own internal alignment/padding.
+-# ctypes _pack_=1 on _La9310Hif removes inter-field gaps in the outer struct
+-# while the un-packed inner structs keep their natural layout, exactly
+-# matching the C compiler output.
+-# ---------------------------------------------------------------------------
+-
+-# V2H constants from la9310_v2h_if.h
+-_V2H_MAX_BD = 16
+-_MAX_SENT_RESUME = 5
+-_LA9310_EDMA_CHANNELS = 14
+-_LA9310_SW_CMD_DATA_SIZE = 32
+-
+-
+-class _IrqEvtRegs(ctypes.Structure):
+-    # 7 uint32_t fields, no padding needed
+-    _fields_ = [
+-        ("irq_evt_cfg",    ctypes.c_uint32),
+-        ("irq_evt_en",     ctypes.c_uint32),
+-        ("irq_evt_status", ctypes.c_uint32),
+-        ("irq_evt_clr",    ctypes.c_uint32),
+-        ("vspa_evt_mask",  ctypes.c_uint32),
+-        ("ipc_evt_mask",   ctypes.c_uint32),
+-        ("test_evt_mask",  ctypes.c_uint32),
+-    ]
+-
+-
+-class _DebugLogRegs(ctypes.Structure):
+-    # 3 uint32_t fields
+-    _fields_ = [
+-        ("buf",       ctypes.c_uint32),
+-        ("len",       ctypes.c_uint32),
+-        ("log_level", ctypes.c_uint32),
+-    ]
+-
+-
+-class _La9310eDMA(ctypes.Structure):
+-    # NOT packed; uint8_t status + 3 bytes pad + 4 uint32_t = 20 bytes
+-    _fields_ = [
+-        ("status",             ctypes.c_uint8),
+-        ("xfer_req",           ctypes.c_uint32),
+-        ("success_interrupt",  ctypes.c_uint32),
+-        ("error_interrupt",    ctypes.c_uint32),
+-        ("no_callback_reg",    ctypes.c_uint32),
+-    ]
+-
+-
+-class _La9310Stats(ctypes.Structure):
+-    # NOT packed -- natural alignment
+-    _fields_ = [
+-        ("disabled_evt_try_cnt",          ctypes.c_uint32),
+-        ("irq_evt_raised",                ctypes.c_uint32),
+-        ("irq_evt_cleared",               ctypes.c_uint32),
+-        ("irq_mux_tx_msi_cnt",            ctypes.c_uint32),
+-        ("irq_mux_rx_msi_cnt",            ctypes.c_uint32),
+-        ("v2h_sent_pkt",                  ctypes.c_uint32),
+-        ("v2h_dropped_pkt",               ctypes.c_uint32),
+-        ("v2h_resumed",                   ctypes.c_uint32),
+-        ("v2h_last_sent_pkt",             ctypes.c_uint32),
+-        ("v2h_last_dropped_pkt",          ctypes.c_uint32),
+-        ("v2h_last_sent_pkt_resumed",     ctypes.c_uint32 * _MAX_SENT_RESUME),
+-        ("v2h_last_dropped_pkt_resumed",  ctypes.c_uint32 * _MAX_SENT_RESUME),
+-        ("v2h_final_ring_owner",          ctypes.c_uint32 * _V2H_MAX_BD),
+-        ("v2h_backout_count",             ctypes.c_uint32),
+-        ("avi_cm4_mbox0_tx_cnt",          ctypes.c_uint32),
+-        ("avi_cm4_mbox1_tx_cnt",          ctypes.c_uint32),
+-        ("avi_cm4_mbox0_rx_cnt",          ctypes.c_uint32),
+-        ("avi_cm4_mbox1_rx_cnt",          ctypes.c_uint32),
+-        ("avi_err_queue_full",            ctypes.c_uint32),
+-        ("avi_intr_raised",               ctypes.c_uint32),
+-        ("avi_mbox_intr_raised",          ctypes.c_uint32),
+-        ("eDMA_ch_allocated",             ctypes.c_uint32),
+-        ("la9310_eDMA_ch",                _La9310eDMA * _LA9310_EDMA_CHANNELS),
+-        ("WDOG_interrupt",                ctypes.c_uint32),
+-        ("v2h_intr_enabled",              ctypes.c_uint32),
+-    ]
+-
+-
+-class _HifIpcRegs(ctypes.Structure):
+-    _fields_ = [
+-        ("ipc_mdata_offset", ctypes.c_uint32),
+-        ("ipc_mdata_size",   ctypes.c_uint32),
+-    ]
+-
+-
+-class _La9310SwCmdDesc(ctypes.Structure):
+-    _fields_ = [
+-        ("cmd",    ctypes.c_uint32),
+-        ("status", ctypes.c_uint32),   # enum la9310_sw_cmd_status -> uint32
+-        ("data",   ctypes.c_uint32 * _LA9310_SW_CMD_DATA_SIZE),
+-    ]
+-
+-
+-class _La9310Hif(ctypes.Structure):
+-    # Outer struct is __attribute__((packed)); use _pack_=1 in ctypes.
+-    # Inner structs retain their own natural alignment/padding.
+-    _pack_ = 1
+-    _fields_ = [
+-        ("ver",          ctypes.c_uint32),
+-        ("hif_ver",      ctypes.c_uint32),
+-        ("status",       ctypes.c_uint32),
+-        ("host_ready",   ctypes.c_uint32),
+-        ("mod_ready",    ctypes.c_uint32),
+-        ("irq_evt_regs", _IrqEvtRegs),
+-        ("dbg_log_regs", _DebugLogRegs),
+-        ("stats",        _La9310Stats),
+-        ("ipc_regs",     _HifIpcRegs),
+-        ("sw_cmd_desc",  _La9310SwCmdDesc),
+-    ]
+-
+-
+-# Byte offset of sw_cmd_desc within la9310_hif (computed once from ctypes)
+-_SW_CMD_DESC_HIF_OFF = _La9310Hif.sw_cmd_desc.offset
+-
+-# ---------------------------------------------------------------------------
+-# sw_cmd / VSPA debug constants (la9310_host_if.h, vspa_debug.h)
+-# ---------------------------------------------------------------------------
+-
+-LA9310_SW_CMD_VSPA_DBG       = 1
+-LA9310_SW_CMD_STATUS_POSTED  = 1
+-LA9310_SW_CMD_STATUS_DONE    = 5
+-
+-# Offset of sw_cmd_desc from TCML base (HIF starts at LA9310_EP_HIF_OFFSET)
+-LA9310_EP_HIF_OFFSET  = 0x1C000
+-SW_CMD_DESC_TCML_OFF  = LA9310_EP_HIF_OFFSET + _SW_CMD_DESC_HIF_OFF
+-
+-# VSPA debug op/flag codes (vspa_debug.h)
+-OP_READ    = 1
+-OP_WRITE   = 2
+-FLAG_FIXED = 1 << 8
+-
+-VSPA_DBG_MAX_WORDS = int(os.environ.get("VSPA_DBG_MAX_WORDS", 0)) or 28
+-
+-# MSG unit 2 MSIIR -- CCSR offset 0x1FC0008
+-# MSG_UNIT_BASE_ADDR = CCSR_BASE + 0x1FC0000; MSG_UNIT_2 index = 1;
+-# each unit is 8 bytes (msiir+msir); so unit2 MSIIR = 0x1FC0000 + 1*8 = 0x1FC0008
+-MSIIR2_CCSR_OFF = 0x1FC0008
+-
+-# Error codes from vspa_debug.h
+-_VSPA_DBG_ERRORS = {1: "bad op", 2: "offset outside debug block", 3: "bad word count"}
+-
+-# TCMU free region (iqplayer overlay load target)
+-TCMU_FREE = (0x20001000, 0x20008000)
+-
+-
+-# ---------------------------------------------------------------------------
+-# Public exception
+-# ---------------------------------------------------------------------------
+-
+-class RfnmPortError(RuntimeError):
+-    pass
+-
+-
+-def check_tcmu_free(address, count):
+-    lo, hi = TCMU_FREE
+-    if address & 3 or not lo <= address <= address + 4 * count <= hi:
+-        raise RfnmPortError(
+-            f"system address 0x{address:08X}+{4 * count} outside the free TCMU "
+-            f"range 0x{lo:08X}-0x{hi - 1:08X}")
+-
+-
+-# ---------------------------------------------------------------------------
+-# RfnmPort
+-# ---------------------------------------------------------------------------
+-
+-class RfnmPort:
+-    """VSPA_DBG access through the RFNM M4 sw_cmd engine, via /dev/shiva0.
+-
+-    Drop-in replacement for selfhosted.M4Proxy; exposes the same interface:
+-      dbg_read / dbg_write / mem_read / mem_write / heartbeat / close
+-    plus the ccsr32 memoryview attribute used by vspa_boot_handshake().
+-
+-    VSPA debug commands are dispatched via LA9310_SW_CMD_VSPA_DBG:
+-      1. Write cmd + payload into sw_cmd_desc in TCML (at SW_CMD_DESC_TCML_OFF)
+-      2. Set status = POSTED and write 0 to MSG2 MSIIR (CCSR+0x1FC0008)
+-      3. Poll status until DONE (5) or timeout
+-    """
+-
+-    def __init__(self, device=SHIVA_DEVICE, timeout=1.0):
+-        self.timeout = timeout
+-        self._tcmu_mmap = None
+-        self._tcmu_phys = None
+-        self._tcmu_size = None
+-        try:
+-            self.fd = os.open(device, os.O_RDWR)
+-        except OSError as e:
+-            raise RfnmPortError(f"cannot open {device}: {e}") from None
+-        try:
+-            mi = _modinfo_get(self.fd)
+-        except RfnmPortError:
+-            os.close(self.fd)
+-            raise
+-
+-        ccsr_phys = mi.ccsr.host_phy_addr
+-        ccsr_size = mi.ccsr.size or 0x4000000
+-        tcml_phys = mi.tcml.host_phy_addr
+-        tcml_size = mi.tcml.size or 0x20000
+-        self._tcmu_phys = mi.tcmu.host_phy_addr
+-        self._tcmu_size = mi.tcmu.size or 0x800000
+-
+-        if not ccsr_phys or not tcml_phys:
+-            os.close(self.fd)
+-            raise RfnmPortError(
+-                f"modinfo returned zero phys addrs "
+-                f"(ccsr=0x{ccsr_phys:X} tcml=0x{tcml_phys:X}): "
+-                "is la9310shiva.ko loaded and the M4 firmware running?")
+-
+-        # CCSR and TCML are PCIe BAR regions; the shiva driver's mmap handler
+-        # only allows mapping the scratch carveout, so use /dev/mem instead.
+-        # O_SYNC ensures MMIO writes are not held in the CPU write buffer.
+-        try:
+-            self._devmem_fd = os.open("/dev/mem", os.O_RDWR | os.O_SYNC)
+-        except OSError as e:
+-            os.close(self.fd)
+-            raise RfnmPortError(f"cannot open /dev/mem: {e}") from None
+-        try:
+-            self._bar0 = mmap.mmap(self._devmem_fd, ccsr_size, offset=ccsr_phys)
+-            self._bar1 = mmap.mmap(self._devmem_fd, tcml_size, offset=tcml_phys)
+-        except OSError as e:
+-            os.close(self._devmem_fd)
+-            os.close(self.fd)
+-            raise RfnmPortError(f"mmap of CCSR/TCML via /dev/mem failed: {e}") from None
+-
+-        # 32-bit typed views (BAR0/BAR1 accept 32-bit accesses only)
+-        self.ccsr32 = memoryview(self._bar0).cast("I")
+-        self.tcml32 = memoryview(self._bar1).cast("I")
+-
+-        # Pre-computed word index of sw_cmd_desc fields in tcml32
+-        self._sw_desc_w = SW_CMD_DESC_TCML_OFF // 4  # cmd word index
+-        # cmd   = tcml32[_sw_desc_w + 0]
+-        # status= tcml32[_sw_desc_w + 1]
+-        # data  = tcml32[_sw_desc_w + 2 + i]
+-
+-        # Pre-computed word slice of MSG2 MSIIR in ccsr32 (write 0 to kick M4)
+-        self._msiir2_w = MSIIR2_CCSR_OFF // 4
+-
+-    def close(self):
+-        self.ccsr32.release()
+-        self.tcml32.release()
+-        self._bar0.close()
+-        self._bar1.close()
+-        if self._tcmu_mmap is not None:
+-            self._tcmu_mmap.close()
+-        os.close(self._devmem_fd)
+-        os.close(self.fd)
+-
+-    # -- TCMU (system address space, overlay load / mem_read / mem_write) ---
+-
+-    def _tcmu(self, address, count):
+-        check_tcmu_free(address, count)
+-        if self._tcmu_mmap is None:
+-            try:
+-                self._tcmu_mmap = mmap.mmap(
+-                    self._devmem_fd, self._tcmu_size, offset=self._tcmu_phys)
+-            except OSError as e:
+-                raise RfnmPortError(f"mmap of TCMU via /dev/mem failed: {e}") from None
+-        # The TCMU free region starts at modem address 0x20000000;
+-        # the mmap covers the whole TCMU from that base.
+-        return address - 0x20000000
+-
+-    def mem_read(self, address, count=1):
+-        """Read words at a system address (free TCMU only)."""
+-        offset = self._tcmu(address, count)
+-        return list(struct.unpack_from(f"<{count}I", self._tcmu_mmap, offset))
+-
+-    def mem_write(self, address, values):
+-        """Write words at a system address (free TCMU only)."""
+-        offset = self._tcmu(address, len(values))
+-        struct.pack_into(f"<{len(values)}I", self._tcmu_mmap, offset,
+-                         *(v & 0xFFFFFFFF for v in values))
+-
+-    # -- sw_cmd VSPA debug protocol -----------------------------------------
+-
+-    def heartbeat(self):
+-        """Verify the M4 firmware answers sw_cmd VSPA debug requests."""
+-        from selfhosted import GDBEN
+-        self.dbg_read(GDBEN)
+-
+-    def dbg_access(self, op, offset, count, values=None, fixed=False):
+-        """Single VSPA debug transaction via the M4 sw_cmd engine.
+-
+-        Sends LA9310_SW_CMD_VSPA_DBG, polls until DONE, returns data words
+-        for reads.  Raises RfnmPortError on timeout or firmware error.
+-        """
+-        fcntl.flock(self.fd, fcntl.LOCK_EX)
+-        try:
+-            tcml = self.tcml32
+-            base = self._sw_desc_w  # word index of sw_cmd_desc.cmd
+-
+-            # Build op word: bits[7:0]=op, bit[8]=FIXED, bits[23:16]=count
+-            op_word = (op & 0xFF) | (FLAG_FIXED if fixed else 0) | ((count & 0xFF) << 16)
+-
+-            # Write payload into data[]: data[0]=op_word, data[1]=offset,
+-            # data[2..N]=write values.  Do this BEFORE posting the command.
+-            tcml[base + 2] = op_word & 0xFFFFFFFF
+-            tcml[base + 3] = offset & 0xFFFFFFFF
+-            for i, v in enumerate(values or ()):
+-                tcml[base + 4 + i] = v & 0xFFFFFFFF
+-
+-            # Write cmd id, then set status=POSTED in a single word write
+-            # (cmd and status are adjacent uint32_t in the packed struct).
+-            tcml[base] = LA9310_SW_CMD_VSPA_DBG
+-            # Read-back cmd to ensure the store reached TCML before the
+-            # status/doorbell write (memory ordering on ARM PCIe MMIO).
+-            _ = tcml[base]
+-            tcml[base + 1] = LA9310_SW_CMD_STATUS_POSTED
+-
+-            # Kick the M4 sw_cmd task via MSG unit 2 MSIIR doorbell.
+-            self.ccsr32[self._msiir2_w] = 0
+-
+-            # Poll sw_cmd_desc.status until DONE or timeout.
+-            deadline = time.monotonic() + self.timeout
+-            while True:
+-                st = tcml[base + 1]
+-                if st == LA9310_SW_CMD_STATUS_DONE:
+-                    break
+-                if time.monotonic() > deadline:
+-                    raise RfnmPortError(
+-                        "M4 sw_cmd timeout (VSPA_DBG): "
+-                        f"last status={st} op={op} offset=0x{offset:X} count={count}")
+-
+-            # data[0] holds the error code on completion (0 = ok).
+-            err = tcml[base + 2]
+-            if err:
+-                raise RfnmPortError(
+-                    f"M4 sw_cmd VSPA_DBG error {err} "
+-                    f"({_VSPA_DBG_ERRORS.get(err, 'unknown')}) "
+-                    f"op={op} offset=0x{offset:X} count={count}")
+-
+-            if op == OP_READ:
+-                return [tcml[base + 4 + i] for i in range(count)]
+-            return []
+-        finally:
+-            fcntl.flock(self.fd, fcntl.LOCK_UN)
+-
+-    def dbg_read(self, offset, count=1, fixed=False):
+-        """Read count words from the VSPA debug register block."""
+-        out = []
+-        while count:
+-            n = min(count, VSPA_DBG_MAX_WORDS)
+-            out += self.dbg_access(OP_READ, offset, n, fixed=fixed)
+-            if not fixed:
+-                offset += 4 * n
+-            count -= n
+-        return out
+-
+-    def dbg_write(self, offset, values, fixed=False):
+-        """Write values into the VSPA debug register block."""
+-        index = 0
+-        while index < len(values):
+-            n = min(len(values) - index, VSPA_DBG_MAX_WORDS)
+-            self.dbg_access(OP_WRITE, offset, n, values[index:index + n], fixed=fixed)
+-            if not fixed:
+-                offset += 4 * n
+-            index += n
+-
+-
+-# ---------------------------------------------------------------------------
+-# Standalone CLI: forward to selfhosted.py using RfnmPort
+-# ---------------------------------------------------------------------------
+ 
+-def _cli(argv):
+-    # Insert this transport into selfhosted's _cli by temporarily patching
+-    # M4Proxy so every place that instantiates it gets an RfnmPort instead.
+-    import selfhosted
+-    _orig = selfhosted.M4Proxy
+-    selfhosted.M4Proxy = RfnmPort
+-    try:
+-        return selfhosted._cli(argv)
+-    finally:
+-        selfhosted.M4Proxy = _orig
++from shiva_port import *  # noqa: F401,F403
++from shiva_port import ShivaPort, ShivaPortError, _cli
+ 
++RfnmPort = ShivaPort
++RfnmPortError = ShivaPortError
+ 
+ if __name__ == "__main__":
+     sys.exit(_cli(sys.argv[1:]) or 0)
+diff --git a/shiva_port.py b/shiva_port.py
+new file mode 100644
+index 0000000..72e08d7
+--- /dev/null
++++ b/shiva_port.py
+@@ -0,0 +1,541 @@
++#!/usr/bin/env python3
++# SPDX-License-Identifier: Apache-2.0
++"""la9310shiva transport adapter ("shiva") for the la9310_debug self-hosted path.
++
++Works with any host running the NXP la9310shiva kernel driver: the RFNM
++board (i.MX8M Plus) and the LimeSDR-Micro on an i.MX95 with the NXP BSP.
++Replaces M4Proxy (LimeSuiteNG la9310_limesdr driver, window-based mmap)
++with ShivaPort (physical-address mmap).
++
++The adapter uses:
++
++  /dev/shiva0  -- ioctl IOCTL_LA93XX_MODINFO_GET (discover host phys addrs),
++                  fcntl.flock for proxy mutual exclusion, and mmap of
++                  CCSR/TCML/TCMU when the driver allows it (la93xx_host_sw
++                  "modinfo mmap scratch, iqflood and PCIe BARs" patch).
++
++  /dev/mem     -- fallback mmap for CCSR, TCML, TCMU (PCIe BAR windows)
++                  when the shiva mmap handler rejects them (EINVAL).
++                  Opened O_RDWR|O_SYNC.
++
++The HIF location and layout differ between firmware trees:
++
++  RFNM la93xx_freertos : HIF at TCML+0x1C000, sw_cmd_desc at HIF+0x218
++  NXP  la93xx_freertos : HIF at TCML+0x1B000, sw_cmd_desc at HIF+0x240
++                         (HIF also carries adc/dac masks, iq_mem fields)
++
++The NXP firmware publishes the HIF offset in DCFG SCRATCHRW[3]; when it
++holds a known value the layout is picked from it, otherwise the RFNM
++layout is used. SHIVA_HIF_OFFSET / SHIVA_SW_CMD_OFFSET override both.
++
++ShivaPort provides exactly the same public interface as M4Proxy so it can be
++passed directly to SelfHostedClient(port=ShivaPort()) and to
++vspa_boot_handshake(port, ...).
++
++VSPA debug access uses the M4 firmware sw_cmd engine:
++  - LA9310_SW_CMD_VSPA_DBG (cmd=1) via la9310_sw_cmd_desc in HIF (TCML)
++  - MSG unit 2 MSIIR doorbell at CCSR+0x1FC0008 kicks the M4 sw_cmd task
++  - Firmware fills data[] and sets status=DONE (5)
++
++Typical use:
++    from shiva_port import ShivaPort
++    from selfhosted import SelfHostedClient
++    client = SelfHostedClient(port=ShivaPort())
++
++Or from the command line (wraps selfhosted.py CLI):
++    python3 shiva_port.py heartbeat
++    python3 shiva_port.py info
++    python3 shiva_port.py load /lib/firmware/apm.eld
++"""
++
++import ctypes
++import fcntl
++import mmap
++import os
++import struct
++import sys
++import time
++
++# ---------------------------------------------------------------------------
++# modinfo ioctl definitions (uapi/la9310_modinfo.h)
++# ---------------------------------------------------------------------------
++
++SHIVA_DEVICE = os.environ.get("SHIVA_DEVICE", os.environ.get("RFNM_SHIVA_DEVICE", "/dev/shiva0"))
++
++LA9310_MODINFO_MAGIC = ord('R')
++
++_IOC_WRITE = 1
++
++
++def _IOW(type_, nr, size):
++    return ((_IOC_WRITE << 30) | (size << 16) | (type_ << 8) | nr) & 0xFFFFFFFF
++
++
++IOCTL_LA93XX_MODINFO_GET = _IOW(LA9310_MODINFO_MAGIC, 1, 8)  # sizeof(modinfo_t *)
++
++
++class _AddrMap(ctypes.Structure):
++    _fields_ = [
++        ("host_phy_addr", ctypes.c_uint64),
++        ("modem_phy_addr", ctypes.c_uint32),
++        ("size", ctypes.c_uint32),
++    ]
++
++
++class _Modinfo(ctypes.Structure):
++    _fields_ = [
++        ("active", ctypes.c_uint32),
++        ("id", ctypes.c_uint32),
++        ("rev", ctypes.c_uint32),
++        ("board_name", ctypes.c_char * 64),
++        ("name", ctypes.c_char * 64),
++        ("pci_addr", ctypes.c_char * 64),
++        ("fw_name", ctypes.c_char * 64),
++        ("ccsr", _AddrMap),
++        ("tcml", _AddrMap),
++        ("tcmu", _AddrMap),
++        ("dbg", _AddrMap),
++        ("iqr", _AddrMap),
++        ("ov", _AddrMap),
++        ("nlmops", _AddrMap),
++        ("hif", _AddrMap),
++        ("vspa", _AddrMap),
++        ("fw", _AddrMap),
++        ("stdfw", _AddrMap),
++        ("pciwin", _AddrMap),
++        ("scratchbuf", _AddrMap),
++        ("iqflood", _AddrMap),
++        ("rfcal", _AddrMap),
++        ("dac_mask", ctypes.c_int),
++        ("adc_mask", ctypes.c_int),
++        ("adc_rate_mask", ctypes.c_int),
++        ("dac_rate_mask", ctypes.c_int),
++    ]
++
++
++def _modinfo_get(fd):
++    """Issue IOCTL_LA93XX_MODINFO_GET and return the filled _Modinfo struct."""
++    mi = _Modinfo()
++    buf = bytearray(ctypes.sizeof(mi))
++    try:
++        fcntl.ioctl(fd, IOCTL_LA93XX_MODINFO_GET, buf)
++    except OSError as e:
++        raise ShivaPortError(f"IOCTL_LA93XX_MODINFO_GET failed: {e}") from None
++    ctypes.memmove(ctypes.addressof(mi), bytes(buf), ctypes.sizeof(mi))
++    return mi
++
++
++# ---------------------------------------------------------------------------
++# HIF ctypes structs (mirror la9310_host_if.h) for sw_cmd_desc offset
++#
++# la9310_hif is __attribute__((packed)); the inner structs la9310_stats and
++# la9310_eDMA are NOT packed and retain their own internal alignment/padding.
++# ctypes _pack_=1 on _La9310Hif removes inter-field gaps in the outer struct
++# while the un-packed inner structs keep their natural layout, exactly
++# matching the C compiler output.
++# ---------------------------------------------------------------------------
++
++# V2H constants from la9310_v2h_if.h
++_V2H_MAX_BD = 16
++_MAX_SENT_RESUME = 5
++_LA9310_EDMA_CHANNELS = 14
++_LA9310_SW_CMD_DATA_SIZE = 32
++
++
++class _IrqEvtRegs(ctypes.Structure):
++    # 7 uint32_t fields, no padding needed
++    _fields_ = [
++        ("irq_evt_cfg",    ctypes.c_uint32),
++        ("irq_evt_en",     ctypes.c_uint32),
++        ("irq_evt_status", ctypes.c_uint32),
++        ("irq_evt_clr",    ctypes.c_uint32),
++        ("vspa_evt_mask",  ctypes.c_uint32),
++        ("ipc_evt_mask",   ctypes.c_uint32),
++        ("test_evt_mask",  ctypes.c_uint32),
++    ]
++
++
++class _DebugLogRegs(ctypes.Structure):
++    # 3 uint32_t fields
++    _fields_ = [
++        ("buf",       ctypes.c_uint32),
++        ("len",       ctypes.c_uint32),
++        ("log_level", ctypes.c_uint32),
++    ]
++
++
++class _La9310eDMA(ctypes.Structure):
++    # NOT packed; uint8_t status + 3 bytes pad + 4 uint32_t = 20 bytes
++    _fields_ = [
++        ("status",             ctypes.c_uint8),
++        ("xfer_req",           ctypes.c_uint32),
++        ("success_interrupt",  ctypes.c_uint32),
++        ("error_interrupt",    ctypes.c_uint32),
++        ("no_callback_reg",    ctypes.c_uint32),
++    ]
++
++
++class _La9310Stats(ctypes.Structure):
++    # NOT packed -- natural alignment
++    _fields_ = [
++        ("disabled_evt_try_cnt",          ctypes.c_uint32),
++        ("irq_evt_raised",                ctypes.c_uint32),
++        ("irq_evt_cleared",               ctypes.c_uint32),
++        ("irq_mux_tx_msi_cnt",            ctypes.c_uint32),
++        ("irq_mux_rx_msi_cnt",            ctypes.c_uint32),
++        ("v2h_sent_pkt",                  ctypes.c_uint32),
++        ("v2h_dropped_pkt",               ctypes.c_uint32),
++        ("v2h_resumed",                   ctypes.c_uint32),
++        ("v2h_last_sent_pkt",             ctypes.c_uint32),
++        ("v2h_last_dropped_pkt",          ctypes.c_uint32),
++        ("v2h_last_sent_pkt_resumed",     ctypes.c_uint32 * _MAX_SENT_RESUME),
++        ("v2h_last_dropped_pkt_resumed",  ctypes.c_uint32 * _MAX_SENT_RESUME),
++        ("v2h_final_ring_owner",          ctypes.c_uint32 * _V2H_MAX_BD),
++        ("v2h_backout_count",             ctypes.c_uint32),
++        ("avi_cm4_mbox0_tx_cnt",          ctypes.c_uint32),
++        ("avi_cm4_mbox1_tx_cnt",          ctypes.c_uint32),
++        ("avi_cm4_mbox0_rx_cnt",          ctypes.c_uint32),
++        ("avi_cm4_mbox1_rx_cnt",          ctypes.c_uint32),
++        ("avi_err_queue_full",            ctypes.c_uint32),
++        ("avi_intr_raised",               ctypes.c_uint32),
++        ("avi_mbox_intr_raised",          ctypes.c_uint32),
++        ("eDMA_ch_allocated",             ctypes.c_uint32),
++        ("la9310_eDMA_ch",                _La9310eDMA * _LA9310_EDMA_CHANNELS),
++        ("WDOG_interrupt",                ctypes.c_uint32),
++        ("v2h_intr_enabled",              ctypes.c_uint32),
++    ]
++
++
++class _HifIpcRegs(ctypes.Structure):
++    _fields_ = [
++        ("ipc_mdata_offset", ctypes.c_uint32),
++        ("ipc_mdata_size",   ctypes.c_uint32),
++    ]
++
++
++class _La9310SwCmdDesc(ctypes.Structure):
++    _fields_ = [
++        ("cmd",    ctypes.c_uint32),
++        ("status", ctypes.c_uint32),   # enum la9310_sw_cmd_status -> uint32
++        ("data",   ctypes.c_uint32 * _LA9310_SW_CMD_DATA_SIZE),
++    ]
++
++
++class _La9310Hif(ctypes.Structure):
++    # Outer struct is __attribute__((packed)); use _pack_=1 in ctypes.
++    # Inner structs retain their own natural alignment/padding.
++    _pack_ = 1
++    _fields_ = [
++        ("ver",          ctypes.c_uint32),
++        ("hif_ver",      ctypes.c_uint32),
++        ("status",       ctypes.c_uint32),
++        ("host_ready",   ctypes.c_uint32),
++        ("mod_ready",    ctypes.c_uint32),
++        ("irq_evt_regs", _IrqEvtRegs),
++        ("dbg_log_regs", _DebugLogRegs),
++        ("stats",        _La9310Stats),
++        ("ipc_regs",     _HifIpcRegs),
++        ("sw_cmd_desc",  _La9310SwCmdDesc),
++    ]
++
++
++# Byte offset of sw_cmd_desc within la9310_hif (computed once from ctypes)
++_SW_CMD_DESC_HIF_OFF = _La9310Hif.sw_cmd_desc.offset
++
++# ---------------------------------------------------------------------------
++# sw_cmd / VSPA debug constants (la9310_host_if.h, vspa_debug.h)
++# ---------------------------------------------------------------------------
++
++LA9310_SW_CMD_VSPA_DBG       = 1
++LA9310_SW_CMD_STATUS_POSTED  = 1
++LA9310_SW_CMD_STATUS_DONE    = 5
++
++# Offset of sw_cmd_desc from TCML base (HIF starts at LA9310_EP_HIF_OFFSET).
++# Default: RFNM layout (computed from the ctypes mirror above).
++LA9310_EP_HIF_OFFSET  = 0x1C000
++SW_CMD_DESC_TCML_OFF  = LA9310_EP_HIF_OFFSET + _SW_CMD_DESC_HIF_OFF
++
++# HIF offset -> sw_cmd_desc offset inside the HIF, per firmware tree.
++# NXP la93xx_freertos adds 8 words to la9310_hif (adc/dac masks, iq_mem_*,
++# modem_rf_data_size) and dbg1/dbg2 to la9310_stats: 0x218 + 0x28 = 0x240.
++HIF_LAYOUTS = {
++    0x1C000: _SW_CMD_DESC_HIF_OFF,   # RFNM la93xx_freertos
++    0x1B000: 0x240,                  # NXP la93xx_freertos (LimeSDR-Micro)
++}
++
++# DCFG SCRATCHRW[3] (LA9310_BOOT_HSHAKE_HIF_REG): HIF offset published by
++# the NXP firmware. DCFG is at CCSR + 0x1E00000, scratchrw[] at +0x200.
++DCFG_SCRATCHRW3_CCSR_OFF = 0x1E00000 + 0x200 + 3 * 4
++
++
++def sw_cmd_desc_offset(hif_reg):
++    """TCML byte offset of sw_cmd_desc, from SCRATCHRW[3] and env overrides."""
++    env_hif = os.environ.get("SHIVA_HIF_OFFSET")
++    env_sw = os.environ.get("SHIVA_SW_CMD_OFFSET")
++    hif = int(env_hif, 0) if env_hif else (
++        hif_reg if hif_reg in HIF_LAYOUTS else LA9310_EP_HIF_OFFSET)
++    sw = int(env_sw, 0) if env_sw else HIF_LAYOUTS.get(hif, _SW_CMD_DESC_HIF_OFF)
++    return hif + sw
++
++# VSPA debug op/flag codes (vspa_debug.h)
++OP_READ    = 1
++OP_WRITE   = 2
++FLAG_FIXED = 1 << 8
++
++VSPA_DBG_MAX_WORDS = int(os.environ.get("VSPA_DBG_MAX_WORDS", 0)) or 28
++
++# MSG unit 2 MSIIR -- CCSR offset 0x1FC0008
++# MSG_UNIT_BASE_ADDR = CCSR_BASE + 0x1FC0000; MSG_UNIT_2 index = 1;
++# each unit is 8 bytes (msiir+msir); so unit2 MSIIR = 0x1FC0000 + 1*8 = 0x1FC0008
++MSIIR2_CCSR_OFF = 0x1FC0008
++
++# Error codes from vspa_debug.h
++_VSPA_DBG_ERRORS = {1: "bad op", 2: "offset outside debug block", 3: "bad word count"}
++
++# TCMU free region (iqplayer overlay load target)
++TCMU_FREE = (0x20001000, 0x20008000)
++
++
++# ---------------------------------------------------------------------------
++# Public exception
++# ---------------------------------------------------------------------------
++
++class ShivaPortError(RuntimeError):
++    pass
++
++
++def check_tcmu_free(address, count):
++    lo, hi = TCMU_FREE
++    if address & 3 or not lo <= address <= address + 4 * count <= hi:
++        raise ShivaPortError(
++            f"system address 0x{address:08X}+{4 * count} outside the free TCMU "
++            f"range 0x{lo:08X}-0x{hi - 1:08X}")
++
++
++# ---------------------------------------------------------------------------
++# ShivaPort
++# ---------------------------------------------------------------------------
++
++class ShivaPort:
++    """VSPA_DBG access through the M4 sw_cmd engine, via /dev/shiva0.
++
++    Drop-in replacement for selfhosted.M4Proxy; exposes the same interface:
++      dbg_read / dbg_write / mem_read / mem_write / heartbeat / close
++    plus the ccsr32 memoryview attribute used by vspa_boot_handshake().
++
++    VSPA debug commands are dispatched via LA9310_SW_CMD_VSPA_DBG:
++      1. Write cmd + payload into sw_cmd_desc in TCML (at SW_CMD_DESC_TCML_OFF)
++      2. Set status = POSTED and write 0 to MSG2 MSIIR (CCSR+0x1FC0008)
++      3. Poll status until DONE (5) or timeout
++    """
++
++    def __init__(self, device=SHIVA_DEVICE, timeout=1.0):
++        self.timeout = timeout
++        self._tcmu_mmap = None
++        self._tcmu_phys = None
++        self._tcmu_size = None
++        try:
++            self.fd = os.open(device, os.O_RDWR)
++        except OSError as e:
++            raise ShivaPortError(f"cannot open {device}: {e}") from None
++        try:
++            mi = _modinfo_get(self.fd)
++        except ShivaPortError:
++            os.close(self.fd)
++            raise
++
++        ccsr_phys = mi.ccsr.host_phy_addr
++        ccsr_size = mi.ccsr.size or 0x4000000
++        tcml_phys = mi.tcml.host_phy_addr
++        tcml_size = mi.tcml.size or 0x20000
++        self._tcmu_phys = mi.tcmu.host_phy_addr
++        self._tcmu_size = mi.tcmu.size or 0x800000
++
++        if not ccsr_phys or not tcml_phys:
++            os.close(self.fd)
++            raise ShivaPortError(
++                f"modinfo returned zero phys addrs "
++                f"(ccsr=0x{ccsr_phys:X} tcml=0x{tcml_phys:X}): "
++                "is la9310shiva.ko loaded and the M4 firmware running?")
++
++        # CCSR and TCML are PCIe BAR regions. Map them through /dev/shiva0
++        # when the driver allows it (la93xx_host_sw modinfo mmap patch, works
++        # with CONFIG_STRICT_DEVMEM=y); otherwise fall back to /dev/mem.
++        self._devmem_fd = None
++        self._map_fd = self.fd
++        try:
++            self._bar0 = mmap.mmap(self.fd, ccsr_size, offset=ccsr_phys)
++            self._bar1 = mmap.mmap(self.fd, tcml_size, offset=tcml_phys)
++        except OSError:
++            if getattr(self, "_bar0", None) is not None:
++                self._bar0.close()
++            try:
++                self._devmem_fd = os.open("/dev/mem", os.O_RDWR | os.O_SYNC)
++            except OSError as e:
++                os.close(self.fd)
++                raise ShivaPortError(f"cannot open /dev/mem: {e}") from None
++            self._map_fd = self._devmem_fd
++            try:
++                self._bar0 = mmap.mmap(self._devmem_fd, ccsr_size, offset=ccsr_phys)
++                self._bar1 = mmap.mmap(self._devmem_fd, tcml_size, offset=tcml_phys)
++            except OSError as e:
++                os.close(self._devmem_fd)
++                os.close(self.fd)
++                raise ShivaPortError(
++                    f"mmap of CCSR/TCML via /dev/shiva0 and /dev/mem failed: {e}") from None
++
++        # 32-bit typed views (BAR0/BAR1 accept 32-bit accesses only)
++        self.ccsr32 = memoryview(self._bar0).cast("I")
++        self.tcml32 = memoryview(self._bar1).cast("I")
++
++        # Pre-computed word index of sw_cmd_desc fields in tcml32
++        self.sw_cmd_off = sw_cmd_desc_offset(
++            self.ccsr32[DCFG_SCRATCHRW3_CCSR_OFF // 4])
++        self._sw_desc_w = self.sw_cmd_off // 4  # cmd word index
++        # cmd   = tcml32[_sw_desc_w + 0]
++        # status= tcml32[_sw_desc_w + 1]
++        # data  = tcml32[_sw_desc_w + 2 + i]
++
++        # Pre-computed word slice of MSG2 MSIIR in ccsr32 (write 0 to kick M4)
++        self._msiir2_w = MSIIR2_CCSR_OFF // 4
++
++    def close(self):
++        self.ccsr32.release()
++        self.tcml32.release()
++        self._bar0.close()
++        self._bar1.close()
++        if self._tcmu_mmap is not None:
++            self._tcmu_mmap.close()
++        if self._devmem_fd is not None:
++            os.close(self._devmem_fd)
++        os.close(self.fd)
++
++    # -- TCMU (system address space, overlay load / mem_read / mem_write) ---
++
++    def _tcmu(self, address, count):
++        check_tcmu_free(address, count)
++        if self._tcmu_mmap is None:
++            try:
++                self._tcmu_mmap = mmap.mmap(
++                    self._map_fd, self._tcmu_size, offset=self._tcmu_phys)
++            except OSError as e:
++                raise ShivaPortError(f"mmap of TCMU failed: {e}") from None
++        # The TCMU free region starts at modem address 0x20000000;
++        # the mmap covers the whole TCMU from that base.
++        return address - 0x20000000
++
++    def mem_read(self, address, count=1):
++        """Read words at a system address (free TCMU only)."""
++        offset = self._tcmu(address, count)
++        return list(struct.unpack_from(f"<{count}I", self._tcmu_mmap, offset))
++
++    def mem_write(self, address, values):
++        """Write words at a system address (free TCMU only)."""
++        offset = self._tcmu(address, len(values))
++        struct.pack_into(f"<{len(values)}I", self._tcmu_mmap, offset,
++                         *(v & 0xFFFFFFFF for v in values))
++
++    # -- sw_cmd VSPA debug protocol -----------------------------------------
++
++    def heartbeat(self):
++        """Verify the M4 firmware answers sw_cmd VSPA debug requests."""
++        from selfhosted import GDBEN
++        self.dbg_read(GDBEN)
++
++    def dbg_access(self, op, offset, count, values=None, fixed=False):
++        """Single VSPA debug transaction via the M4 sw_cmd engine.
++
++        Sends LA9310_SW_CMD_VSPA_DBG, polls until DONE, returns data words
++        for reads.  Raises ShivaPortError on timeout or firmware error.
++        """
++        fcntl.flock(self.fd, fcntl.LOCK_EX)
++        try:
++            tcml = self.tcml32
++            base = self._sw_desc_w  # word index of sw_cmd_desc.cmd
++
++            # Build op word: bits[7:0]=op, bit[8]=FIXED, bits[23:16]=count
++            op_word = (op & 0xFF) | (FLAG_FIXED if fixed else 0) | ((count & 0xFF) << 16)
++
++            # Write payload into data[]: data[0]=op_word, data[1]=offset,
++            # data[2..N]=write values.  Do this BEFORE posting the command.
++            tcml[base + 2] = op_word & 0xFFFFFFFF
++            tcml[base + 3] = offset & 0xFFFFFFFF
++            for i, v in enumerate(values or ()):
++                tcml[base + 4 + i] = v & 0xFFFFFFFF
++
++            # Write cmd id, then set status=POSTED in a single word write
++            # (cmd and status are adjacent uint32_t in the packed struct).
++            tcml[base] = LA9310_SW_CMD_VSPA_DBG
++            # Read-back cmd to ensure the store reached TCML before the
++            # status/doorbell write (memory ordering on ARM PCIe MMIO).
++            _ = tcml[base]
++            tcml[base + 1] = LA9310_SW_CMD_STATUS_POSTED
++
++            # Kick the M4 sw_cmd task via MSG unit 2 MSIIR doorbell.
++            self.ccsr32[self._msiir2_w] = 0
++
++            # Poll sw_cmd_desc.status until DONE or timeout.
++            deadline = time.monotonic() + self.timeout
++            while True:
++                st = tcml[base + 1]
++                if st == LA9310_SW_CMD_STATUS_DONE:
++                    break
++                if time.monotonic() > deadline:
++                    raise ShivaPortError(
++                        "M4 sw_cmd timeout (VSPA_DBG): "
++                        f"last status={st} op={op} offset=0x{offset:X} count={count}")
++
++            # data[0] holds the error code on completion (0 = ok).
++            err = tcml[base + 2]
++            if err:
++                raise ShivaPortError(
++                    f"M4 sw_cmd VSPA_DBG error {err} "
++                    f"({_VSPA_DBG_ERRORS.get(err, 'unknown')}) "
++                    f"op={op} offset=0x{offset:X} count={count}")
++
++            if op == OP_READ:
++                return [tcml[base + 4 + i] for i in range(count)]
++            return []
++        finally:
++            fcntl.flock(self.fd, fcntl.LOCK_UN)
++
++    def dbg_read(self, offset, count=1, fixed=False):
++        """Read count words from the VSPA debug register block."""
++        out = []
++        while count:
++            n = min(count, VSPA_DBG_MAX_WORDS)
++            out += self.dbg_access(OP_READ, offset, n, fixed=fixed)
++            if not fixed:
++                offset += 4 * n
++            count -= n
++        return out
++
++    def dbg_write(self, offset, values, fixed=False):
++        """Write values into the VSPA debug register block."""
++        index = 0
++        while index < len(values):
++            n = min(len(values) - index, VSPA_DBG_MAX_WORDS)
++            self.dbg_access(OP_WRITE, offset, n, values[index:index + n], fixed=fixed)
++            if not fixed:
++                offset += 4 * n
++            index += n
++
++
++# ---------------------------------------------------------------------------
++# Standalone CLI: forward to selfhosted.py using ShivaPort
++# ---------------------------------------------------------------------------
++
++def _cli(argv):
++    # Insert this transport into selfhosted's _cli by temporarily patching
++    # M4Proxy so every place that instantiates it gets an ShivaPort instead.
++    import selfhosted
++    _orig = selfhosted.M4Proxy
++    selfhosted.M4Proxy = ShivaPort
++    try:
++        return selfhosted._cli(argv)
++    finally:
++        selfhosted.M4Proxy = _orig
++
++
++if __name__ == "__main__":
++    sys.exit(_cli(sys.argv[1:]) or 0)
+diff --git a/tests/test_rfnm_port.py b/tests/test_shiva_port.py
+similarity index 74%
+rename from tests/test_rfnm_port.py
+rename to tests/test_shiva_port.py
+index 7cef1f7..a7f80a4 100644
+--- a/tests/test_rfnm_port.py
++++ b/tests/test_shiva_port.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ # SPDX-License-Identifier: Apache-2.0
+-"""Offline tests for rfnm_port.RfnmPort: the sw_cmd request layout, the
++"""Offline tests for shiva_port.ShivaPort: the sw_cmd request layout, the
+ doorbell, chunking and error handling, against an in-memory TCML/CCSR and
+ a simulated M4 (no board, no /dev/shiva0, no /dev/mem)."""
+ 
+@@ -12,7 +12,7 @@ import unittest
+ 
+ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+ 
+-import rfnm_port as rp  # noqa: E402
++import shiva_port as rp  # noqa: E402
+ 
+ 
+ class FakeM4:
+@@ -56,8 +56,8 @@ class FakeM4:
+ 
+ 
+ def make_port(timeout=1.0):
+-    """An RfnmPort wired to bytearrays instead of /dev/mem."""
+-    port = rp.RfnmPort.__new__(rp.RfnmPort)
++    """An ShivaPort wired to bytearrays instead of /dev/mem."""
++    port = rp.ShivaPort.__new__(rp.ShivaPort)
+     port.timeout = timeout
+     port._bar0 = bytearray(rp.MSIIR2_CCSR_OFF + 16)
+     port._bar1 = bytearray(0x20000)
+@@ -69,7 +69,7 @@ def make_port(timeout=1.0):
+     return port
+ 
+ 
+-class RfnmPortTest(unittest.TestCase):
++class ShivaPortTest(unittest.TestCase):
+     def setUp(self):
+         self.port = make_port()
+         self.m4 = FakeM4(self.port)
+@@ -80,6 +80,7 @@ class RfnmPortTest(unittest.TestCase):
+ 
+     def test_desc_inside_tcml(self):
+         self.assertEqual(rp.SW_CMD_DESC_TCML_OFF % 4, 0)
++        self.assertEqual(rp.SW_CMD_DESC_TCML_OFF, 0x1C000 + 0x218)
+         end = rp.SW_CMD_DESC_TCML_OFF + 4 * (2 + rp._LA9310_SW_CMD_DATA_SIZE)
+         self.assertLessEqual(end, 0x20000)
+         # data[] holds op, offset and up to VSPA_DBG_MAX_WORDS payload words
+@@ -109,20 +110,49 @@ class RfnmPortTest(unittest.TestCase):
+ 
+     def test_firmware_error(self):
+         self.m4.error = 2
+-        with self.assertRaisesRegex(rp.RfnmPortError, "outside debug block"):
++        with self.assertRaisesRegex(rp.ShivaPortError, "outside debug block"):
+             self.port.dbg_read(0x4000)
+ 
+     def test_timeout(self):
+         self.m4.stop()
+         self.port.timeout = 0.05
+-        with self.assertRaisesRegex(rp.RfnmPortError, "timeout"):
++        with self.assertRaisesRegex(rp.ShivaPortError, "timeout"):
+             self.port.dbg_read(0x800)
+ 
+     def test_tcmu_range(self):
+         rp.check_tcmu_free(0x20001000, 4)
+-        with self.assertRaises(rp.RfnmPortError):
++        with self.assertRaises(rp.ShivaPortError):
+             rp.check_tcmu_free(0x20000000, 1)
+ 
+ 
++
++class HifLayoutTest(unittest.TestCase):
++    """sw_cmd_desc location for the RFNM and NXP la93xx_freertos trees."""
++
++    def setUp(self):
++        for k in ("SHIVA_HIF_OFFSET", "SHIVA_SW_CMD_OFFSET"):
++            os.environ.pop(k, None)
++
++    def test_rfnm_default(self):
++        self.assertEqual(rp.sw_cmd_desc_offset(0), 0x1C218)
++        self.assertEqual(rp.sw_cmd_desc_offset(0xDEADBEEF), 0x1C218)
++
++    def test_nxp_scratchrw3(self):
++        # offsetof(struct la9310_hif, sw_cmd_desc) = 0x240 in the NXP tree
++        self.assertEqual(rp.sw_cmd_desc_offset(0x1B000), 0x1B240)
++
++    def test_env_override(self):
++        os.environ["SHIVA_HIF_OFFSET"] = "0x1B000"
++        os.environ["SHIVA_SW_CMD_OFFSET"] = "0x100"
++        try:
++            self.assertEqual(rp.sw_cmd_desc_offset(0), 0x1B100)
++        finally:
++            self.setUp()
++
++    def test_rfnm_alias(self):
++        import rfnm_port
++        self.assertIs(rfnm_port.RfnmPort, rp.ShivaPort)
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/vdbg.py b/vdbg.py
+index 588246f..91e935e 100644
+--- a/vdbg.py
++++ b/vdbg.py
+@@ -91,7 +91,8 @@ class DebugInfoError(RuntimeError):
+     pass
+ 
+ 
+-TRANSPORTS = ("selfhosted", "jtag", "openocd", "rfnm")
++# "rfnm" is a deprecated alias of "shiva" (la9310shiva driver hosts).
++TRANSPORTS = ("selfhosted", "jtag", "openocd", "shiva", "rfnm")
+ 
+ 
+ def make_client(transport, device=None, gdb_server=None):
+@@ -105,10 +106,10 @@ def make_client(transport, device=None, gdb_server=None):
+         import jtag
+         return sh.SelfHostedClient(
+             port=jtag.OpenOcdPort(gdb_server or jtag.DEFAULT_OPENOCD))
+-    if transport == "rfnm":
+-        import rfnm_port
++    if transport in ("shiva", "rfnm"):
++        import shiva_port
+         return sh.SelfHostedClient(
+-            port=rfnm_port.RfnmPort(device or rfnm_port.SHIVA_DEVICE))
++            port=shiva_port.ShivaPort(device or shiva_port.SHIVA_DEVICE))
+     if transport != "selfhosted":
+         raise ValueError(f"unknown transport: {transport} "
+                          f"({' | '.join(TRANSPORTS)})")
+-- 
+2.43.0
+

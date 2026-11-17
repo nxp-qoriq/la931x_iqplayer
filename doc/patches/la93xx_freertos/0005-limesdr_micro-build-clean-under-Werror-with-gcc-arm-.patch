@@ -1,0 +1,104 @@
+From 9f4ea9eb731a839d29a32178fdb1ed7af29655e7 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Tue, 17 Nov 2026 12:16:03 +0100
+Subject: [PATCH] limesdr_micro: build clean under -Werror with
+ gcc-arm-none-eabi 6
+
+CMAKE_COMPILE_WARNING_AS_ERROR is ON, and the documented LimeSDR-Micro
+build (gcc-arm-none-eabi-6-2017-q2-update) failed on warnings:
+
+- CMakeLists.txt: gcc < 9 does not know -Wno-address-of-packed-member;
+  drop it for those compilers
+- common.h: forward-declare struct la9310_info before its use in a
+  prototype
+- main.c: pxContext unused when LIME_SDR_MICRO is defined
+- limesdr_commands.c: remove the unused static xSwCmdSemaphore
+- eeprom.c: unused return values, const buffer passed to the I2C API
+
+No functional change; same image size.
+---
+ Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt              | 8 ++++++++
+ Demo/CORTEX_M4_NXP_LA9310_GCC/include/common.h            | 1 +
+ Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/eeprom.c      | 5 +++--
+ .../limesdr_micro/limesdr_commands.c                      | 1 -
+ Demo/CORTEX_M4_NXP_LA9310_GCC/main.c                      | 3 +++
+ 5 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt b/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
+index 4969666..9a1b890 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
+@@ -47,6 +47,14 @@ SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -g  -fno-strict-aliasing  -m
+ # RELEASE LD FLAGS
+ SET(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} -g  -mcpu=cortex-m4  -mfloat-abi=soft  --specs=nano.specs  -lm  -Wall -Wno-packed-bitfield-compat  -Wno-address-of-packed-member  -fno-common  -ffunction-sections  -fdata-sections  -ffreestanding  -fno-builtin  -Os  -mthumb  -mapcs  -Xlinker --gc-sections  -Xlinker -static  -Xlinker -z  -Xlinker muldefs")
+ 
++# gcc < 9 does not know -Wno-address-of-packed-member and, with warnings as
++# errors, rejects it ("unrecognized command line option"). Drop it there.
++if(CMAKE_C_COMPILER_VERSION VERSION_LESS 9)
++    foreach(v CMAKE_ASM_FLAGS_RELEASE CMAKE_C_FLAGS_RELEASE CMAKE_EXE_LINKER_FLAGS_RELEASE)
++        string(REPLACE "-Wno-address-of-packed-member" "" ${v} "${${v}}")
++    endforeach()
++endif()
++
+ # ASM MACRO
+ SET(CMAKE_ASM_FLAGS_DEBUG "${CMAKE_ASM_FLAGS_DEBUG}  -D__DEBUG")
+ 
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/include/common.h b/Demo/CORTEX_M4_NXP_LA9310_GCC/include/common.h
+index 6e5136d..498a331 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/include/common.h
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/include/common.h
+@@ -30,6 +30,7 @@ void vSocInit( void );
+ void vBoardEarlyInit( void );
+ void vBoardFinalInit( void );
+ void vSocResetHandshake( void );
++struct la9310_info;
+ void vLa9310_do_handshake( struct la9310_info * vLa9310Info );
+ void vLa9310_Read_Board_Rev_pca9570(void);
+ int iLa9310_Get_Board_Rev(void);
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/eeprom.c b/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/eeprom.c
+index 84fc88b..0769b33 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/eeprom.c
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/eeprom.c
+@@ -13,10 +13,11 @@ static const uint8_t eeprom_i2c_address = 0x50;
+ 
+ void EEPROM_Write(uint16_t mem_address, const void* buffer, uint32_t length)
+ {
+-	int bytesWritten = iLa9310_I2C_Write(LA9310_FSL_I2C1, eeprom_i2c_address, mem_address, LA9310_I2C_DEV_OFFSET_LEN_2_BYTE, buffer, length);
++	/* The I2C API takes a non-const buffer but does not modify it on write. */
++	( void ) iLa9310_I2C_Write(LA9310_FSL_I2C1, eeprom_i2c_address, mem_address, LA9310_I2C_DEV_OFFSET_LEN_2_BYTE, ( uint8_t * ) buffer, length);
+ }
+ 
+ void EEPROM_Read(uint16_t mem_address, void* buffer, uint32_t length)
+ {
+-	int bytesRead = iLa9310_I2C_Read(LA9310_FSL_I2C1, eeprom_i2c_address, mem_address, LA9310_I2C_DEV_OFFSET_LEN_2_BYTE, buffer, length);
++	( void ) iLa9310_I2C_Read(LA9310_FSL_I2C1, eeprom_i2c_address, mem_address, LA9310_I2C_DEV_OFFSET_LEN_2_BYTE, buffer, length);
+ }
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_commands.c b/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_commands.c
+index 9e46ca0..67c6ba1 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_commands.c
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_commands.c
+@@ -39,7 +39,6 @@ extern int IsExternalRefClkUsed();
+ extern struct lms7002m_context* rfsoc;
+ extern struct la9310_info g_la9310_info;
+ 
+-static SemaphoreHandle_t xSwCmdSemaphore;
+ static volatile int runEngine = 1;
+ 
+ enum CommandStatus { cmd_status_Undefined, cmd_status_Completed, cmd_status_Unknown, cmd_status_Busy, cmd_status_TooManyBlocks, cmd_status_Error, cmd_status_WrongOrder, cmd_status_ResourceDenied, cmd_status_Count };
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/main.c b/Demo/CORTEX_M4_NXP_LA9310_GCC/main.c
+index adcdd0b..939c943 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/main.c
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/main.c
+@@ -417,6 +417,9 @@ int iInitHandler ( void )
+ #else
+     ( void ) pxContext;
+ #endif
++#else
++    /* No timesync device on LimeSDR-Micro. */
++    ( void ) pxContext;
+ #endif
+     /*Till Here system is running at 100 Mhz*/
+     vLa9310_do_handshake( pLa9310Info );
+-- 
+2.43.0
+

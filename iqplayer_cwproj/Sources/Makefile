@@ -67,40 +67,15 @@ endef
 
 $(foreach cfg,$(CONFIGS),$(eval $(call BUILD_template,$(cfg))))
 
-# 0T4R and its variants. 0T4R is the fused QEC+decimation build
-# (rx_qec_decx2_8t), lossless at 4 x 61.44 MSPS with live QEC updates.
-_0T4R_FUSED_FLAGS = -DIQMOD_RX_0T4R -DIQMOD_RX_QEC_DECX2_FUSED
-#   0T4R: loop/RX cycle meters off, light AXIQ error path (counters only)
-VARIANT_FLAGS_0T4R = $(_0T4R_FUSED_FLAGS) -DLOOP_CYCLE_METER_OFF -DRX_CYCLE_METER_OFF -DRX_AXIQ_CHK_LIGHT
+# 0T4R: fused QEC+decimation build (rx_qec_decx2_8t), lossless at
+# 4 x 61.44 MSPS with live QEC updates. Loop/RX cycle meters off, light
+# AXIQ error path (counters only). Linked with la9310_iqplayer_0T4R.lcf
+# (0x480 stack for the soft-float rx_qec_decx2_prepare, 1024 B worst case).
+# Same defines and sources as the Debug_IQPLAYER_0T4R CodeWarrior config.
+VARIANT_FLAGS_0T4R = -DIQMOD_RX_0T4R -DIQMOD_RX_QEC_DECX2_FUSED -DLOOP_CYCLE_METER_OFF -DRX_CYCLE_METER_OFF -DRX_AXIQ_CHK_LIGHT
 VARIANT_OBJS_0T4R  = $(_OBJS_0T4R)
-#   0T4R_DIAG: fused 0T4R + stall/loss counters (debug only)
-VARIANT_FLAGS_0T4R_DIAG = $(_0T4R_FUSED_FLAGS) -DRX_STALL_STATS_ON
-VARIANT_OBJS_0T4R_DIAG  = $(_OBJS_0T4R)
-#   0T4R_PROF: fused 0T4R + per-stage cycle meter, sums >> 4 in tx_stats[0]
-#              completions+re-arm, [1] empty, [2] fused kernel, [3] DDR push
-#              + tail, [4] pass start-to-start. Not combined with the stall
-#              counters because both use tx_stats.
-VARIANT_FLAGS_0T4R_PROF = $(_0T4R_FUSED_FLAGS) -DRX_STAGE_METER
-VARIANT_OBJS_0T4R_PROF  = $(_OBJS_0T4R)
-#   1T2R_DIAG: 1T2R + RX stall counters (rx_stats only, TX stats untouched);
-#              TX, loop and RX pass cycle meters are off to fit in PRAM
-VARIANT_FLAGS_1T2R_DIAG = -DIQMOD_RX_1T2R -DRX_STALL_STATS_ON -DTX_CYCLE_METER_OFF -DLOOP_CYCLE_METER_OFF -DRX_CYCLE_METER_OFF
-VARIANT_OBJS_1T2R_DIAG  = $(_OBJS_1T2R)
-VARIANTS = 0T4R 0T4R_DIAG 0T4R_PROF 1T2R_DIAG
-
-# Fused QEC+decimation variants: rx_qec_decx2_prepare() runs soft-float
-# (__f_add/__f_mul frames 384 B) under RX_IQ_DATA_TO_DDR and the QEC
-# mailbox, 1024 B worst case. Link them with a copy of the LCF that has a
-# 0x480 stack (0T4R has DMEM to spare). Checked by tools/stack_check.py.
-FUSED_STACK_SIZE = 0x00480
-define FUSED_LCF_template
-LCF_$1 = $(PROJ_DIR)/Debug_IQPLAYER_$1/la9310_iqplayer.lcf
-$$(LCF_$1): $(LCF_FILE)
-	mkdir -p $$(dir $$@)
-	sed -E 's/^StackSize( *)= *0x[0-9A-Fa-f]+;/StackSize\1= $(FUSED_STACK_SIZE);/' $$< > $$@
-	grep -q "^StackSize *= *$(FUSED_STACK_SIZE);" $$@
-endef
-$(foreach v,0T4R 0T4R_DIAG 0T4R_PROF,$(eval $(call FUSED_LCF_template,$(v))))
+LCF_0T4R = $(PROJ_DIR)/LCF/la9310_iqplayer_0T4R.lcf
+VARIANTS = 0T4R
 
 define VARIANT_template
 LCF_$1 ?= $(LCF_FILE)

@@ -392,7 +392,8 @@ clone FreeRTOS source code
  git clone https://github.com/nxp-qoriq/la93xx_freertos.git
  cd la93xx_freertos/
 
-apply the IQ Player LimeSDR-Micro patches (LA9310 clock 122.88 MHz, LMS7002M RX channel B)
+apply the IQ Player LimeSDR-Micro patches (LA9310 clock 122.88 MHz, LMS7002M RX channel B,
+VSPA debugger sw_cmd, see `VSPA debugger (la9310_debug)`_, clean -Werror build with gcc 6)
 ::
 
  git am $IQP/doc/patches/la93xx_freertos/*.patch      # IQP = la931x_iqplayer clone
@@ -406,6 +407,11 @@ Compile FreeRTOS with LimeSDR-micro support
   cd Demo/CORTEX_M4_NXP_LA9310_GCC
  ./clean.sh 
  ./build_release.sh -m pcie -t lime_sdr_micro -f LA9310_DFE_APP=ON -b release
+
+Warnings are errors (``CMAKE_COMPILE_WARNING_AS_ERROR``). Without
+``0005-limesdr_micro-build-clean-under-Werror-with-gcc-arm-.patch`` the upstream tree fails
+with gcc 6 (``unrecognized command line option '-Wno-address-of-packed-member'``, unused
+``pxContext``). Check the image: ``strings release/la9310.bin | grep "sw cmd"``.
 
 LA9310 clock (DCS_CLK) on LimeSDR-Micro
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -720,6 +726,75 @@ https://github.com/nxp-qoriq/la931x_vspa_5g_dfe
 
 Known limitation: TDD is not supported on LimeSDR-Micro (FDD only). TDD is supported on the
 RFNM board only.
+
+VSPA debugger (la9310_debug)
+............................
+
+Optional. ``la9310_debug`` (``vdbg``, ``profile``, DAP server for VS Code) runs on the
+imx95frdm with the ``shiva`` transport: attach to the running VSPA, read memory while
+streaming, breakpoints, watchpoints, profiling and reload. The requests go to the M4
+through the HIF ``sw_cmd_desc`` (``LA9310_SW_CMD_VSPA_DBG``, MSG unit 2 doorbell).
+
+Requirements:
+
+- M4 image built with ``doc/patches/la93xx_freertos/0004-sw_cmd_engine-LA9310_SW_CMD_VSPA_DBG-proxy-for-the-V.patch``
+  (applied by the ``git am`` of the FreeRTOS section above): adds the VSPA_DBG handler and
+  starts the sw_cmd engine, which is not started by the upstream image. Check with
+  ``strings release/la9310.bin | grep "sw cmd"``.
+- ``la9310shiva.ko`` with ``doc/patches/la93xx_host_sw/0001`` (mmap of the PCIe BARs
+  through ``/dev/shiva0``; without it the tools fall back to ``/dev/mem``).
+- Python 3 on the target; run as root.
+
+Clone and patch::
+
+ git clone https://git.6g-for-all.de/6g4all/la9310_debug.git $DBG
+ git -C $DBG checkout 2328871
+ git -C $DBG apply --index $IQP/doc/patches/la9310_debug/*.patch
+ python3 -m unittest discover -s $DBG/tests -p "test_shiva_port.py"   # offline
+
+Deploy the rebuilt ``la9310.bin`` as ``/lib/firmware/la9310_dfe.bin``, run
+``./load-limesdr-micro.sh``, copy ``$DBG`` to the target, then::
+
+ python3 shiva_port.py heartbeat        # M4 answers VSPA debug requests
+ python3 shiva_port.py info             # VSPA state snapshot
+ python3 vdbg.py --transport shiva --attach /lib/firmware/apm-iqplayer-1T1R.eld
+ python3 profile.py --transport shiva /lib/firmware/apm-iqplayer-1T1R.eld --seconds 10
+ python3 shiva_port.py load /lib/firmware/apm-iqplayer-1T1R.eld   # reload a hung VSPA
+
+``shiva_port.py`` reads the HIF offset published by the NXP firmware (DCFG SCRATCHRW[3],
+0x1B000) and uses ``sw_cmd_desc`` at TCML + 0x1B240. Halting the VSPA (breakpoint,
+watchpoint) stops the stream; restart with ``shiva_port.py load`` or
+``iq-reload-vspa.sh``. Keep dfe_app idle while debugging: its commands also go through
+the M4. Details: ``docs/shiva.md`` in ``la9310_debug``.
+
+Verified on imx95frdm + LimeSDR-Micro (1T1R, TX + RX streaming): ``heartbeat``, ``info``,
+``vdbg --attach`` with live ``dmem``, ``profile`` and a breakpoint. ``regs`` while halted,
+resume after a breakpoint, ``load`` and ``--transport rfnm`` are not recorded yet.
+
+Profile while streaming (10 s)::
+
+ 667 samples
+  24.44%     163  _PUSH_RX_DATA
+  23.39%     156  _PUSH_TX_DATA
+  12.89%      86  _meter_end
+   9.15%      61  _VSPA_PROXY_update
+   7.65%      51  _main
+   6.00%      40  _dma_done_from_state
+   5.85%      39  ___internal_done
+
+With no stream the profile is 100% ``___internal_done``: the event-driven VSPA sleeps
+between passes.
+
+Breakpoint in the RX path (halting stops the stream)::
+
+ (vdbg) break _PUSH_RX_DATA
+   breakpoint 0 at 0x10B8 <_PUSH_RX_DATA> at iqmod_rx.c:353
+ (vdbg) c
+ stopped: breakpoint/comparator 0
+   0x10B8 <_PUSH_RX_DATA> at iqmod_rx.c:353
+
+DMEM words that read ``DEADBEEF`` have not been written since boot (crt0 fills DMEM with
+that pattern).
 
 Tips 
 ****

@@ -29,8 +29,8 @@ and a host Linux library and application example.
 
 # Contents
 
-- `iqplayer_cwproj`: source code, Makefile and CW projects for the VSPA firmware variants
-  1T1R, 1T2R, 1T2R_DIAG, 0T4R, 0T4R_DIAG, 0T4R_PROF
+- `iqplayer_cwproj`: source code, Makefile and CodeWarrior project for the VSPA firmware variants
+  1T1R, 1T2R, 0T4R (CW build configurations `Debug_IQPLAYER_<variant>`, same ELDs as `make`)
 - `host-utils`: Linux user space utilities
   - shell scripts to load, start and stop transfers: `load-limesdr-micro.sh` / `load-rfnm.sh`, `iq-replay.sh`,
     `iq-capture.sh`, `iq-capture-ddr.sh`, `iq-app-tx.sh`, `iq-app-rx.sh`, `iq-stop.sh`,

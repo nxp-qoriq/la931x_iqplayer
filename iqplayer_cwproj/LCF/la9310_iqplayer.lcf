@@ -71,8 +71,8 @@ HeapSize   = 0x00000;
  * DMA helpers were inlined and the nested PUSH_* calls removed from the
  * start handlers. tools/stack_check.py checks it after every link with a
  * 64 B margin and fails the build if a new call chain does not fit.
- * The 0T4R_FUSED* variants link a copy with StackSize 0x480 (soft-float in
- * rx_qec_decx2_prepare, 1024 B), see FUSED_STACK_SIZE in Sources/Makefile. */
+ * 0T4R links la9310_iqplayer_0T4R.lcf (StackSize 0x480, soft-float in
+ * rx_qec_decx2_prepare, 1024 B). Keep both files identical otherwise. */
 StackSize  = 0x00200;
 StackStart = VCPU_TopMemAddress - align((StackSize + HeapSize), DMEM_Line_Size);
 

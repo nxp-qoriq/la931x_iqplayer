@@ -69,17 +69,16 @@ I/Q samples to and from host DDR on the other. Linux controls and operates IQ Pl
 Firmware Variants
 *****************
 
-Variants built by ``make``:
+Variants built by ``make`` and by the CodeWarrior project (``iqplayer_cwproj``, build
+configurations ``Debug_IQPLAYER_<variant>``, same defines, sources and LCF):
 
  ===================== ==================================================================
   Variant               Description
  ===================== ==================================================================
   ``1T1R``              1 TX + 1 RX
-  ``1T2R``              1 TX + 2 RX, x2 decimation
-  ``1T2R_DIAG``         1T2R + RX stall counters
-  ``0T4R``              4 RX, fused QEC + x2 decimation, lossless at 4 x 61.44 MSPS
-  ``0T4R_DIAG``         0T4R + stall/loss counters
-  ``0T4R_PROF``         0T4R + per-stage cycle meter
+  ``1T2R``              1 TX + 2 RX, x2 decimation (loop and TX cycle meters off)
+  ``0T4R``              4 RX, fused QEC + x2 decimation, lossless at 4 x 61.44 MSPS,
+                        linked with ``LCF/la9310_iqplayer_0T4R.lcf`` (0x480 stack)
  ===================== ==================================================================
 
 ``make install CONFIG=<variant>`` copies these ELDs and copies the selected one to ``apm.eld`` (a regular file, not a symlink).
@@ -616,27 +615,29 @@ Shown by iq_mon, all reset at stream start:
 - ``[VSPA loop meter]``: main loop pass from GO wakeup to ``__idle()`` (idle not counted),
   passes per second, budget ``LOOP_PASS_BUDGET``.
 - ``TX in flight (last pass): DDR rd N buf, AXIQ wr N buf``.
-- ``[VSPA RX stalls/s]`` and ``[VSPA RX loss check]`` (``_DIAG`` variants): per-channel
-  stalls (host gate closed, DDR DMA busy, decimation backlog), measured VSPA clock and
-  buffers/s versus nominal.
+- ``[VSPA RX stalls/s]`` and ``[VSPA RX loss check]`` (custom build with
+  ``-DRX_STALL_STATS_ON``): per-channel stalls (host gate closed, DDR DMA busy,
+  decimation backlog), measured VSPA clock and buffers/s versus nominal.
 
 The meters live in ``t_stats.meter[16]`` ([0..5] TX, [6..9] loop, [10..12] budgets,
 [13..14] TX in flight). ``t_stats`` is shared with the host: rebuild iq_mon, lib_iqplayer
 and iq_app together with the firmware.
 
-To fit in PRAM, 1T2R has no loop or TX meter, and 1T2R_DIAG has no RX pass meter either.
+To fit in PRAM, 1T2R has no loop or TX meter.
 
 Build options
 -------------
 
+Debug options for custom builds (not part of the delivered variants):
+
  =========================== ==============================================================
   Option                      Effect
  =========================== ==============================================================
-  ``-DRX_STALL_STATS_ON``     stall and loss counters (``0T4R_DIAG``, ``1T2R_DIAG``)
+  ``-DRX_STALL_STATS_ON``     stall and loss counters (1T2R: also needs ``-DRX_CYCLE_METER_OFF``)
   ``-DRX_CYCLE_METER_OFF``    remove the RX cycle meter
   ``-DTX_CYCLE_METER_OFF``    remove the TX cycle meter
   ``-DLOOP_CYCLE_METER_OFF``  remove the loop meter
-  ``-DRX_STAGE_METER``        per-stage cycle sums in tx_stats[0..4] (``0T4R_PROF``)
+  ``-DRX_STAGE_METER``        per-stage cycle sums in tx_stats[0..4] (0T4R)
   ``-DRX_HOT_TRACE``          per-buffer RX l1 traces in the streaming loop
   ``-DTX_HOT_TRACE``          per-buffer TX l1 traces
   ``-DRX_AXIQ_CHK_LIGHT``     AXIQ error check counts only, no l1 traces (0T4R)

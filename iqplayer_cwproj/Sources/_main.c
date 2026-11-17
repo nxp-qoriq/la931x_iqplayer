@@ -217,11 +217,20 @@ void DDR_write_VSPA_PROXY(uint32_t DDR_wr_dma_channel, uint32_t DDR_address, uin
 #endif
 }
 
+/* ELD_BUILD_VERSION: MMDDHHmm decimal, set by Sources/Makefile.
+ * IDE builds (CodeWarrior) do not define it: use 0. A value derived from
+ * __DATE__/__TIME__ is decoded at run time by this compiler and does not
+ * fit in the 1T2R PRAM. Add ELD_BUILD_VERSION=<n> to the CW defines to
+ * stamp an IDE build. */
+#ifndef ELD_BUILD_VERSION
+#define ELD_BUILD_VERSION 0
+#endif
+
 void setup(void) {
     uint64_t msg64 = 0, i = 0, j = 0;
 
     /* First trace entry: build version for post-mortem identification.
-     * ELD_BUILD_VERSION is injected by the Makefile as MMDDHHmm decimal. */
+     * ELD_BUILD_VERSION is MMDDHHmm decimal (Makefile), 0 in IDE builds. */
     l1_trace(L1_TRACE_MSG_BUILD_VER, ELD_BUILD_VERSION);
 
     vcpu_swver(0x00020002);
@@ -542,11 +551,12 @@ __attribute__((noreturn)) void main(void) {
         }
 
         case MBOX_OPC_RX_CHAN_SELECT: {
-            /* LSB bit 8 = 0: contiguous, slot i = (LSB & 0xf) + i.
-             * LSB bit 8 = 1: list, slot i = (LSB >> 4*i) & 0xf.
+            /* LSB bit 16 = 0: contiguous, slot i = (LSB & 0xf) + i.
+             * LSB bit 16 = 1: list, slot i = (LSB >> 4*i) & 0xf (bits 15..0,
+             * the flag sits above the 4 slots so slot 2 does not overlap it).
              * NACK (LSB 0) if a chanID is > 3 or used twice. */
             /* No local array here: main() stack is at its limit. */
-#define RX_SEL_CH(sel, k) (((sel) & 0x100) ? (((sel) >> (4 * (k))) & 0xf) : (((sel) & 0xf) + (k)))
+#define RX_SEL_CH(sel, k) (((sel) & 0x10000) ? (((sel) >> (4 * (k))) & 0xf) : (((sel) & 0xf) + (k)))
             uint32_t sel = mailbox_in_msg_0_LSB;
             uint32_t used = 0, ok = 1, k, c;
 
@@ -622,6 +632,12 @@ __attribute__((noreturn)) void main(void) {
 
         case MBOX_OPC_DONE_SWRESET:
             extern void start(void);
+            /* Quiesce every DMA channel before the ACK: a late DMA
+             * completion or GO event after entry(start) would restart the
+             * old image (0xF1000000 posted while the host is reloading
+             * the VSPA memories). Only the host mailbox can wake it now. */
+            dmac_abort();
+            dmac_clear();
             entry(start);
             host_clear();
             mailbox_out_msg_0_MSB = 0x0;
