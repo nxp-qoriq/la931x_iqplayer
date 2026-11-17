@@ -32,9 +32,11 @@ and a host Linux library and application example.
 - `iqplayer_cwproj`: source code, Makefile and CW projects for the VSPA firmware variants
   1T1R, 1T2R, 1T2R_DIAG, 0T4R, 0T4R_DIAG, 0T4R_PROF
 - `host-utils`: Linux user space utilities
-  - shell scripts to load, start and stop transfers: `load-la9310.sh`, `iq-replay.sh`,
+  - shell scripts to load, start and stop transfers: `load-limesdr-micro.sh` / `load-rfnm.sh`, `iq-replay.sh`,
     `iq-capture.sh`, `iq-capture-ddr.sh`, `iq-app-tx.sh`, `iq-app-rx.sh`, `iq-stop.sh`,
     `iq-reload-vspa.sh`
+  - RX configuration: `rx-chan.sh` (channel order, `-r` read back), `rx-iqswap.sh`,
+    `iq-board-defaults.sh` (board defaults), `iq-proxy-cfg.sh` (proxy config word helper)
   - `iq_mon`: statistics monitor for the DMA channels and FIFOs, with VSPA cycle meters
   - `iq_trace`: dumps VSPA trace information to debug or profile the firmware
   - `iq_app` / `lib_iqplayer`: application example streaming to/from the upper stack,
@@ -56,7 +58,7 @@ scp -r install/* root@<targetIP>:/
 
 Load and start the VSPA firmware
 ```sh
- ./load-la9310.sh
+ ./load-limesdr-micro.sh      # RFNM: ./load-rfnm.sh
 ```
 
 Switch firmware variant at runtime (VSPA reset, DMA load, `apm.eld` copy and proxy
@@ -113,6 +115,49 @@ Default 256 KB TX FIFO in DDR, `-f` = DAC at 122.88 MSPS
  ./iq-stop.sh
 ```
 
+The panel shows the tone bin and its two neighbours; the bar length follows the linear
+amplitude (`-l` for a dB bar). Example, tone at 6.72 MHz, amplitude 0.2:
+```sh
++-----------------------------------------------------------------+
+| iq_app  Tone TX (LA9310)                                        |
++-----------------------------------------------------------------+
+|  Waveform  : tone                                               |
+|  Frequency :     +6720.000 kHz  (up/dn:  960.000 kHz/step)      |
+|  Amplitude :  0.200              (lt/rt: 0.050 /step)           |
++-----------------------------------------------------------------+
+|  TX QEC                                                         |
++-----------------------------------------------------------------+
+|  Gain      :    +0.00 dB           ( g/G : step 0.1 dB  )       |
+|  Phase     :    +0.00 deg          ( p/P : step 0.5 deg )       |
+|  DC I      :   +0.000              ( i/I : step 0.01    )       |
+|  DC Q      :   +0.000              ( j/J : step 0.01    )       |
++-----------------------------------------------------------------+
+|  Keys: up/dn=freq  lt/rt=amp  w=wave  r=rst  s=save  q=quit     |
++-----------------------------------------------------------------+
+| TX spectrum  FFT=512   SR=61.440 MHz
+| ...
+|     7.680 MHz |                                                                                | -103.98 dBFS
+|     6.720 MHz |###############                                                                 |  -13.98 dBFS
+|     5.760 MHz |                                                                                | -104.18 dBFS
+| ...
++-----------------------------------------------------------------+
+```
+
+The TX start is refused when the loaded firmware has no TX channel (0T4R):
+`iq-app-tx.sh` and `iq-replay.sh` stop with an error, load 1T1R or 1T2R first.
+
+## RX channel mapping
+
+`rx-chan.sh` selects the physical RX channel (mbx chanID) of each slot; the load scripts
+set the board default (LimeSDR-Micro: `rx-chan.sh 3 1 2 0`). `-r` reads back the
+configuration published by the VSPA:
+```sh
+ ./rx-chan.sh -r
+ proxy cfg 0x02130202: RX 2  IQ swap 0  TX 1  board limesdr-micro
+  slot 0 -> chanID 3  RX0  LMS7002M RX1 (ch A)
+  slot 1 -> chanID 1  RX1  LMS7002M RX2 (ch B)
+```
+
 ## Usage - iq_app RX
 
 Default 512 KB RX FIFO per channel in DDR, channel count read from the loaded firmware
@@ -124,55 +169,106 @@ Default 512 KB RX FIFO per channel in DDR, channel count read from the loaded fi
  ./iq-stop.sh
 ```
 
-```sh
-RX QEC ch 0/1  gain  +0.10 dB  phase  +0.50 deg  DC I -0.030  DC Q -0.010   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+Each channel header is `Ch<slot> [chan <mbx chanID> <LA9310 input> | <board path>]  IQ swap <n>`.
+Example: 1T2R on LimeSDR-Micro, one antenna on LMS7002M RX1 (channel A); RX2 (channel B)
+has no antenna, so it is about 20 dB lower.
 
-Ch0 (RxChan 0)  Fs 61.44 MHz  FFT 8192 x8  RBW 7.5 kHz  rect/mag
-  RSSI -31.1  floor -94.9  DC -32.6 dBFS
-  spurs: -37.2@+2.88 -47.3@-2.88 -49.1@+5.76 -56.9@-5.76 MHz
-  peak I -28.1  Q -30.3 dBFS  clip 0 (0.000%)  crest 6.0 dB
-+0.050 |                                                                                |
-+0.047 |                                                                                |
-+0.045 |                                                                                |
-+0.043 |                                                                                |
-+0.040 |                                                                                |
-+0.038 |                                                                                |
-+0.035 |                                                                                |
-+0.032 |                                                                                |
-+0.030 |                                                                                |
-+0.027 |                                                                                |
-+0.025 |                                                                                |
-+0.023 |                                                                                |
-+0.020 |                                                                                |
-+0.017 |                                                                                |
-+0.015 |                                                                                |
-+0.012 |                                                                                |
-+0.010 |                                                                                |
-+0.008 |                                                                                |
-+0.005 |       o                    ooo                  oo                   ooo       |
-+0.003 |        oo                 o                                             o      |
-+0.000 |     oo                        o                o  oo                           |
--0.003 |    o     o           *   o                    o                 *              |
--0.005 |* *                 **                    **                   ** *  o    o     |
--0.007 | *                **   * +      o       **  **       o        *    *o           |
--0.010 |           o     *      *              *      +             **      *      o    |
--0.012 |   ***      o             *      o    *        *      o            o *          |
--0.015 |   o                    o  *                 o  *      o   *                o   |
--0.018 |  o             *                    *                    *       o   *         |
--0.020 |      *      o                    oo*                   o                    o *|
--0.023 |oo     *      o*oo    oo    *        o    o o    *       *o oo   o     *      +o|
--0.025 |              *o  ooo        *     *o oooo o      *      o o  ooo               |
--0.027 |        *    *       o                             *    *               **   *  |
--0.030 |           **                 *   *                    *                        |
--0.032 |         *                       *                  **                      *   |
--0.035 |          *                    **                     *                   **    |
--0.037 |                                                                                |
--0.040 |                                                                                |
--0.043 |                                                                                |
--0.045 |                                                                                |
--0.048 |                                                                                |
+Spectrum view:
+```sh
+RX QEC ch 0/2  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 3 RX0 | LMS7002M RX1 (A)]  IQ swap 0  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -7.1  floor -78.2  DC -28.3 dBFS
+  spurs: -9.0@-3.28 -23.9@-10.00 -48.3@-3.40 -49.9@-3.42 MHz
+  peak I -5.4  Q -5.0 dBFS  clip 0 (0.000%)  crest 5.1 dB
+  -6.2 |                                                                                |
+ -12.5 |                               |                                                |
+ -18.8 |                               |                                                |
+ -25.0 |             |                 |                                                |
+ -31.2 |             |                 #        |                                       |
+ -37.5 |             |                 #        |                                       |
+ -43.8 |             #                 #        |                                       |
+ -50.0 |        |    #|                #        #                                       |
+ -56.2 |        |    #|               |#|       #                                       |
+ -62.5 |        |    ##              |###|      #                                   |   |
+ -68.8 |        #    ##            |#######|    #       |                           |   |
+ -75.0 |        #|  |###|||||||################|#|||||| || ||| | |        |         |   |
+ -81.2 |||||||||##############################################################||||||#|| |
+ -87.5 |################################################################################|
+ -93.8 |################################################################################|
+-100.0 |################################################################################|
        ++-------------------+-------------------+-------------------+-------------------+
-        0 .. 1.302 us, 80 samples, 1/col  scale +-0.05 FS (auto)  keys: +/- zoom, a=auto/fixed, t=spectrum
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch1 [chan 1 RX1 | LMS7002M RX2 (B)]  IQ swap 0  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -27.9  floor -83.9  DC -28.5 dBFS
+  spurs: -39.3@-3.28 -55.5@-10.00 -60.9@-11.92 -67.7@+3.28 MHz
+  peak I -24.8  Q -24.8 dBFS  clip 0 (0.000%)  crest 6.1 dB
+  -6.2 |                                                                                |
+ -12.5 |                                                                                |
+ -18.8 |                                                                                |
+ -25.0 |                                                                                |
+ -31.2 |                                        |                                       |
+ -37.5 |                                        |                                       |
+ -43.8 |                               |        |                                       |
+ -50.0 |                               |        #                                       |
+ -56.2 |             |                 |        #                                       |
+ -62.5 |        |    |                 #        #                                       |
+ -68.8 |        |    |                 #        #       |                               |
+ -75.0 |        |    #|                #        #       |                               |
+ -81.2 |        #| ||#|||||||||||||||||#||||||||#|||||||#||||||||||||||||||||           |
+ -87.5 ||||||######################################################################||||||
+ -93.8 |################################################################################|
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+```
+
+Time view (key `t`; `*` = I, `o` = Q, `+` = both, `.` = zero line):
+```sh
+Ch0 [chan 3 RX0 | LMS7002M RX1 (A)]  IQ swap 0  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -7.1  floor -78.2  DC -28.3 dBFS
+  spurs: -9.0@-3.28 -24.0@-10.00 -49.5@-3.42 -50.1@-11.92 MHz
+  peak I -5.5  Q -5.0 dBFS  clip 0 (0.000%)  crest 5.1 dB
++1.000 |                                                                                |
++0.875 |                                                                                |
++0.750 |                                                                                |
++0.625 |                                                                                |
++0.500 |       o*       o**      o**      oo*       o*       o        o  *     oo **    |
++0.375 |*     o* *     o   *    o o *      * **    o  **    o +***     +* *      *      |
++0.250 | *   o    *   o *o  *        *   o          *o  *            o          *o  *   |
++0.125 |....o...o..*.o.........o........o...o..*..o........o.*..........o.....o.........|
++0.000 |  *   *               o  * o      *      o    o        o    o *  o * o    o    o|
+-0.125 |     *   o     *  o  *  *   o *o     o     *      o     o *o         *         *|
+-0.250 |    +**    o +* *      **       +*     o o* *      +        o      o o+ *   o  o|
+-0.375 |  o            *      o  *    o   *        *     oo **    oo **     o  *     oo |
+-0.500 |   o        o        o         o        o                                       |
+-0.625 |                                                                                |
+-0.750 |                                                                                |
+-0.875 |                                                                                |
+       ++-------------------+-------------------+-------------------+-------------------+
+        0 .. 2.604 us, 80 samples, 1/col  scale +-1.00 FS (auto)  keys: +/- zoom, a=auto/fixed, t=spectrum
+Ch1 [chan 1 RX1 | LMS7002M RX2 (B)]  IQ swap 0  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -27.9  floor -83.9  DC -28.5 dBFS
+  spurs: -39.3@-3.28 -55.7@-10.00 -61.1@-11.92 -67.4@+3.28 MHz
+  peak I -24.9  Q -24.8 dBFS  clip 0 (0.000%)  crest 6.1 dB
++0.100 |                                                                                |
++0.087 |                                                                                |
++0.075 |                                                                                |
++0.062 |                                                     o                          |
++0.050 |      o                 ooo                oo       o         oo       oo       |
++0.038 |    oo oo    ooooo    oo   oo  ooooo     oo  o    oo  oo    oo        o  oo    o|
++0.025 |oo o     o  o     oo         oo     ooooo     oooo      oo o    oo  oo     oooo |
++0.013 |  o       oo        oo                                    o       oo            |
++0.000 |        **      **         *       *         **                            *    |
+-0.013 | *     *  *       ***    ** **      ***        **    ****     *****     *** *   |
+-0.025 |* * ***        *     *  *     * ***    *  ***     **     **  *     * * *     * *|
+-0.038 |   *       ****       **       *        **       *  *      **       * *       * |
+-0.050 |                                                                                |
+-0.063 |                                                                                |
+-0.075 |                                                                                |
+-0.087 |                                                                                |
+       ++-------------------+-------------------+-------------------+-------------------+
+        0 .. 2.604 us, 80 samples, 1/col  scale +-0.10 FS (auto)  keys: +/- zoom, a=auto/fixed, t=spectrum
 ```
 
 

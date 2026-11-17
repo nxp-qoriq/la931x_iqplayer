@@ -298,10 +298,10 @@ void RX_IQ_DATA_TO_DDR(void) {
     if (cmd_start && DDR_wr_start_bit_update && !DDR_wr_load_start_bit_update) {
         DDR_wr_start_bit_update = 0;
         for (i = 0; i < RX_NUM_CHAN; i++) {
-            dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
+            dma_channel_rd = rx_slot_dma[i];
             dmac_abort(0x1 << dma_channel_rd);
             dmac_clear_complete(0x1 << dma_channel_rd);
-            axiq_fifo_rx_disable(AXIQ_BANK_0, Rx_Antenna2fifo_index[rx_ch_context[i].RX_index]);
+            axiq_fifo_rx_disable(AXIQ_BANK_0, rx_slot_fifo[i]);
         }
     }
 
@@ -335,7 +335,6 @@ void RX_IQ_DATA_TO_DDR(void) {
         }
 
         for (i = 0; i < RX_NUM_CHAN; i++) {
-            rx_ch_context[i].RX_index = RX_index + i;
             rx_ch_context[i].p_rx_axiq_enqueued = &input_buffer[i][0];
             rx_ch_context[i].p_rx_axiq_received = &input_buffer[i][0];
             rx_ch_context[i].p_rx_dmem_QECed = &input_buffer[i][0];
@@ -392,10 +391,10 @@ void RX_IQ_DATA_TO_DDR(void) {
 
         // Disable Rx and reset fifo
         for (i = 0; i < RX_NUM_CHAN; i++) {
-            dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
-            axi_rd = axi_ADC_FIFO_addr[i];
+            dma_channel_rd = rx_slot_dma[i];
+            axi_rd = rx_slot_axi[i];
             dmac_reset(0x1 << dma_channel_rd);
-            axiq_fifo_rx_disable(AXIQ_BANK_0, Rx_Antenna2fifo_index[rx_ch_context[i].RX_index]);
+            axiq_fifo_rx_disable(AXIQ_BANK_0, rx_slot_fifo[i]);
             stream_read_ptr_rst(dma_channel_rd, axi_rd);
             /* Plain wait, no nested PUSH_TX_DATA(): the nested call stacked
              * a second 256 B frame on top of this handler and set the VCPU
@@ -415,10 +414,10 @@ void RX_IQ_DATA_TO_DDR(void) {
         }
 
         for (i = 0; i < RX_NUM_CHAN; i++) {
-            dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
-            RX_FIFO_ENABLE(Rx_Antenna2fifo_index[rx_ch_context[i].RX_index]);
-            axiq_fifo_rx_cr(AXIQ_BANK_0, Rx_Antenna2fifo_index[rx_ch_context[i].RX_index], AXIQ_CR_CLRERR, AXIQ_CR_CLRERR);
-            axiq_fifo_rx_cr(AXIQ_BANK_0, Rx_Antenna2fifo_index[rx_ch_context[i].RX_index], AXIQ_CR_CLRERR, 0);
+            dma_channel_rd = rx_slot_dma[i];
+            RX_FIFO_ENABLE(rx_slot_fifo[i]);
+            axiq_fifo_rx_cr(AXIQ_BANK_0, rx_slot_fifo[i], AXIQ_CR_CLRERR, AXIQ_CR_CLRERR);
+            axiq_fifo_rx_cr(AXIQ_BANK_0, rx_slot_fifo[i], AXIQ_CR_CLRERR, 0);
             dmac_clear_errxfr(0x1 << dma_channel_rd);
         }
         /* Prime the 2-deep AXIQ RX DMAC FIFO for all channels before returning.
@@ -428,8 +427,8 @@ void RX_IQ_DATA_TO_DDR(void) {
         {
             uint32_t prime_busy;
         for (i = 0; i < RX_NUM_CHAN; i++) {
-            dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
-            axi_rd = axi_ADC_FIFO_addr[i];
+            dma_channel_rd = rx_slot_dma[i];
+            axi_rd = rx_slot_axi[i];
             while (dmac_is_available(0x1 << dma_channel_rd)) {
                 prime_busy = rx_ch_context[i].RX_total_axiq_enqueued_size -
                              rx_ch_context[i].RX_total_dmem_input_Decimated_size;
@@ -493,10 +492,10 @@ void RX_IQ_DATA_TO_DDR(void) {
             rx_vspa_proxy[i].DDR_wr_base_address = 0xdeadbeef;
             rx_vspa_proxy[i].la9310_fifo_produced_size = 0;
             rx_vspa_proxy[i].la9310_fifo_consumed_size = 0;
-            dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
+            dma_channel_rd = rx_slot_dma[i];
             dmac_abort(0x1 << dma_channel_rd);
             dmac_clear_complete(0x1 << dma_channel_rd);
-            axiq_fifo_rx_disable(AXIQ_BANK_0, Rx_Antenna2fifo_index[rx_ch_context[i].RX_index]);
+            axiq_fifo_rx_disable(AXIQ_BANK_0, rx_slot_fifo[i]);
         }
 
         rx_proxy_updated = 1;
@@ -652,8 +651,8 @@ void PUSH_RX_DATA(void) {
     // Single Tone
     if (RX_SingleT_start_bit_update) {
         for (i = 0; i < RX_NUM_CHAN; i++) {
-            dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
-            axi_rd = axi_ADC_FIFO_addr[i];
+            dma_channel_rd = rx_slot_dma[i];
+            axi_rd = rx_slot_axi[i];
             // check axiq dma completion (received new samples) and QEC them
             if (dmac_is_complete(0x1 << dma_channel_rd)) {
                 dmac_clear_complete(0x1 << dma_channel_rd);
@@ -699,7 +698,7 @@ void PUSH_RX_DATA(void) {
          * approach caused DMA_RX_CMD_OVR on ch2/ch3 because clear_complete
          * and is_available were back-to-back with no intervening latency. */
         RX_FOR_EACH_CHAN(i) {
-            dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
+            dma_channel_rd = rx_slot_dma[i];
             uint32_t ch_mask = 0x1u << dma_channel_rd;
             if (dmac_is_complete(ch_mask)) {
                 dmac_clear_complete(ch_mask);
@@ -718,8 +717,8 @@ void PUSH_RX_DATA(void) {
          * hardware has had sufficient cycles (loop 1 body for ch0/ch1/ch2/ch3
          * plus loop overhead) to reflect freed FIFO slots in DMA_FIFO_STAT. */
         RX_FOR_EACH_CHAN(i) {
-            dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
-            axi_rd = axi_ADC_FIFO_addr[i];
+            dma_channel_rd = rx_slot_dma[i];
+            axi_rd = rx_slot_axi[i];
             uint32_t ch_mask = 0x1u << dma_channel_rd;
             if (dmac_is_available(ch_mask)) {
                 rx_busy_size = rx_ch_context[i].RX_total_axiq_enqueued_size - rx_ch_context[i].RX_total_dmem_input_Decimated_size;
@@ -881,9 +880,9 @@ void PUSH_RX_DATA(void) {
          * enabling it there causes a double-arm race that overflows the
          * input_buffer ring and triggers DDR_WR_OVERRUN -> RXOVR. */
         RX_FOR_EACH_CHAN(i) {
-            dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
+            dma_channel_rd = rx_slot_dma[i];
             if (dmac_is_available(0x1 << dma_channel_rd)) {
-                axi_rd = axi_ADC_FIFO_addr[i];
+                axi_rd = rx_slot_axi[i];
                 rx_busy_size = rx_ch_context[i].RX_total_axiq_enqueued_size - rx_ch_context[i].RX_total_dmem_input_Decimated_size;
                 rx_empty_size = (RX_NUM_BUF * RX_DMA_TXR_STEP) - rx_busy_size;
                 if (rx_empty_size >= RX_DMA_TXR_STEP) {
@@ -911,11 +910,11 @@ void PUSH_RX_DATA(void) {
             DDR_wr_start_bit_update = 0;
             for (i = 0; i < RX_NUM_CHAN; i++) {
                 rx_vspa_proxy[i].DDR_wr_base_address = 0xdeadbeef;
-                dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
-                axi_rd = axi_ADC_FIFO_addr[i];
+                dma_channel_rd = rx_slot_dma[i];
+                axi_rd = rx_slot_axi[i];
                 dmac_abort(0x1 << dma_channel_rd);
                 dmac_clear_complete(0x1 << dma_channel_rd);
-                axiq_fifo_rx_disable(AXIQ_BANK_0, Rx_Antenna2fifo_index[rx_ch_context[i].RX_index]);
+                axiq_fifo_rx_disable(AXIQ_BANK_0, rx_slot_fifo[i]);
             }
             rx_proxy_updated = 1;
             mailbox_out_msg_0_MSB = 0;

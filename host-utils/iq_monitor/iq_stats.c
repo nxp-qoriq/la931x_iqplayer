@@ -42,7 +42,8 @@ extern volatile uint32_t running;
 #define RX_DDR_STEP (((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly.rx_ddr_step)
 #define RX_DECIM    (((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly.rx_decim)
 #define TX_UPSMP    (((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly.tx_upsmp)
-#define RX_NUM_CHAN (((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly.rx_num_chan)
+#define PROXY_CFG   (((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly.rx_num_chan)
+#define RX_NUM_CHAN PROXY_CFG_NRX(PROXY_CFG)
 
 #define m_gbl_stats_fetch (((t_tx_ch_host_proxy *)v_tx_vspa_proxy_wo)->gbl_stats_fetch)
 
@@ -92,10 +93,16 @@ void la9310_hexdump(const void *ptr, size_t sz) {
  *                         production) are non-zero in practice.
  */
 static t_stats local_vspa_stats[2];
-/* RX-only firmware reuses tx_stats[0..4] for the cycle breakdown; it is
- * recognisable by TX stats 5..7 staying zero together with rx_num_chan==4. */
-/* tx_stats[6] is reused as elapsed-time counter, so only tx[7] is checked. */
-#define N_TX_ZERO_STATS(c) ((c)->tx_stats[7] == 0 && (c)->tx_stats[STAT_DMA_AXIQ_WRITE] == 0 && RX_NUM_CHAN == 4)
+/* RX-only firmware reuses tx_stats[] for the cycle breakdown and stall
+ * counters. Firmware that publishes the channel map (proxy cfg [31:16] != 0)
+ * also gives the TX channel count in [11:9]; older firmware is recognised by
+ * TX stats staying zero together with rx_num_chan==4 (tx_stats[6] is reused
+ * as elapsed-time counter, so only tx[7] is checked). */
+#define PROXY_CFG_HAS_MAP (PROXY_CFG >> 16)
+#define N_TX_ZERO_STATS(c) (PROXY_CFG_HAS_MAP ? (PROXY_CFG_NTX(PROXY_CFG) == 0) : \
+        ((c)->tx_stats[7] == 0 && (c)->tx_stats[STAT_DMA_AXIQ_WRITE] == 0 && RX_NUM_CHAN == 4))
+/* set per refresh: 1 when the loaded firmware has no TX channel */
+static int g_no_tx;
 /* VSPA cycles per 1 KB AXIQ buffer: 256 samples at 61.44 MSPS with the VSPA
  * at 491.52 MHz, as measured on RFNM (the clock is set by the RFNM FreeRTOS,
  * not by the insmod rate). */
@@ -137,8 +144,14 @@ static void print_vspa_stats_table(const t_stats *cur, const t_stats *prev,
         }
     }
 
-    printf("\nTX stats :");
-    for (i = 0; i < STATS_TX_MAX; i++) {
+    if (g_no_tx) {
+        printf("\nTX : none (RX-only firmware)");
+        i = STATS_TX_MAX;
+    } else {
+        printf("\nTX stats :");
+        i = 0;
+    }
+    for (; i < STATS_TX_MAX; i++) {
         uint32_t cur_val  = *((const uint32_t *)(cur->tx_stats)  + i);
         uint32_t prev_val = *((const uint32_t *)(prev->tx_stats) + i);
 
@@ -190,7 +203,9 @@ static void print_hostapp_stats_table(const t_stats *cur, const t_stats *prev,
     }
 
     /* TX app production -- single value (no per-channel split on TX side) */
-    {
+    if (g_no_tx) {
+        printf("\nTX app produced : none (RX-only firmware)\n");
+    } else {
         uint32_t cur_val  = cur->tx_stats[STAT_EXT_DMA_DDR_RD];
         uint32_t prev_val = prev->tx_stats[STAT_EXT_DMA_DDR_RD];
 
@@ -265,6 +280,20 @@ void print_vspa_stats(void) {
         t_prev = t_now;
         printf("\n[iq_mon] sample interval %.3f s (rates use real elapsed time)", g_dt_s);
     }
+
+    {
+        uint32_t cfg = PROXY_CFG;
+        printf("\n[iq_mon] proxy cfg 0x%08x: RX %u  TX %u  IQ swap %u",
+               cfg, PROXY_CFG_NRX(cfg), PROXY_CFG_NTX(cfg), PROXY_CFG_IQSWAP(cfg));
+        if (cfg >> 16) {
+            static const char *la[4] = { "RO1", "RX1", "RO0", "RX0" };
+            printf("  map");
+            for (i = 0; i < rx_num_chan; i++)
+                printf(" slot%d=ch%u(%s)", i, PROXY_CFG_CHAN(cfg, i), la[PROXY_CFG_CHAN(cfg, i) & 3]);
+        }
+    }
+
+    g_no_tx = N_TX_ZERO_STATS(vspa_cur);
 
     print_vspa_stats_table(vspa_cur, vspa_prev, rx_num_chan,
                            rx_ddr_step, rx_decim, tx_ddr_step, tx_upsmp);

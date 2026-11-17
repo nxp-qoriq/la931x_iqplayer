@@ -1,0 +1,37 @@
+From adce7d6346e319e2a6684881324e680d3aba2104 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Tue, 17 Nov 2026 10:25:08 +0100
+Subject: [PATCH 2/3] limesdr_micro: write RX defaults for LMS channel B
+
+The default register table selects MAC = channel A only, so the
+per-channel RFE/RBB registers were only written for channel A. Repeat
+them for channel B so LMS RX2 routes its PGA output to the pads
+(OSW_PGA_RBB) feeding LA9310 RX1.
+---
+ .../limesdr_micro/limesdr_micro_init.c                 | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_micro_init.c b/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_micro_init.c
+index a9796b9..651ac4f 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_micro_init.c
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_micro_init.c
+@@ -275,6 +275,16 @@ int initialize_lms7002m_clock_generator()
+     for (int i=0; i<sizeof(defaults)/4; ++i)
+         lms7002m_spi_write(rfsoc, defaults[i*2], defaults[i*2+1]);
+ 
++    /* 0x0020 = 0xFFFD selects MAC = channel A only, so the per-channel
++     * RFE/RBB registers above (0x010A..0x0120) were only written for
++     * channel A. Repeat them for channel B so that LMS RX2 also routes its
++     * PGA output to the pads (OSW_PGA_RBB, 0x0119[15]) feeding LA9310 RX1,
++     * then select channel A again. */
++    lms7002m_set_active_channel(rfsoc, LMS7002M_CHANNEL_B);
++    for (int i = 2; i < sizeof(defaults)/4; ++i)
++        lms7002m_spi_write(rfsoc, defaults[i*2], defaults[i*2+1]);
++    lms7002m_set_active_channel(rfsoc, LMS7002M_CHANNEL_A);
++
+     uint16_t xo_dac = ReadXODAC_EEPROM();
+     SetXODAC(xo_dac);
+ 
+-- 
+2.43.0
+

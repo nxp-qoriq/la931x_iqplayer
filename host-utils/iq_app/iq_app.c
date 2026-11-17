@@ -77,6 +77,77 @@ static uint32_t *v_la9310_bar2;
 
 uint32_t RxChanID;
 
+/* -----------------------------------------------------------------------
+ * VSPA proxy configuration word (proxy + 0x1C), same layout as
+ * PROXY_CFG_* in iqplayer_cwproj/include/vspa_dmem_proxy.h:
+ *   [7:0] RX channels, [8] RX IQ swap, [11:9] TX channels,
+ *   [31:16] RX channel map (4 bits per slot, mbx chanID).
+ * Firmware older than this layout leaves [31:16] at 0; the map is never 0
+ * with the new layout (default 0x3210), so cfg_valid() tells them apart.
+ * ----------------------------------------------------------------------- */
+static uint32_t g_proxy_cfg;
+#define CFG_NRX(v)        ((v) & 0xFFu)
+#define CFG_IQSWAP(v)     (((v) >> 8) & 0x1u)
+#define CFG_NTX(v)        (((v) >> 9) & 0x7u)
+#define CFG_CHAN(v, slot) (((v) >> (16 + 4 * (slot))) & 0xFu)
+static int cfg_valid(void) { return (g_proxy_cfg >> 16) != 0u; }
+
+/* Board recorded by load-limesdr-micro.sh / load-rfnm.sh (iq-board-defaults.sh) */
+#define IQP_BOARD_FILE "/run/iqplayer.board"
+enum { BOARD_UNKNOWN, BOARD_LIME, BOARD_RFNM };
+static int g_board = -1;
+
+static int board_get(void)
+{
+    char buf[32] = { 0 };
+    FILE *f;
+
+    if (g_board >= 0)
+        return g_board;
+    g_board = BOARD_UNKNOWN;
+    f = fopen(IQP_BOARD_FILE, "r");
+    if (f) {
+        if (fgets(buf, sizeof(buf), f)) {
+            if (!strncmp(buf, "limesdr-micro", 13))
+                g_board = BOARD_LIME;
+            else if (!strncmp(buf, "rfnm", 4))
+                g_board = BOARD_RFNM;
+        }
+        fclose(f);
+    }
+    return g_board;
+}
+
+/* LA9310 ADC input and board RF path for an mbx chanID (see rx-chan.sh) */
+static const char *chan_la9310_name(uint32_t c)
+{
+    static const char *n[4] = { "RO1", "RX1", "RO0", "RX0" };
+    return c < 4u ? n[c] : "?";
+}
+
+static const char *chan_board_name(uint32_t c)
+{
+    static const char *lime[4] = { "connector only", "LMS7002M RX2 (B)",
+                                   "connector only", "LMS7002M RX1 (A)" };
+    static const char *rfnm[4] = { "RBA_RX1 sma_b", "RBA_RX2 sma_b",
+                                   "RBB_RX1 sma_a", "RBB_RX2 sma_a" };
+    if (c >= 4u)
+        return "?";
+    switch (board_get()) {
+    case BOARD_LIME: return lime[c];
+    case BOARD_RFNM: return rfnm[c];
+    default:         return NULL;
+    }
+}
+
+/* Physical mbx chanID streamed by RX slot 'slot' (fallback: legacy contiguous) */
+static uint32_t slot_chan(uint32_t slot)
+{
+    if (cfg_valid() && slot < 4u)
+        return CFG_CHAN(g_proxy_cfg, slot);
+    return RxChanID + slot;
+}
+
 uint32_t modem_ddr_fifo_start;
 uint32_t modem_ddr_fifo_size;
 
@@ -1027,6 +1098,8 @@ static void fft_radix2_cf32(const iq_cf32_t *in, iq_cf32_t *out, uint32_t n)
  * ----------------------------------------------------------------------- */
 /* Frequency labels (MHz) under the RX bar chart at -Fs/2, -Fs/4, 0, +Fs/4,
  * +Fs/2. Column col maps to (col/bar_w - 0.5)*Fs, matching the FFT shift. */
+static const char *spec_eol(void);
+
 static void spec_print_freq_axis(uint32_t bar_w)
 {
     char line[512];
@@ -1050,7 +1123,9 @@ static void spec_print_freq_axis(uint32_t bar_w)
             pos = (int)len - n;
         memcpy(&line[pos], lab, (size_t)n);
     }
-    printf("%s  MHz\n", line);
+    /* spec_eol() clears the rest of the line: the time-domain footer drawn
+     * at the same row is longer and would otherwise leave its tail */
+    printf("%s  MHz%s", line, spec_eol());
 }
 
 #ifdef HAVE_ARMRAL
@@ -1314,10 +1389,18 @@ static void spec_render_channel(uint32_t idx, uint32_t chan_id,
         sp_bin[nsp++] = bb;
     }
 
-    printf("Ch%u (RxChan %u)  Fs %.2f MHz  FFT %u x%u  RBW %.1f kHz  %s%s",
-           idx, chan_id, (double)g_srate_mhz, n, nblk,
-           (double)(bin_hz / 1e3f), g_spec_hann ? "hann/pwr" : "rect/mag",
-           spec_eol());
+    {
+        uint32_t pc = slot_chan(idx);
+        const char *bn = chan_board_name(pc);
+
+        (void)chan_id;
+        printf("Ch%u [chan %u %s%s%s]%s  Fs %.2f MHz  FFT %u x%u  RBW %.1f kHz  %s%s",
+               idx, pc, chan_la9310_name(pc), bn ? " | " : "", bn ? bn : "",
+               cfg_valid() ? (CFG_IQSWAP(g_proxy_cfg) ? "  IQ swap 1" : "  IQ swap 0") : "",
+               (double)g_srate_mhz, n, nblk,
+               (double)(bin_hz / 1e3f), g_spec_hann ? "hann/pwr" : "rect/mag",
+               spec_eol());
+    }
     printf("  RSSI %.1f  floor %.1f  DC %.1f dBFS%s",
            (double)rssi_db, (double)floor_db, (double)dc_db, spec_eol());
     printf("  spurs:");
@@ -2789,10 +2872,23 @@ int main(int argc, char *argv[])
      * VSPA writes this field at boot before any mbox command, so it is readable
      * immediately after the firmware is loaded.
      */
-    if (!g_n_rx_set) {
+    {
         const uint8_t *proxy_base =
             (const uint8_t *)v_iqflood_ddr_addr + mi.iqflood.size - 1024u;
-        uint32_t rx_num_chan = *(const volatile uint32_t *)(proxy_base + 0x1Cu);
+        g_proxy_cfg = *(const volatile uint32_t *)(proxy_base + 0x1Cu);
+    }
+
+    /* TX guard: the loaded VSPA image has no TX channel (e.g. 0T4R) */
+    if ((command == OP_TX_ONLY || command == OP_TONE_TX) &&
+        cfg_valid() && CFG_NTX(g_proxy_cfg) == 0u) {
+        fprintf(stderr,
+            "iq_app: the loaded VSPA image has no TX channel (%u RX, 0 TX); "
+            "load 1T1R or 1T2R (iq-reload-vspa.sh)\n", CFG_NRX(g_proxy_cfg));
+        return EXIT_FAILURE;
+    }
+
+    if (!g_n_rx_set) {
+        uint32_t rx_num_chan = CFG_NRX(g_proxy_cfg);
         if (rx_num_chan >= 1u && rx_num_chan <= 4u) {
             g_n_rx = rx_num_chan;
             printf("iq_app: auto-detected rx_num_chan=%u from VSPA proxy\n", g_n_rx);

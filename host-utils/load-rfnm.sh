@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright 2024-2025 NXP
 ####################################################################
-# RFNM Blue board adaptation of load-la9310.sh.
+# RFNM Blue board adaptation of load-limesdr-micro.sh.
 # Differences from NXP BSP:
 #   - kernel modules live in /rfnm/kernel/ (not /lib/modules/$(uname -r)/extra/)
 #   - RF module KOs use rfnm_ prefix (not sdr_)
@@ -84,6 +84,9 @@ echo proxy_addr $proxy_addr
 # starts writing produced/consumed counters.
 memtool -d /dev/shiva0 -a "$proxy_addr" -z 1024
 $SCRIPT_DIR/set-proxy-offset.sh $proxy_offset
+# RFNM defaults: swap I/Q at the AXIQ input (VSPA default), firmware RX
+# order; re-applied by iq-reload-vspa.sh
+$SCRIPT_DIR/iq-board-defaults.sh rfnm
 
 # ADC/DAC sample rate is fixed by the M4 binary (la9310.bin -> la9310_dfe_61/122.bin,
 # DCS_FULL_RATE cmake option).

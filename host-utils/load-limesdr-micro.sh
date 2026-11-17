@@ -2,7 +2,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright 2024-2025 NXP
 ####################################################################
+# load-limesdr-micro.sh - load the LA9310 drivers, M4 and VSPA images on
+# LimeSDR-Micro (formerly load-la9310.sh).
+# The M4 image must be built with LA9310_SYS_CLK_FREQ=122880000 (default
+# of the la93xx_freertos patches) so the converters run at 61.44 Msps.
+####################################################################
 #set -x
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # scratch_addr and scratch_size are deprecated parameters for la9310shiva, keeping it for backward compatibility
 scratch_addr=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/reg |cut -f 7-10 -d " " |sed 's/ //g'|cut -f 1 -d " " |head -1`
@@ -45,10 +51,12 @@ sleep 1
 #echo stop > /sys/class/remoteproc/remoteproc0/state
 #echo start > /sys/class/remoteproc/remoteproc0/state
 
-# check ADC/DAC clock
-#  memtool -32 0x19040300 1
-#  00010303 -> 61.44Mhz
-#  00000000 -> 122.88Mhz
+# check ADC/DAC clock: la9310_modem_info (rates assume DCS_CLK = 122.88 MHz)
+# or raw ADC_DAC_CLKCFG from the host through BAR0 (LA9310 0x19040300):
+#  memtool -32 0x911040300 1      (BAR0 0x910000000 + 0x1040300)
+#  00010303 -> half rate, 61.44 Msps with DCS 122.88 MHz
+#  00000000 -> full rate, 122.88 Msps with DCS 122.88 MHz
+# Do not read unmapped BAR0 offsets: on i.MX95 this hangs a CPU core.
 
 ddrh=`la9310_modem_info | grep FLOOD |cut -f 2 -d "|" |sed 's/	//g'|sed 's/ //g'`
 maxsize=`la9310_modem_info | grep FLOOD |cut -f 4 -d "|" |sed 's/	//g'|sed 's/ //g'`
@@ -63,5 +71,8 @@ iqflood_size=`printf "0x%X\n" $maxsize`
 echo iqflood_addr $ddrh 
 echo iqflood_size $iqflood_size
 echo proxy_addr $proxy_addr
-./set-proxy-offset.sh $proxy_offset
+$SCRIPT_DIR/set-proxy-offset.sh $proxy_offset
+# LimeSDR-Micro defaults: no I/Q swap, RX order RX0 RX1 RO0 RO1
+# (rx-chan.sh 3 1 2 0); re-applied by iq-reload-vspa.sh
+$SCRIPT_DIR/iq-board-defaults.sh limesdr-micro
 

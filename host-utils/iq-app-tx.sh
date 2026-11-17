@@ -92,10 +92,17 @@ fi
 # Auto-detect N_RX from VSPA proxy (rx_num_chan at proxy + 0x1C) to size the TX slot
 proxy_rx_num_chan_addr=$(printf "0x%X" $(( ddrh + maxsize - PROXY_RESERVED + 0x1C )))
 raw_hex=$(memtool -d /dev/shiva0 -32 "$proxy_rx_num_chan_addr" 1 2>/dev/null | awk 'NR==1{print $2}')
-N_RX=$(printf "%d" "0x${raw_hex}" 2>/dev/null)
-if [ -z "$N_RX" ] || [ "$N_RX" -lt 1 ] || [ "$N_RX" -gt 4 ] 2>/dev/null; then
+cfg_word=$(( 0x${raw_hex:-0} ))
+N_RX=$(( cfg_word & 0xFF ))
+if [ "$N_RX" -lt 1 ] || [ "$N_RX" -gt 4 ]; then
         # fallback: assume 2 RX channels (conservative slot size)
         N_RX=2
+fi
+# TX guard: TX count in [11:9], valid when the channel map [31:16] is set
+if [ $(( cfg_word >> 16 )) -ne 0 ] && [ $(( (cfg_word >> 9) & 7 )) -eq 0 ]; then
+        echo "ERROR: the loaded VSPA image has no TX channel ($N_RX RX, 0 TX)."
+        echo "       Load 1T1R or 1T2R: ./iq-reload-vspa.sh /lib/firmware/apm-iqplayer-1T2R.eld"
+        exit 1
 fi
 slot_size=$(( ((maxsize - PROXY_RESERVED) / (1 + N_RX) / 4096) * 4096 ))
 if [ $fifo -gt $slot_size ];then
@@ -120,7 +127,11 @@ fi
 # Start VSPA TX streamer first (flow control enabled), so that iq_app
 # init_tx() syncs its produced/consumed counters on the live VSPA
 # la9310_fifo_enqueued_size instead of a stale 0.
-./iq-start-txfifo.sh $fifo4k
+# Abort if VSPA NACKs the TX start (e.g. 0T4R firmware has no TX).
+if ! ./iq-start-txfifo.sh $fifo4k; then
+        echo "TX start failed, iq_app not started"
+        exit 1
+fi
 
 if [ $tone_mode -eq 1 ]; then
         # Foreground: keyboard control needs the terminal. Stop VSPA TX on exit.
@@ -138,7 +149,7 @@ if [ $tone_mode -eq 1 ]; then
         printf '\033[0m\033[?25h\r'
         echo "Tone TX stopped. Stopping VSPA TX ..."
         vspa_mbox send 0 0 0x05000000 0x0
-        vspa_mbox recv 0 0
+        vspa_mbox recv 0 0 || echo "warning: VSPA TX stop not acknowledged"
 else
         # TX FIFO at offset 0 of iqflood region
         iq_app -t -Y $CONV_MHZ $QEC_OPT -f "$iq_file" -F 0x00000000 $fifo &

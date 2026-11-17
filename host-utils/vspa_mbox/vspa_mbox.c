@@ -106,6 +106,14 @@ static inline void vspa_mbox_send(uint64_t vspa_addr, int core_idx, int mbox_id,
     iowrite32(lsb, (void *)(addr + 4));
 }
 
+/*
+ * Read the VSPA reply.
+ * Returns 0 on ACK, 1 on timeout, 2 on NACK.
+ * VSPA replies carry the status in LSB bit 0: 1 = ACK, 0 = NACK. The MSB is
+ * a payload (often 0 on ACK too), so it must not be used as the status.
+ * A NACK is posted for commands not supported by the loaded firmware,
+ * e.g. TX start on a 0T4R build.
+ */
 static int vspa_mbox_recv(uint64_t vspa_addr, int core_idx, int mbox_id) {
     uint64_t addr = vspa_addr + 0x660 + 0x4000 * core_idx;
     uint64_t timeout = 1000000;
@@ -116,13 +124,17 @@ static int vspa_mbox_recv(uint64_t vspa_addr, int core_idx, int mbox_id) {
 
     if (!timeout) {
         printf("%s: VCPU:%d MBox:%d is not responding!!\n", __func__, core_idx, mbox_id);
-        return -1;
+        return 1;
     }
 
     addr = MAILBOX_ADDR(vspa_addr, mbox_id, 1, core_idx);
     msb = ioread32((void *)addr);
     lsb = ioread32((void *)(addr + 4));
     printf("Received from VSPA:%d, MBox:%d, MSB:0x%08x, LSB:0x%08x.\n", core_idx, mbox_id, msb, lsb);
+    if ((lsb & 0x1) == 0) {
+        printf("VSPA:%d MBox:%d NACK (command not supported by this firmware)\n", core_idx, mbox_id);
+        return 2;
+    }
     return 0;
 }
 
@@ -145,6 +157,7 @@ int main(int argc, char *argv[]) {
     int fd, size;
     uint64_t vspa_addr_phys, vspa_addr;
     uint32_t core_id = 0, mbox_id = 0, msb32 = 0, lsb32 = 0;
+    int ret = 0;
 
     if (argc < 4) {
         printf("Wrong number of parameters\n");
@@ -204,11 +217,11 @@ int main(int argc, char *argv[]) {
             return -1;
         }
 
-        vspa_mbox_recv(vspa_addr, core_id, mbox_id);
+        ret = vspa_mbox_recv(vspa_addr, core_id, mbox_id);
         vspa_mbox_clear(vspa_addr, core_id, mbox_id);
     }
 
     //  close(fd);
 
-    return 0;
+    return ret;
 }

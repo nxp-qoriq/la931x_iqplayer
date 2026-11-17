@@ -182,8 +182,8 @@ __attribute__((section(".text.opcode_2"))) void RX_single_tone_measurement(void)
 
             // stream first samples
             for (i = 0; i < RX_NUM_CHAN; i++) {
-                dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
-                axi_rd = axi_ADC_FIFO_addr[i];
+                dma_channel_rd = rx_slot_dma[i];
+                axi_rd = rx_slot_axi[i];
                 stream_read(dma_channel_rd, axi_rd, 2 * (uint32_t)(RX_SingleT_buffer + i * RX_DMA_TXR_size));
                 l1_trace(L1_TRACE_MSG_DMA_AXIQ_RX_START, (uint32_t)RX_SingleT_buffer + i * RX_DMA_TXR_size);
                 stream_read(dma_channel_rd, axi_rd, 2 * (uint32_t)(RX_SingleT_buffer + i * RX_DMA_TXR_size));
@@ -197,10 +197,10 @@ __attribute__((section(".text.opcode_2"))) void RX_single_tone_measurement(void)
 
             // enable fifo
             for (i = 0; i < RX_NUM_CHAN; i++) {
-                dma_channel_rd = Rx_Antenna2axiq_dma_chan[i + RX_index];
-                RX_FIFO_ENABLE(Rx_Antenna2fifo_index[i]);
-                axiq_fifo_rx_cr(AXIQ_BANK_0, Rx_Antenna2fifo_index[i], AXIQ_CR_CLRERR, AXIQ_CR_CLRERR);
-                axiq_fifo_rx_cr(AXIQ_BANK_0, Rx_Antenna2fifo_index[i], AXIQ_CR_CLRERR, 0);
+                dma_channel_rd = rx_slot_dma[i];
+                RX_FIFO_ENABLE(rx_slot_fifo[i]);
+                axiq_fifo_rx_cr(AXIQ_BANK_0, rx_slot_fifo[i], AXIQ_CR_CLRERR, AXIQ_CR_CLRERR);
+                axiq_fifo_rx_cr(AXIQ_BANK_0, rx_slot_fifo[i], AXIQ_CR_CLRERR, 0);
                 dmac_clear_errxfr(0x1 << dma_channel_rd);
             }
 

@@ -35,6 +35,9 @@ fi
 
 cmd=`printf "0x%X\n" $[0x06900000 + $1]`
 vspa_mbox send 0 0 $cmd $buffep
-vspa_mbox recv 0 0
+if ! vspa_mbox recv 0 0; then
+        echo "ERROR: VSPA NACKed or did not answer RX start (cmd $cmd)"
+        exit 1
+fi
 echo running until ./iq-stop.sh and 
 

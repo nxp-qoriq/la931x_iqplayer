@@ -1,0 +1,63 @@
+From c25793daa4a8684bdc9cfe1133c13a4cf6fe6112 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Tue, 17 Nov 2026 10:30:58 +0100
+Subject: [PATCH 2/2] examples/dfe_app: do not starve the core, check bbdev
+ capabilities
+
+- sleep 100 us in the IPC wait and poll loops instead of busy spinning;
+  with SCHED_FIFO the busy loop starved the core and froze other ssh
+  sessions
+- fail init_bbdev cleanly when the driver reports no capabilities
+  (avoids a NULL dereference when the IPC device is not opened)
+---
+ examples/dfe_app/ipc.c | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/examples/dfe_app/ipc.c b/examples/dfe_app/ipc.c
+index f47f3ff0e8..40a3fc09ee 100644
+--- a/examples/dfe_app/ipc.c
++++ b/examples/dfe_app/ipc.c
+@@ -138,11 +138,17 @@ static int ipc_poll_loop(__attribute__((unused)) void *dummy)
+ 
+ 	app_print_dbg("%s: hello from core %u\n", __func__, rte_lcore_id());
+ 
+-	while (!rte_atomic16_read(&state.do_poll));
++	/* sleep while waiting: an RT busy-spin here starves the core (ssh freeze) */
++	while (!rte_atomic16_read(&state.do_poll))
++		rte_delay_us_sleep(100);
+ 	app_print_dbg("%s: hello again from core %u\n", __func__, rte_lcore_id());
+ 	while (rte_atomic16_read(&state.do_poll)) {
+ 		do {
+-			rte_delay_us_sleep(1);
++			/*
++			 * 1 us at SCHED_FIFO 99 keeps the core in a wake/sleep storm and
++			 * starves ksoftirqd/sshd on it; 100 us is plenty for M4 replies.
++			 */
++			rte_delay_us_sleep(100);
+ 			if (state.reset_in_progress)
+ 				continue;
+ 			if (!rte_atomic16_read(&state.do_poll))
+@@ -174,7 +180,9 @@ static int tti_poll_loop(__attribute__((unused)) void *dummy)
+ 	/* init TTI here */
+ 	tti_init();
+ 
+-	while (!rte_atomic16_read(&state.do_tti_poll));
++	/* sleep while waiting: an RT busy-spin here starves the core (ssh freeze) */
++	while (!rte_atomic16_read(&state.do_tti_poll))
++		rte_delay_us_sleep(100);
+ 
+ 	app_print_dbg("%s: hello from core %u\n", __func__, rte_lcore_id());
+ 
+@@ -278,7 +286,8 @@ int init_bbdev(void)
+ 	}
+ 
+ 	ret = rte_bbdev_info_get(0, &info);
+-	if (ret < 0) {
++	if (ret < 0 || !info.drv.capabilities) {
++		ret = ret < 0 ? ret : -ENODEV;
+ 		app_print_err("rte_bbdev_info_get failed, ret: %d\n", ret);
+ 		return ret;
+ 	}
+-- 
+2.43.0
+

@@ -93,7 +93,7 @@ without reloading the driver:
 
 ::
 
- ./load-la9310.sh                                        # or load-rfnm.sh: default image
+ ./load-limesdr-micro.sh                                 # or load-rfnm.sh: default image
  ./iq-reload-vspa.sh /lib/firmware/apm-iqplayer-1T2R.eld # switch to 1T2R
 
 ``iq-reload-vspa.sh``:
@@ -150,6 +150,29 @@ Layout used by the streaming scripts (``iq-app-tx.sh``, ``iq-app-rx.sh``):
 - slot 0 is the TX FIFO (when N_TX = 1), followed by one slot per RX channel
 
 N_RX is read from the proxy (``rx_num_chan``), so the scripts adapt to the loaded firmware.
+
+The proxy word at offset 0x1C (``rx_num_chan``) is a configuration word
+(``PROXY_CFG_*`` macros in ``vspa_dmem_proxy.h``); the proxy size is unchanged:
+
+========  ==========================================================
+Bits      Content
+========  ==========================================================
+[7:0]     number of RX channels
+[8]       RX IQ swap (mbox 0x12)
+[11:9]    number of TX channels (0 for 0T4R)
+[15:12]   reserved
+[31:16]   RX channel map, 4 bits per slot (chanID of slot i)
+========  ==========================================================
+
+Older firmware leaves [31:16] at 0; then only [7:0] is used. The VSPA updates
+the word at boot, after ``rx-chan.sh`` and after ``rx-iqswap.sh``.
+
+- ``rx-chan.sh -r`` prints the slot -> chanID / LA9310 port / board connector
+  mapping, IQ swap and RX/TX counts; ``iq_mon`` prints it in its header.
+- ``iq_app`` spectrum labels show it, e.g. ``Ch0 [chan 3 RX0 | LMS7002M RX1 (A)]``
+  (board name from ``/run/iqplayer.board``).
+- TX guard: ``iq_app`` TX modes, ``iq-app-tx.sh`` and ``iq-replay.sh`` stop with
+  an error when the firmware reports 0 TX channels.
 
 File replay and capture scripts
 -------------------------------
@@ -260,7 +283,7 @@ Example screen (1T2R, 2 channels at 30.72 MSPS after x2 decimation):
 
  RX QEC ch 0/2  gain  -0.20 dB  phase  +0.50 deg  DC I +0.000  DC Q -0.030   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
 
- Ch0 (RxChan 0)  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+ Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
    RSSI -23.6  floor -92.6  DC -23.6 dBFS
    spurs: -81.7@+0.01 -82.2@-15.36 -84.8@+1.26 -85.5@+0.04 MHz
    peak I -17.9  Q -18.1 dBFS  clip 0 (0.000%)  crest 5.7 dB
@@ -282,7 +305,7 @@ Example screen (1T2R, 2 channels at 30.72 MSPS after x2 decimation):
  -100.0 |################################################################################|
         ++-------------------+-------------------+-------------------+-------------------+
       -15.36               -7.68               +0.00               +7.68              +15.36       MHz
- Ch1 (RxChan 1)  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+ Ch1 [chan 1 RX1 | RBA_RX2 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
    RSSI -24.8  floor -98.9  DC -24.8 dBFS
    spurs: -65.9@+7.68 -66.0@-7.68 -80.5@-15.36 -91.4@+0.16 MHz
    -6.2 |                                                                                |
@@ -551,6 +574,13 @@ iq_mon and statistics
 
 ``iq_mon`` polls the statistics in the DDR proxy every second, adapts to the channel count
 and computes bandwidth from the real elapsed time.
+
+The header shows the proxy configuration word (see IQFLOOD region), e.g.
+``[iq_mon] proxy cfg 0x02130202: RX 2  TX 1  IQ swap 0  map slot0=ch3(RX0) slot1=ch1(RX1)``.
+With a firmware that reports 0 TX channels (0T4R) the TX tables are replaced by
+``TX : none (RX-only firmware)``, since these counters are reused for RX cycle and stall
+statistics. Older firmware without the channel map is recognised as before (4 RX, no TX
+counts).
 
 ::
 

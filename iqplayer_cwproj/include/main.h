@@ -31,6 +31,12 @@
 extern uint32_t Rx_Antenna2axiq_dma_chan[];
 extern enum axiq_fifo_e Rx_Antenna2fifo_index[];
 extern uint32_t axi_ADC_FIFO_addr[];
+/* Per-slot RX hardware resources, resolved from the mbx chanID by
+ * MBOX_OPC_RX_CHAN_SELECT (default: slot i = chanID i). */
+extern uint32_t rx_chan_map[4];
+extern uint32_t rx_slot_dma[4];
+extern uint32_t rx_slot_axi[4];
+extern enum axiq_fifo_e rx_slot_fifo[4];
 
 extern uint32_t dma_comp;
 extern uint32_t axi_wr, dma_channel_rd, axi_rd;
@@ -94,6 +100,7 @@ typedef enum {
     MBOX_OPC_GET_STATS_COUNT, // 0xF
     MBOX_OPC_DONE_SWRESET,    // 0x10
     MBOX_OPC_PROXY_OFFSET,    // 0x11
+    MBOX_OPC_RX_IQ_SWAP,      // 0x12 LSB 0 = no swap (Lime), 1 = swap (RFNM)
     /* mbox1 flow-control wakeup opcodes sent by libiqplayer.
      * The host writes the updated produced/consumed counter into the
      * BAR2 proxy BEFORE posting on mbox1.  The firmware only needs to

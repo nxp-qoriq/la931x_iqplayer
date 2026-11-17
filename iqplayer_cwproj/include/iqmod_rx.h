@@ -8,29 +8,29 @@
 #define IQMOS_RX_H_
 
 /*
- * RX IQ swap at the AXIQ input. On RFNM (LMS7002 RFIC) the received
- * spectrum is mirrored (a +f tone shows at -f), so I and Q are swapped by
- * the AXIQ RX FIFO before any VSPA processing. Build with -DRX_IQ_SWAP=0
- * for RF front-ends that do not need it.
+ * RX IQ swap at the AXIQ input. On RFNM the received spectrum is mirrored
+ * (a +f tone shows at -f), so I and Q are swapped by the AXIQ RX FIFO
+ * before any VSPA processing. LimeSDR-Micro does not need it.
+ * RX_IQ_SWAP is the boot default (1 = swap, RFNM); the host changes it at
+ * runtime with MBOX_OPC_RX_IQ_SWAP (rx-iqswap.sh), applied on the next
+ * RX FIFO enable.
  */
 #ifndef RX_IQ_SWAP
 #define RX_IQ_SWAP 1
 #endif
 
-/* Enable one AXIQ RX FIFO, applying the RX_IQ_SWAP setting first. */
-#if RX_IQ_SWAP
-#define RX_FIFO_ENABLE(fifo)                                  \
-    do {                                                      \
-        axiq_fifo_rx_iq_swap_on(AXIQ_BANK_0, (fifo));         \
-        axiq_fifo_rx_enable(AXIQ_BANK_0, (fifo));             \
-    } while (0)
-#else
-#define RX_FIFO_ENABLE(fifo)                                  \
-    do {                                                      \
-        axiq_fifo_rx_iq_swap_off(AXIQ_BANK_0, (fifo));        \
-        axiq_fifo_rx_enable(AXIQ_BANK_0, (fifo));             \
-    } while (0)
+#ifdef __VSPA__
+/* AXIQ_CR_IQ_SWAP_ON or AXIQ_CR_IQ_SWAP_OFF */
+extern uint32_t rx_iq_swap_cr;
 #endif
+
+/* Enable one AXIQ RX FIFO, applying the runtime IQ swap setting first. */
+#define RX_FIFO_ENABLE(fifo)                                              \
+    do {                                                                  \
+        axiq_fifo_rx_cr(AXIQ_BANK_0, (fifo), AXIQ_CR_FIELD_IQ_SWAP,       \
+                        rx_iq_swap_cr);                                   \
+        axiq_fifo_rx_enable(AXIQ_BANK_0, (fifo));                         \
+    } while (0)
 
 #ifdef IQMOD_RX_1T0R
 #define RX_NUM_CHAN 0

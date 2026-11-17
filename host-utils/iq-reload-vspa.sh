@@ -12,6 +12,7 @@
 #   4. boot handshake (0x70000000, normally done by la9310shiva at load),
 #      then send the IQFLOOD proxy offset again (the new .vdram resets it)
 #      and check that the VSPA echoes it
+#   5. board RX defaults again (iq-board-defaults.sh: IQ swap, RX order)
 ####################################################################
 
 APM_ELD=/lib/firmware/apm.eld
@@ -188,3 +189,7 @@ if [ $ok -eq 0 ]; then
         exit 1
 fi
 echo "VSPA running $(basename "$eld")"
+
+# 5. the new image boots with the firmware RX defaults (IQ swap 1, RX order
+#    0 1 2 3): apply the board defaults recorded by load-*.sh again
+"$(cd "$(dirname "$0")" && pwd)"/iq-board-defaults.sh || exit 1

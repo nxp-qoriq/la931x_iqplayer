@@ -32,6 +32,14 @@ fi
 
 (ls $1 >> /dev/null 2>&1)||echo $1 file not found
 
+# TX guard: refuse to start if the loaded VSPA image has no TX channel
+. "$(cd "$(dirname "$0")" && pwd)/iq-proxy-cfg.sh"
+if proxy_cfg_read && [ "$PCFG_VALID" -eq 1 ] && [ "$PCFG_NTX" -eq 0 ]; then
+        echo "ERROR: the loaded VSPA image has no TX channel ($PCFG_NRX RX, 0 TX)."
+        echo "       Load 1T1R or 1T2R: ./iq-reload-vspa.sh /lib/firmware/apm-iqplayer-1T2R.eld"
+        exit 1
+fi
+
 # check la9310 shiva driver and retrieve iqsample info i.e. iqflood in scratch buffer (non cacheable)
 
 ddrh=`la9310_modem_info | grep FLOOD |cut -f 2 -d "|" |sed 's/	//g'|sed 's/ //g'`

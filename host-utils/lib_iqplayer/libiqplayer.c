@@ -46,7 +46,8 @@ t_stats *app_stats = NULL;
 #define RX_DDR_STEP (((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly.rx_ddr_step)
 #define RX_DECIM    (((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly.rx_decim)
 #define TX_UPSMP    (((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly.tx_upsmp)
-#define RX_NUM_CHAN (((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly.rx_num_chan)
+#define PROXY_CFG   (((t_vspa_dmem_proxy *)v_vspa_dmem_proxy_ro)->tx_state_readonly.rx_num_chan)
+#define RX_NUM_CHAN PROXY_CFG_NRX(PROXY_CFG)
 
 /* -----------------------------------------------------------------------
  * VSPA mbox1 GO-event support

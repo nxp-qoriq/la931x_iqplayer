@@ -64,7 +64,38 @@ uint32_t TX_SingleT_start_bit_update = 0, RX_SingleT_start_bit_update = 0, RX_Si
 uint32_t Rx_Antenna2axiq_dma_chan[4] = { 0x2, 0x4, 0x1, 0x3 };
 enum axiq_fifo_e Rx_Antenna2fifo_index[4] = { AXIQ_FIFO_RX1, AXIQ_FIFO_RX3, AXIQ_FIFO_RX0, AXIQ_FIFO_RX2 };
 uint32_t axi_ADC_FIFO_addr[4] = { 0x44002000, 0x44004000, 0x44001000, 0x44003000 };
+/* Per-slot physical RX channel (mbx chanID). Slot i streams chanID
+ * rx_chan_map[i]. Default is contiguous from RX_index. */
+uint32_t rx_chan_map[4] = { 0, 1, 2, 3 };
+/* Tables indexed by slot, kept in sync with rx_chan_map (saves PRAM in the
+ * RX hot path versus a double lookup). */
+uint32_t rx_slot_dma[4] = { 0x2, 0x4, 0x1, 0x3 };
+uint32_t rx_slot_axi[4] = { 0x44002000, 0x44004000, 0x44001000, 0x44003000 };
+enum axiq_fifo_e rx_slot_fifo[4] = { AXIQ_FIFO_RX1, AXIQ_FIFO_RX3, AXIQ_FIFO_RX0, AXIQ_FIFO_RX2 };
 uint32_t axi_DAC_FIFO_addr = 0x4400B000;
+/* RX AXIQ IQ swap, applied by RX_FIFO_ENABLE(); set by MBOX_OPC_RX_IQ_SWAP. */
+uint32_t rx_iq_swap_cr = RX_IQ_SWAP ? AXIQ_CR_IQ_SWAP_ON : AXIQ_CR_IQ_SWAP_OFF;
+
+/* Number of TX channels published to the host (0 for RX-only builds). */
+#ifdef IQMOD_RX_0T1R
+#define PROXY_TX_NUM_CHAN 0
+#else
+#define PROXY_TX_NUM_CHAN 1
+#endif
+
+/* Rebuild the proxy configuration word (RX/TX channel count, IQ swap, RX
+ * channel map, see PROXY_CFG_* in vspa_dmem_proxy.h) and schedule the proxy
+ * copy to the host. Not in the streaming path: boot and mailbox only. */
+static void proxy_cfg_update(void)
+{
+    uint32_t map = rx_chan_map[0] | (rx_chan_map[1] << 4) |
+                   (rx_chan_map[2] << 8) | (rx_chan_map[3] << 12);
+
+    tx_vspa_proxy.rx_num_chan = PROXY_CFG_MAKE(RX_NUM_CHAN,
+                                               rx_iq_swap_cr == AXIQ_CR_IQ_SWAP_ON,
+                                               PROXY_TX_NUM_CHAN, map);
+    tx_proxy_updated = 1;
+}
 
 /* Global variables */
 
@@ -321,7 +352,7 @@ __attribute__((noreturn)) void main(void) {
         tx_vspa_proxy.tx_upsmp = TX_UPSMP;
         tx_vspa_proxy.rx_ddr_step = RX_DDR_STEP;
         tx_vspa_proxy.tx_ddr_step = TX_DDR_STEP;
-        tx_vspa_proxy.rx_num_chan = RX_NUM_CHAN;
+        proxy_cfg_update();
         for (i = 0; i < RX_NUM_CHAN; i++)
             /* VSPA addresses are in 2-byte units; multiply by 2 to get AHB byte offset */
             tx_vspa_proxy.rx_fc_addr[i] = BASE_VSPA_VCPU(0) +
@@ -510,20 +541,63 @@ __attribute__((noreturn)) void main(void) {
             break;
         }
 
-        case MBOX_OPC_RX_CHAN_SELECT:
-            dmac_abort(0x1 << dma_channel_rd);
-            dmac_clear_complete(0x1 << dma_channel_rd);
-            DDR_wr_start_bit_update = 0;
-            axiq_rx_disable();
-            RX_index = (mailbox_in_msg_0_LSB & 0xf);
+        case MBOX_OPC_RX_CHAN_SELECT: {
+            /* LSB bit 8 = 0: contiguous, slot i = (LSB & 0xf) + i.
+             * LSB bit 8 = 1: list, slot i = (LSB >> 4*i) & 0xf.
+             * NACK (LSB 0) if a chanID is > 3 or used twice. */
+            /* No local array here: main() stack is at its limit. */
+#define RX_SEL_CH(sel, k) (((sel) & 0x100) ? (((sel) >> (4 * (k))) & 0xf) : (((sel) & 0xf) + (k)))
+            uint32_t sel = mailbox_in_msg_0_LSB;
+            uint32_t used = 0, ok = 1, k, c;
 
-            axi_rd = axi_ADC_FIFO_addr[RX_index];
-            dma_channel_rd = Rx_Antenna2axiq_dma_chan[RX_index];
+            for (k = 0; k < RX_NUM_CHAN; k++) {
+                c = RX_SEL_CH(sel, k);
+                if (c > 3 || (used & (1u << c)))
+                    ok = 0;
+                else
+                    used |= 1u << c;
+            }
 
             mailbox_out_msg_0_MSB = mailbox_in_msg_0_LSB;
-            mailbox_out_msg_0_LSB = 0x1;
+            mailbox_out_msg_0_LSB = 0x0;
+            if (ok) {
+                dmac_abort(0x1 << dma_channel_rd);
+                dmac_clear_complete(0x1 << dma_channel_rd);
+                DDR_wr_start_bit_update = 0;
+                axiq_rx_disable();
+                for (k = 0; k < RX_NUM_CHAN; k++) {
+                    c = RX_SEL_CH(sel, k);
+                    rx_chan_map[k] = c;
+                    rx_slot_dma[k] = Rx_Antenna2axiq_dma_chan[c];
+                    rx_slot_axi[k] = axi_ADC_FIFO_addr[c];
+                    rx_slot_fifo[k] = Rx_Antenna2fifo_index[c];
+                }
+                RX_index = rx_chan_map[0];
+                axi_rd = axi_ADC_FIFO_addr[RX_index];
+                dma_channel_rd = Rx_Antenna2axiq_dma_chan[RX_index];
+                proxy_cfg_update();
+                mailbox_out_msg_0_LSB = 0x1;
+            }
             host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
             break;
+        }
+#endif
+
+#ifndef IQMOD_RX_1T0R
+        case MBOX_OPC_RX_IQ_SWAP: {
+            /* LSB 0 = no swap, 1 = swap, else NACK. Applied on the next RX
+             * FIFO enable (next RX start / channel select). */
+            uint32_t v = mailbox_in_msg_0_LSB;
+
+            mailbox_out_msg_0_MSB = v;
+            mailbox_out_msg_0_LSB = (v <= 1);
+            if (v <= 1) {
+                rx_iq_swap_cr = v ? AXIQ_CR_IQ_SWAP_ON : AXIQ_CR_IQ_SWAP_OFF;
+                proxy_cfg_update();
+            }
+            host_mbox0_post(MAKEDWORD(mailbox_out_msg_0_MSB, mailbox_out_msg_0_LSB));
+            break;
+        }
 #endif
 
         case MBOX_OPC_EMPTY_2:

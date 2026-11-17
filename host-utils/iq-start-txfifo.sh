@@ -45,4 +45,12 @@ fi
 cmd=`printf "0x%X\n" $[$cmd + $1]`
 vspa_mbox send 0 0 $cmd $ddrep
 vspa_mbox recv 0 0
+rc=$?
+if [ $rc -eq 2 ];then
+        echo "ERROR: VSPA NACKed TX start (cmd $cmd): TX not supported by the loaded firmware (0TxR build, e.g. 4R = 0T4R ?)"
+        exit 1
+elif [ $rc -ne 0 ];then
+        echo "ERROR: no valid VSPA reply to TX start (cmd $cmd, rc $rc)"
+        exit 1
+fi
 

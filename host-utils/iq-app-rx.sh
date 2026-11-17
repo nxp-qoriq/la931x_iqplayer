@@ -256,7 +256,9 @@ else
     # memtool -32 addr 1 prints one line: "0xADDR:  HHHHHHHH"
     raw_hex=$(memtool -d /dev/shiva0 -32 "$proxy_rx_num_chan_addr" 1 2>/dev/null \
               | awk 'NR==1{print $2}')
-    N_RX=$(printf "%d" "0x${raw_hex}" 2>/dev/null)
+    # low byte = RX count (the word also holds IQ swap, TX count, channel map)
+    N_RX=$(( 0x${raw_hex:-0} & 0xFF ))
+    cfg_word=$(( 0x${raw_hex:-0} ))
 
     if [ -z "$N_RX" ] || [ "$N_RX" -lt 1 ] || [ "$N_RX" -gt 4 ] 2>/dev/null; then
         echo "***ERROR: could not read rx_num_chan from proxy at $proxy_rx_num_chan_addr (got '$raw_hex')"
@@ -266,8 +268,11 @@ else
     echo "N_RX=$N_RX  (auto-detected from proxy at $proxy_rx_num_chan_addr)"
 fi
 
-# Derive N_TX from N_RX (1T1R: N_RX=1, 1T2R: N_RX=2, 0T4R: N_RX=4)
-if [ "$N_RX" -eq 4 ]; then
+# N_TX from the proxy word [11:9] when the firmware publishes the channel
+# map ([31:16] != 0); older firmware: derive it from N_RX (0T4R has no TX)
+if [ -n "$cfg_word" ] && [ $(( cfg_word >> 16 )) -ne 0 ]; then
+    N_TX=$(( (cfg_word >> 9) & 7 ))
+elif [ "$N_RX" -eq 4 ]; then
     N_TX=0
 else
     N_TX=1
@@ -328,7 +333,10 @@ echo ""
 # --- Kick VSPA to start RX ---
 echo "vspa_mbox send 0 0 $rx_cmd $rx_buf_phys"
 vspa_mbox send 0 0 "$rx_cmd" "$rx_buf_phys"
-vspa_mbox recv 0 0
+if ! vspa_mbox recv 0 0; then
+    echo "ERROR: VSPA NACKed or did not answer RX start ($rx_cmd): RX config not supported by the loaded firmware"
+    exit 1
+fi
 echo ""
 
 # --- Launch iq_app ---

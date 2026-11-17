@@ -28,7 +28,7 @@ typedef struct s_tx_ch_host_proxy {
     uint32_t host_produced_size;
     uint32_t rx_decim;
     uint32_t tx_upsmp;
-    uint32_t rx_num_chan;
+    uint32_t rx_num_chan; /* RX/TX configuration word, see PROXY_CFG_* below */
     uint32_t rx_fc_addr[RX_NUM_MAX_CHAN]; /* AHB address of rx_vspa_proxy[i].la9310_fifo_consumed_size
                                            * = BASE_VSPA_VCPU(0) + DMEM byte offset.
                                            * Written by VSPA at startup; 0 = VSPA not yet started. */
@@ -37,6 +37,23 @@ typedef struct s_tx_ch_host_proxy {
     uint32_t gbl_stats_fetch;
     uint32_t dmemProxyOffset;
 } t_tx_ch_host_proxy;
+
+/* Layout of t_tx_ch_host_proxy.rx_num_chan (proxy byte offset 0x1C).
+ * The struct stays 64 bytes (one cache line), the fields are packed:
+ *   [7:0]   number of RX channels (1..4)
+ *   [8]     RX AXIQ I/Q swap (0 = off, 1 = on)
+ *   [11:9]  number of TX channels (0 = no TX, e.g. 0T4R)
+ *   [15:12] reserved, 0
+ *   [31:16] RX channel map, 4 bits per slot: slot i streams mbx chanID
+ *           ((v >> (16 + 4 * i)) & 0xF)
+ * Written by the VSPA at boot, on RX channel select and on RX IQ swap. */
+#define PROXY_CFG_NRX(v)        ((v) & 0xFFu)
+#define PROXY_CFG_IQSWAP(v)     (((v) >> 8) & 0x1u)
+#define PROXY_CFG_NTX(v)        (((v) >> 9) & 0x7u)
+#define PROXY_CFG_CHAN(v, slot) (((v) >> (16 + 4 * (slot))) & 0xFu)
+#define PROXY_CFG_MAKE(nrx, iqswap, ntx, map16) \
+    (((nrx) & 0xFFu) | (((iqswap) & 0x1u) << 8) | (((ntx) & 0x7u) << 9) | \
+     (((map16) & 0xFFFFu) << 16))
 
 typedef struct s_rx_ch_host_proxy {
     uint32_t la9310_fifo_produced_size;

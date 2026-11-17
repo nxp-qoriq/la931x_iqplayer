@@ -1,0 +1,51 @@
+From 14025ba1290ef5f015f3928e8e64b27f21496ef9 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Tue, 17 Nov 2026 10:25:08 +0100
+Subject: [PATCH 3/3] limesdr_micro: RX channel select fixes
+
+- validate the channel (1 = A/RX1, 2 = B/RX2)
+- power up the RX path of the selected channel (channel B is off by
+  default)
+- print the RX LO as 32-bit, debug_printf has no 64-bit support
+---
+ .../limesdr_micro/limesdr_commands.c            | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_commands.c b/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_commands.c
+index a00badd..9e46ca0 100644
+--- a/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_commands.c
++++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/limesdr_micro/limesdr_commands.c
+@@ -199,6 +199,20 @@ int set_lms7002m_rx_ch_set(const uint32_t channel,uint32_t freq_Hz)
+     uint64_t actualRate = 0;
+ 
+     PRINTF("set_lms7002m_rx_ch_set %d: %llu Hz\n",channel,freq_Hz);
++    if (channel != LMS7002M_CHANNEL_A && channel != LMS7002M_CHANNEL_B) {
++        PRINTF(" invalid RX channel %d (1=A/RX1, 2=B/RX2)\n", channel);
++        ret = -1;
++        goto out;
++    }
++    /* Power up the RX path of this channel. Channel B (LMS RX2) is off by
++     * default; on LimeSDR-Micro it feeds LA9310 RX1 (mbx chanID 1), channel
++     * A (LMS RX1) feeds LA9310 RX0 (mbx chanID 3). Both share the RX SXR,
++     * so tuning one channel retunes the other. */
++    ret = lms7002m_enable_channel(rfsoc, false, (enum lms7002m_channel)channel, true);
++    if (ret) {
++        PRINTF(" lms7002m_enable_channel(rx %d) failed ret %d\n", channel, ret);
++        goto out;
++    }
+     lms7002m_set_active_channel(rfsoc, channel);
+     if(freq_Hz <= 60000) {
+         lms7002m_set_path_rfe(rfsoc, LMS7002M_PATH_RFE_LNAL);
+@@ -219,7 +233,8 @@ int set_lms7002m_rx_ch_set(const uint32_t channel,uint32_t freq_Hz)
+     }
+ 
+     actualRate = lms7002m_get_frequency_sx(rfsoc, false);
+-    PRINTF("RX LO freq %llu Hz\n", actualRate);
++    /* debug_printf has no 64-bit support: print as 32-bit */
++    PRINTF("RX LO freq %u Hz\n", (uint32_t)actualRate);
+ 
+     lms7002m_set_rx_lpf(rfsoc, 160000000);
+ 
+-- 
+2.43.0
+

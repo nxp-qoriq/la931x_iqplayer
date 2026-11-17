@@ -1,0 +1,28 @@
+From 8773460243512a341f90a57251abe45ce0c49c13 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Tue, 17 Nov 2026 10:30:58 +0100
+Subject: [PATCH 1/2] baseband/la93xx: release bbdev on probe failure
+
+Call rte_bbdev_release() when the LA93xx probe fails so the device slot
+is not left allocated with a half initialised state.
+---
+ drivers/baseband/la93xx/bbdev_la93xx.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/baseband/la93xx/bbdev_la93xx.c b/drivers/baseband/la93xx/bbdev_la93xx.c
+index 1667774707..4d6e4ceb0f 100644
+--- a/drivers/baseband/la93xx/bbdev_la93xx.c
++++ b/drivers/baseband/la93xx/bbdev_la93xx.c
+@@ -1178,6 +1178,9 @@ la93xx_bbdev_create(struct rte_vdev_device *vdev,
+ 	if (ret) {
+ 		BBDEV_LA93XX_PMD_ERR("IPC Setup failed for %s", name);
+ 		rte_free(bbdev->data->dev_private);
++		bbdev->data->dev_private = NULL;
++		/* release so no half-initialized bbdev (dev_ops == NULL) stays visible */
++		rte_bbdev_release(bbdev);
+ 		return ret;
+ 	}
+ 	bbdev->dev_ops = &pmd_ops;
+-- 
+2.43.0
+
