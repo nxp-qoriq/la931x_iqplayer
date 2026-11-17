@@ -1,0 +1,263 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Wed, 18 Nov 2026 10:42:37 +0100
+Subject: [PATCH] app: add la9310_modem_info
+
+The IQ Player host-utils (load-rfnm.sh) and the porting guide go/no-go
+checks read the IQFLOOD region from la9310_modem_info. The kernel side
+(la9310_modinfo, IOCTL_LA93XX_MODINFO_GET) is added by 0001, but the
+RFNM la9310-driver ships no user-space tool to query it, so RFNM users
+had to build it from NXP la93xx_host_sw.
+
+Port app/modem_info from NXP la93xx_host_sw (ad9f1db) and build it
+against this tree:
+- define LA9310_DEV_NAME_PREFIX ("shiva", the /dev/shiva<id> node
+  created by la9310_modinfo.c); it was not defined by any header
+- drop the unused variables that failed under -Werror
+- snprintf for the device name, return 0 from main, fix the ioctl
+  names in the error messages; no change to the printed table, so the
+  output is byte-identical and existing parsers keep working
+- Makefile: no empty -L, same UAPI_DIR / LA9310_COMMON_HEADERS
+  variables as kernel_driver/la9310shiva, clear error when the common
+  headers are not given, clean works without them
+- hook it into app/Makefile
+
+Tested on RFNM Blue (image 0.1.15) with la9310shiva + 0001-0004:
+output identical to the la93xx_host_sw build, load-rfnm.sh finds
+IQFLOOD 0x96400000 size 0x7000000.
+---
+ app/Makefile                |   2 +-
+ app/modem_info/Makefile     |  33 +++++++
+ app/modem_info/modem_info.c | 167 ++++++++++++++++++++++++++++++++++++
+ 3 files changed, 201 insertions(+), 1 deletion(-)
+ create mode 100644 app/modem_info/Makefile
+ create mode 100644 app/modem_info/modem_info.c
+
+diff --git a/app/Makefile b/app/Makefile
+index 194ba6e..779a16b 100644
+--- a/app/Makefile
++++ b/app/Makefile
+@@ -2,7 +2,7 @@
+ 
+ #Add applicatin/exectuable directories here
+ 
+-APP_DIRS := bincreate
++APP_DIRS := bincreate modem_info
+ 
+ 
+ CLEAN_APP_DIRS = $(patsubst %, %_clean, ${APP_DIRS})
+diff --git a/app/modem_info/Makefile b/app/modem_info/Makefile
+new file mode 100644
+index 0000000..09eba73
+--- /dev/null
++++ b/app/modem_info/Makefile
+@@ -0,0 +1,33 @@
++# SPDX-License-Identifier: BSD-3-Clause
++# Copyright 2024 NXP
++#
++# la9310_modem_info: prints the la9310_modinfo regions (HIF, CCSR, TCML/TCMU,
++# scratch buffer, IQFLOOD, ...) of /dev/shiva<id>. Used by the IQ Player
++# host-utils (load-rfnm.sh) to locate the IQFLOOD buffer.
++#
++# Build (same header variables as kernel_driver/la9310shiva):
++#   make CC=aarch64-linux-gnu-gcc \
++#        LA9310_COMMON_HEADERS=<la9310-freertos>/common_headers \
++#        UAPI_DIR=<la9310-driver>/uapi
++
++UAPI_DIR ?= $(CURDIR)/../../uapi
++
++CFLAGS  += -Wall -Werror
++INCLUDES += -I$(UAPI_DIR) -I$(LA9310_COMMON_HEADERS)
++
++SRCS := modem_info.c
++BIN_MOD_INFO := la9310_modem_info
++
++all: $(BIN_MOD_INFO)
++
++$(BIN_MOD_INFO): $(SRCS)
++	@test -n "$(strip $(LA9310_COMMON_HEADERS))" || { echo "LA9310_COMMON_HEADERS is not set: point it to la9310-freertos/common_headers (la9310_host_if.h)"; exit 1; }
++	$(CC) $(CFLAGS) $(INCLUDES) $(LDFLAGS) -o $@ $^
++
++clean:
++	rm -f *.o $(BIN_MOD_INFO)
++
++install:
++	install -D $(BIN_MOD_INFO) $(BIN_INSTALL_DIR)/$(BIN_MOD_INFO)
++
++.PHONY: all clean install
+diff --git a/app/modem_info/modem_info.c b/app/modem_info/modem_info.c
+new file mode 100644
+index 0000000..b59c964
+--- /dev/null
++++ b/app/modem_info/modem_info.c
+@@ -0,0 +1,167 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Copyright 2024 NXP
++ */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/types.h>
++#include <stdint.h>
++#include <fcntl.h>
++#include <unistd.h>
++#include <sys/ioctl.h>
++
++#include <la9310_modinfo.h>
++
++/* Character device created by la9310_modinfo.c: /dev/shiva<id> */
++#ifndef LA9310_DEV_NAME_PREFIX
++#define LA9310_DEV_NAME_PREFIX "shiva"
++#endif
++
++int modem_id = 0;
++int stats;
++
++#define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
++
++void print_usage_message(void)
++{
++	printf("Usage : la9310_modem_info [optional]\n");
++	printf("\n");
++	printf("\t-h or -H    help and usages\n");
++	printf("\t-m <dev id>\n");
++	printf("\t-s  print the host stats\n");
++	fflush(stdout);
++
++	exit(EXIT_SUCCESS);
++}
++
++void validate_cli_args(int argc, char *argv[])
++{
++	int opt;
++
++	if (argc < 2)
++		return;
++
++	while ((opt = getopt(argc, argv, ":m:sh")) != -1) {
++		switch (opt) {
++		case 'm':
++			modem_id = strtoul(optarg, NULL, 0);
++			break;
++		case 's':
++			stats = 1;
++			break;
++		case 'h':
++			print_usage_message();
++			break;
++		case '?':
++			/*  FALLTHROUGH */
++		default:
++			print_usage_message();
++			break;
++		}
++	}
++}
++
++void print_modem_stats(int fd)
++{
++	modinfo_s mil = {0};
++	modinfo_s *mi = &mil;
++	int ret;
++
++	ret = ioctl(fd, IOCTL_LA93XX_MODINFO_GET_STATS, (modinfo_s *) &mil);
++	if (ret < 0) {
++		printf("IOCTL_LA93XX_MODINFO_GET_STATS failed.\n");
++		return;
++	}
++
++	printf("\nLA9310 host stats dump\n");
++	printf("%s", mi->target_stat);
++}
++
++void print_modem_info(int id)
++{
++	int fd;
++	modinfo_t mil = {0};
++	modinfo_t *mi = &mil;
++	int ret, i;
++	char dev_name[32];
++
++	snprintf(dev_name, sizeof(dev_name), "/dev/%s%d",
++		 LA9310_DEV_NAME_PREFIX, id);
++
++	fd = open(dev_name, O_RDWR);
++	if (fd < 0) {
++		printf("File %s open error\n", dev_name);
++		return;
++	}
++
++	ret = ioctl(fd, IOCTL_LA93XX_MODINFO_GET, (modinfo_t *) &mil);
++	if (ret < 0) {
++		printf("IOCTL_LA93XX_MODINFO_GET failed.\n");
++		close(fd);
++		return;
++	}
++
++	printf("Board Name - %s\n", mi->board_name);
++	printf("LA93xx ID:%d\n", mi->id);
++	printf("Dev name - %s\n", mi->name);
++	printf("PCI addr - %s\n", mi->pci_addr);
++	printf("PCI WIN start     0x%lx Size:0x%x\n",
++		mi->pciwin.host_phy_addr, mi->pciwin.size);
++	printf("HIF start         0x%lx Size:0x%x\n",
++		mi->hif.host_phy_addr, mi->hif.size);
++	printf("CCSR phys         0x%lx Size:0x%x\n",
++		mi->ccsr.host_phy_addr, mi->ccsr.size);
++	printf("TCML phys         0x%lx Size:0x%x\n",
++		mi->tcml.host_phy_addr, mi->tcml.size);
++	printf("TCMU phys         0x%lx Size:0x%x\n",
++		mi->tcmu.host_phy_addr, mi->tcmu.size);
++	printf("Scratch buf phys 0x%lx Size:0x%x\n",
++		mi->scratchbuf.host_phy_addr, mi->scratchbuf.size);
++
++	printf("Scrach Buf Regions\n");
++	printf("Region           | \tHost Phy Addr\t | \tModem Phy Addr\t | \tSize\n");
++	printf("VSPA OVERLAY phys| \t0x%lx\t | \t0x%x\t | \t0x%x\n",
++		mi->ov.host_phy_addr, mi->ov.modem_phy_addr, mi->ov.size);
++	printf("VSPA start       | \t0x%lx\t | \t0x%x\t | \t0x%x\n",
++		mi->vspa.host_phy_addr, mi->vspa.modem_phy_addr, mi->vspa.size);
++	printf("FW start         | \t0x%lx\t | \t0x%x\t | \t0x%x\n",
++		mi->fw.host_phy_addr, mi->fw.modem_phy_addr, mi->fw.size);
++	printf("DBG LOG phys     | \t0x%lx\t | \t0x%x\t | \t0x%x\n",
++		mi->dbg.host_phy_addr, mi->dbg.modem_phy_addr, mi->dbg.size);
++	printf("IQ SAMPLES phys  | \t0x%lx\t | \t0x%x\t | \t0x%x\n",
++		mi->iqr.host_phy_addr, mi->iqr.modem_phy_addr, mi->iqr.size);
++	printf("IQ FLOOD phys    | \t0x%lx\t | \t0x%x\t | \t0x%x\n",
++		mi->iqflood.host_phy_addr, mi->iqflood.modem_phy_addr, mi->iqflood.size);
++	printf("NLM OPS start    | \t0x%lx\t | \t0x%x\t | \t0x%x\n",
++		mi->nlmops.host_phy_addr, mi->nlmops.modem_phy_addr, mi->nlmops.size);
++	printf("STD FW phys      | \t0x%lx\t | \t0x%x\t | \t0x%x\n",
++		mi->stdfw.host_phy_addr, mi->stdfw.modem_phy_addr, mi->stdfw.size);
++	if (mi->rfcal.size) {
++		printf("RF CAL phys      | \t0x%lx\t | \t0x%x\t | \t0x%x\n",
++			mi->rfcal.host_phy_addr, mi->rfcal.modem_phy_addr, mi->rfcal.size);
++	}
++
++	printf("DAC Mask: 0x%x  Rate: %s\n",
++			mi->dac_mask,
++			mi->dac_rate_mask ? "61.44 MHz":"122.88 MHz");
++	for (i = 0; i < 4; i++) {
++		printf("ADC-%d: %s  Rate : %s \n",
++			i, CHECK_BIT(mi->adc_mask,i) ? "ON": "OFF",
++			CHECK_BIT(mi->adc_rate_mask,i) ? "61.44 MHz":"122.88 MHz");
++	}
++
++	if (stats == 1)
++		print_modem_stats(fd);
++	close(fd);
++}
++
++int main(int argc, char *argv[])
++{
++	/* Validate CLI Args */
++	validate_cli_args(argc, argv);
++
++	print_modem_info(modem_id);
++	return 0;
++}
+-- 
+2.34.1
+

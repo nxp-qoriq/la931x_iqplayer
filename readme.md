@@ -12,7 +12,14 @@ and a host Linux library and application example.
 - `doc/iqplayer_quick_start_guide_RFNM.rst`: legacy, discontinued NXP LA9310 BSP for RFNM (reference only)
 - `doc/iqplayer_design_notes.rst`: development history and measurements
 - `doc/release_notes.md`: release notes
-- `doc/patches/`: patches for the RFNM la9310-driver and la9310-freertos repositories
+- `doc/patches/`: temporary patches for other repositories, until the upstream pull requests
+  are merged. See `doc/patches/README.md` for which folders to use:
+  - NXP BSP (LimeSDR-Micro): `la93xx_host_sw`, `la93xx_freertos`, `dpdk`
+  - RFNM SDK: `la9310-driver`, `la9310-freertos`
+  - both, optional VSPA debugger (6G for All `la9310_debug`): `la9310_debug`
+
+Release v1.2 was prepared with the help of Vero Studio (AI coding assistant); changes
+were reviewed by the maintainer and the firmware was tested on the boards.
 
 # Requirements
 
@@ -24,6 +31,10 @@ and a host Linux library and application example.
   - RFNM: https://github.com/rfnm/la9310-freertos and https://github.com/rfnm/la9310-driver
     with `doc/patches/` applied (`uapi/la9310_modinfo.h` comes from the patches),
     see `doc/iqplayer_porting_guide_RFNM-SDK.rst`
+- Optional: Arm RAN Acceleration Library (https://gitlab.arm.com/networking/ral), used by
+  `iq_app` for the live spectrum FFT. Without it (`RAL_DIR`, default `../ral`) the build
+  prints a warning and `iq_app` uses a slower DFT. Cross build:
+  `cmake -B build_aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DARMRAL_ARCH=NEON -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release && make -C build_aarch64 armral`
 - The Linux VSPA tool chain is freely available with the eval version of CodeWarrior for VSPA 10.3.0
   or at https://www.nxp.com/lgfiles/sdk/la1224/imx-la9310-sdk-10/cwvspa.vbeta_14_00_781_vspa.linux.tgz
 

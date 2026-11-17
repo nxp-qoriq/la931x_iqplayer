@@ -1,0 +1,1652 @@
+U-Boot SPL 2022.04-uboot_v2022.04-2.5.0+gbc9e54edb2 (May 08 2024 - 22:14:19 +0200)
+DDRINFO: start DRAM init
+DDRINFO: DRAM rate 4000MTS
+DDRINFO:ddrphy calibration done
+DDRINFO: ddrmix config done
+SEC0:  RNG instantiated
+Normal Boot
+Trying to boot from BOOTROM
+Boot Stage: Primary boot
+image offset 0x8000, pagesize 0x200, ivt offset 0x0
+NOTICE:  BL31: v2.6(release):automotive-13.0.0_1.1.0-0-g3c1583ba0
+NOTICE:  BL31: Built : 12:28:08, Mar 24 2024
+
+
+U-Boot 2022.04-uboot_v2022.04-2.5.0+gbc9e54edb2 (May 08 2024 - 22:14:19 +0200)
+
+CPU:   i.MX8MP Lite[4] rev1.1 at 1600MHz
+CPU:   Industrial temperature grade (-40C to 105C) at 49C
+Reset cause: POR
+Model: NXP i.MX8MPlus LPDDR4 EVK board
+DRAM:  4 GiB
+Done pwr en init
+Core:  73 devices, 21 uclasses, devicetree: separate
+MMC:   FSL_SDHC: 1, FSL_SDHC: 2
+Loading Environment from MMC... OK
+Fail to setup video link
+In:    serial
+Out:   serial
+Err:   serial
+SEC0:  RNG instantiated
+
+ BuildInfo:
+  - ATF 3c1583b
+
+flash target is MMC:2
+Net:   eth1: ethernet@30bf0000
+Fastboot: Normal
+Normal Boot
+Hit any key to stop autoboot:  0
+MMC: no card present
+Couldn't find partition mmc 1:1
+MMC: no card present
+Couldn't find partition mmc 1:2
+Booting normal partition
+58222 bytes read in 1 ms (55.5 MiB/s)
+34793984 bytes read in 111 ms (298.9 MiB/s)
+## Flattened Device Tree blob at 43000000
+   Booting using the fdt blob at 0x43000000
+ERROR: reserving fdt memory region failed (addr=10000000 size=1000000 flags=4)
+ERROR: reserving fdt memory region failed (addr=7e0000 size=20000 flags=4)
+ERROR: reserving fdt memory region failed (addr=800000 size=20000 flags=4)
+ERROR: reserving fdt memory region failed (addr=55000000 size=8000 flags=4)
+ERROR: reserving fdt memory region failed (addr=55008000 size=8000 flags=4)
+ERROR: reserving fdt memory region failed (addr=55400000 size=100000 flags=4)
+ERROR: reserving fdt memory region failed (addr=550ff000 size=1000 flags=4)
+   Using Device Tree in place at 0000000043000000, end 000000004301136d
+Modify /vpu_g1@38300000:status disabled
+Modify /vpu_g2@38310000:status disabled
+Modify /vpu_vc8000e@38320000:status disabled
+Modify /vipsi@38500000:status disabled
+Modify /soc@0/bus@32c00000/camera/isp@32e10000:status disabled
+Modify /soc@0/bus@32c00000/camera/isp@32e20000:status disabled
+Modify /dsp@3b6e8000:status disabled
+
+Starting kernel ...
+
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x410fd034]
+[    0.000000] Linux version 6.6.36-rt35-g7ecf6daa9278-dirty (root@rfnm) (aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0, GNU ld (GNU Binutils for Debian) 2.44) #113 SMP PREEMPT_RT Sun Jul 26 06:58:55 CDT 2026
+[    0.000000] KASLR disabled due to lack of seed
+[    0.000000] Machine model: RFNM imx8mp
+[    0.000000] efi: UEFI not found.
+[    0.000000] Reserved memory: created CMA memory pool at 0x00000000c4000000, size 960 MiB
+[    0.000000] OF: reserved mem: initialized node linux,cma, compatible id shared-dma-pool
+[    0.000000] OF: reserved mem: 0x00000000c4000000..0x00000000ffffffff (983040 KiB) map reusable linux,cma
+[    0.000000] OF: reserved mem: 0x00000000007e0000..0x00000000007fffff (128 KiB) nomap non-reusable m4@7E0000
+[    0.000000] OF: reserved mem: 0x0000000000800000..0x000000000081ffff (128 KiB) nomap non-reusable m4@800000
+[    0.000000] OF: reserved mem: 0x0000000000900000..0x000000000096ffff (448 KiB) nomap non-reusable ocram@900000
+[    0.000000] OF: reserved mem: 0x0000000010000000..0x0000000010ffffff (16384 KiB) nomap non-reusable m4@10000000
+[    0.000000] OF: reserved mem: 0x0000000055000000..0x0000000055007fff (32 KiB) nomap non-reusable vdev0vring0@55000000
+[    0.000000] OF: reserved mem: 0x0000000055008000..0x000000005500ffff (32 KiB) nomap non-reusable vdev0vring1@55008000
+[    0.000000] OF: reserved mem: 0x00000000550ff000..0x00000000550fffff (4 KiB) nomap non-reusable rsc_table@550ff000
+[    0.000000] Reserved memory: created DMA memory pool at 0x0000000055400000, size 1 MiB
+[    0.000000] OF: reserved mem: initialized node vdevbuffer@55400000, compatible id shared-dma-pool
+[    0.000000] OF: reserved mem: 0x0000000055400000..0x00000000554fffff (1024 KiB) nomap non-reusable vdevbuffer@55400000
+[    0.000000] OF: reserved mem: 0x0000000080000000..0x0000000080ffffff (16384 KiB) nomap non-reusable m4@80000000
+[    0.000000] OF: reserved mem: 0x0000000082400000..0x00000000923fffff (262144 KiB) nomap non-reusable iqlocale@82400000
+[    0.000000] OF: reserved mem: 0x0000000092400000..0x00000000963fffff (65536 KiB) nomap non-reusable la93@92400000
+[    0.000000] OF: reserved mem: 0x0000000096400000..0x000000009d3fffff (114688 KiB) nomap non-reusable iqflood@96400000
+[    0.000000] OF: reserved mem: 0x000000009d400000..0x00000000a33fffff (98304 KiB) map non-reusable iqusb@9D400000
+[    0.000000] OF: reserved mem: 0x00000000a3400000..0x00000000a37fffff (4096 KiB) nomap non-reusable bootconfig@A3400000
+[    0.000000] OF: reserved mem: 0x0000000100000000..0x000000010fffffff (262144 KiB) nomap non-reusable gpu_reserved@100000000
+[    0.000000] NUMA: No NUMA configuration found
+[    0.000000] NUMA: Faking a node at [mem 0x0000000040000000-0x000000013fffffff]
+[    0.000000] NUMA: NODE_DATA [mem 0x13f9105c0-0x13f912fff]
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000040000000-0x00000000ffffffff]
+[    0.000000]   DMA32    empty
+[    0.000000]   Normal   [mem 0x0000000100000000-0x000000013fffffff]
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000040000000-0x0000000054ffffff]
+[    0.000000]   node   0: [mem 0x0000000055000000-0x000000005500ffff]
+[    0.000000]   node   0: [mem 0x0000000055010000-0x00000000550fefff]
+[    0.000000]   node   0: [mem 0x00000000550ff000-0x00000000550fffff]
+[    0.000000]   node   0: [mem 0x0000000055100000-0x00000000553fffff]
+[    0.000000]   node   0: [mem 0x0000000055400000-0x00000000554fffff]
+[    0.000000]   node   0: [mem 0x0000000055500000-0x000000007fffffff]
+[    0.000000]   node   0: [mem 0x0000000080000000-0x0000000080ffffff]
+[    0.000000]   node   0: [mem 0x0000000081000000-0x00000000823fffff]
+[    0.000000]   node   0: [mem 0x0000000082400000-0x000000009d3fffff]
+[    0.000000]   node   0: [mem 0x000000009d400000-0x00000000a33fffff]
+[    0.000000]   node   0: [mem 0x00000000a3400000-0x00000000a37fffff]
+[    0.000000]   node   0: [mem 0x00000000a3800000-0x00000000ffffffff]
+[    0.000000]   node   0: [mem 0x0000000100000000-0x000000010fffffff]
+[    0.000000]   node   0: [mem 0x0000000110000000-0x000000013fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000040000000-0x000000013fffffff]
+[    0.000000] psci: probing for conduit method from DT.
+[    0.000000] psci: PSCIv1.1 detected in firmware.
+[    0.000000] psci: Using standard PSCI v0.2 function IDs
+[    0.000000] psci: MIGRATE_INFO_TYPE not supported.
+[    0.000000] psci: SMC Calling Convention v1.2
+[    0.000000] percpu: Embedded 21 pages/cpu s46272 r8192 d31552 u86016
+[    0.000000] Detected VIPT I-cache on CPU0
+[    0.000000] CPU features: detected: GIC system register CPU interface
+[    0.000000] CPU features: detected: ARM erratum 845719
+[    0.000000] alternatives: applying boot alternatives
+[    0.000000] Kernel command line: console=ttymxc1,115200 root=/dev/mmcblk2p3 rootwait rw
+[    0.000000] Dentry cache hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+[    0.000000] Fallback order for Node 0: 0
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 1032192
+[    0.000000] Policy zone: Normal
+[    0.000000] mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+[    0.000000] software IO TLB: area num 4.
+[    0.000000] software IO TLB: mapped [mem 0x00000000c0000000-0x00000000c4000000] (64MB)
+[    0.000000] Memory: 2206704K/4194304K available (21248K kernel code, 2170K rwdata, 8416K rodata, 1984K init, 659K bss, 1004560K reserved, 983040K cma-reserved)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.000000] rcu: Preemptible hierarchical RCU implementation.
+[    0.000000] rcu:     RCU event tracing is enabled.
+[    0.000000] rcu:     RCU restricting CPUs from NR_CPUS=256 to nr_cpu_ids=4.
+[    0.000000] rcu:     RCU priority boosting: priority 1 delay 500 ms.
+[    0.000000] rcu:     RCU_SOFTIRQ processing moved to rcuc kthreads.
+[    0.000000]  No expedited grace period (rcu_normal_after_boot).
+[    0.000000]  Trampoline variant of Tasks RCU enabled.
+[    0.000000]  Tracing variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+[    0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] GICv3: GIC: Using split EOI/Deactivate mode
+[    0.000000] GICv3: 160 SPIs implemented
+[    0.000000] GICv3: 0 Extended SPIs implemented
+[    0.000000] Root IRQ handler: gic_handle_irq
+[    0.000000] GICv3: GICv3 features: 16 PPIs
+[    0.000000] GICv3: CPU0: found redistributor 0 region 0:0x0000000038880000
+[    0.000000] ITS: No ITS available, not enabling LPIs
+[    0.000000] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000] arch_timer: cp15 timer(s) running at 8.00MHz (phys).
+[    0.000000] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x1d854df40, max_idle_ns: 440795202120 ns
+[    0.000000] sched_clock: 56 bits at 8MHz, resolution 125ns, wraps every 2199023255500ns
+[    0.000357] Console: colour dummy device 80x25
+[    0.000408] Calibrating delay loop (skipped), value calculated using timer frequency.. 16.00 BogoMIPS (lpj=32000)
+[    0.000416] pid_max: default: 32768 minimum: 301
+[    0.000472] LSM: initializing lsm=capability,integrity
+[    0.000540] Mount-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.000554] Mountpoint-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.001820] RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1.
+[    0.001880] RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1.
+[    0.002083] rcu: Hierarchical SRCU implementation.
+[    0.002086] rcu:     Max phase no-delay instances is 1000.
+[    0.004029] EFI services will not be available.
+[    0.004252] smp: Bringing up secondary CPUs ...
+[    0.004831] Detected VIPT I-cache on CPU1
+[    0.004883] GICv3: CPU1: found redistributor 1 region 0:0x00000000388a0000
+[    0.004916] CPU1: Booted secondary processor 0x0000000001 [0x410fd034]
+[    0.005525] Detected VIPT I-cache on CPU2
+[    0.005563] GICv3: CPU2: found redistributor 2 region 0:0x00000000388c0000
+[    0.005581] CPU2: Booted secondary processor 0x0000000002 [0x410fd034]
+[    0.006143] Detected VIPT I-cache on CPU3
+[    0.006179] GICv3: CPU3: found redistributor 3 region 0:0x00000000388e0000
+[    0.006195] CPU3: Booted secondary processor 0x0000000003 [0x410fd034]
+[    0.006254] smp: Brought up 1 node, 4 CPUs
+[    0.006259] SMP: Total of 4 processors activated.
+[    0.006262] CPU features: detected: 32-bit EL0 Support
+[    0.006265] CPU features: detected: CRC32 instructions
+[    0.006315] CPU: All CPU(s) started at EL2
+[    0.006317] alternatives: applying system-wide alternatives
+[    0.007964] devtmpfs: initialized
+[    0.019828] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.019846] futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+[    0.042571] pinctrl core: initialized pinctrl subsystem
+[    0.044683] DMI not present or invalid.
+[    0.045191] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.046220] DMA: preallocated 512 KiB GFP_KERNEL pool for atomic allocations
+[    0.046336] DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.046472] DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.046514] audit: initializing netlink subsys (disabled)
+[    0.046647] audit: type=2000 audit(0.044:1): state=initialized audit_enabled=0 res=1
+[    0.047261] thermal_sys: Registered thermal governor 'step_wise'
+[    0.047264] thermal_sys: Registered thermal governor 'power_allocator'
+[    0.047333] cpuidle: using governor menu
+[    0.047541] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+[    0.047600] ASID allocator initialised with 65536 entries
+[    0.048511] Serial: AMBA PL011 UART driver
+[    0.048588] imx mu driver is registered.
+[    0.048612] imx rpmsg driver is registered.
+[    0.054330] platform soc@0: Fixed dependency cycle(s) with /soc@0/bus@30000000/efuse@30350000/unique-id@8
+[    0.056384] platform 30330000.pinctrl: Fixed dependency cycle(s) with /soc@0/bus@30000000/pinctrl@30330000/imx8mp-custom-board/eqosgrp
+[    0.056777] imx8mp-pinctrl 30330000.pinctrl: initialized IMX pinctrl driver
+[    0.057250] platform 30350000.efuse: Fixed dependency cycle(s) with /soc@0/bus@30000000/clock-controller@30380000
+[    0.058433] platform 30350000.efuse: Fixed dependency cycle(s) with /soc@0/bus@30000000/clock-controller@30380000
+[    0.069018] platform 32fc6000.lcd-controller: Fixed dependency cycle(s) with /soc@0/bus@30c00000/hdmi@32fd8000
+[    0.069378] platform 32fc6000.lcd-controller: Fixed dependency cycle(s) with /soc@0/bus@30c00000/hdmi@32fd8000
+[    0.069531] platform 32fd8000.hdmi: Fixed dependency cycle(s) with /soc@0/bus@30c00000/lcd-controller@32fc6000
+[    0.074399] platform fusb340-sw: Fixed dependency cycle(s) with /soc@0/bus@30800000/i2c@30a20000/tcpc@22/connector
+[    0.075254] Modules: 24096 pages in range for non-PLT usage
+[    0.075258] Modules: 515616 pages in range for PLT usage
+[    0.075916] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.075921] HugeTLB: 0 KiB vmemmap can be freed for a 1.00 GiB page
+[    0.075924] HugeTLB: registered 32.0 MiB page size, pre-allocated 0 pages
+[    0.075927] HugeTLB: 0 KiB vmemmap can be freed for a 32.0 MiB page
+[    0.075930] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.075934] HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.075937] HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
+[    0.075942] HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
+[    0.077773] ACPI: Interpreter disabled.
+[    0.078460] iommu: Default domain type: Translated
+[    0.078466] iommu: DMA domain TLB invalidation policy: strict mode
+[    0.078785] SCSI subsystem initialized
+[    0.079115] usbcore: registered new interface driver usbfs
+[    0.079143] usbcore: registered new interface driver hub
+[    0.079178] usbcore: registered new device driver usb
+[    0.080128] mc: Linux media interface: v0.10
+[    0.080174] videodev: Linux video capture interface: v2.00
+[    0.080246] pps_core: LinuxPPS API ver. 1 registered
+[    0.080249] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.080261] PTP clock support registered
+[    0.080471] EDAC MC: Ver: 3.0.0
+[    0.080935] scmi_core: SCMI protocol bus registered
+[    0.081334] FPGA manager framework
+[    0.081429] Advanced Linux Sound Architecture Driver Initialized.
+[    0.082136] Bluetooth: Core ver 2.22
+[    0.082160] NET: Registered PF_BLUETOOTH protocol family
+[    0.082163] Bluetooth: HCI device and connection manager initialized
+[    0.082169] Bluetooth: HCI socket layer initialized
+[    0.082174] Bluetooth: L2CAP socket layer initialized
+[    0.082188] Bluetooth: SCO socket layer initialized
+[    0.082516] vgaarb: loaded
+[    0.082949] clocksource: Switched to clocksource arch_sys_counter
+[    0.083165] VFS: Disk quotas dquot_6.6.0
+[    0.083190] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.083370] pnp: PnP ACPI: disabled
+[    0.090217] NET: Registered PF_INET protocol family
+[    0.090377] IP idents hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.092559] tcp_listen_portaddr_hash hash table entries: 2048 (order: 4, 81920 bytes, linear)
+[    0.092659] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.092671] TCP established hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.092986] TCP bind hash table entries: 32768 (order: 9, 2621440 bytes, linear)
+[    0.095281] TCP: Hash tables configured (established 32768 bind 32768)
+[    0.095403] UDP hash table entries: 2048 (order: 5, 196608 bytes, linear)
+[    0.095631] UDP-Lite hash table entries: 2048 (order: 5, 196608 bytes, linear)
+[    0.095966] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.096333] RPC: Registered named UNIX socket transport module.
+[    0.096337] RPC: Registered udp transport module.
+[    0.096339] RPC: Registered tcp transport module.
+[    0.096341] RPC: Registered tcp-with-tls transport module.
+[    0.096343] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[    0.097181] NET: Registered PF_XDP protocol family
+[    0.097192] PCI: CLS 0 bytes, default 64
+[    0.098441] Initialise system trusted keyrings
+[    0.098569] workingset: timestamp_bits=42 max_order=20 bucket_order=0
+[    0.098852] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    0.099087] NFS: Registering the id_resolver key type
+[    0.099114] Key type id_resolver registered
+[    0.099117] Key type id_legacy registered
+[    0.099133] nfs4filelayout_init: NFSv4 File Layout Driver Registering...
+[    0.099137] nfs4flexfilelayout_init: NFSv4 Flexfile Layout Driver Registering...
+[    0.099153] jffs2: version 2.2. (NAND) ? 2001-2006 Red Hat, Inc.
+[    0.099342] 9p: Installing v9fs 9p2000 file system support
+[    0.125517] Key type asymmetric registered
+[    0.125522] Asymmetric key parser 'x509' registered
+[    0.125565] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 243)
+[    0.125570] io scheduler mq-deadline registered
+[    0.125573] io scheduler kyber registered
+[    0.125599] io scheduler bfq registered
+[    0.131787] EINJ: ACPI disabled.
+[    0.144434] mxs-dma 33000000.dma-apbh: initialized
+[    0.145641] SoC: i.MX8MP revision 1.1
+[    0.146029] Bus freq driver module loaded
+[    0.147041] imx-sdma 30bd0000.dma-controller: Direct firmware load for imx/sdma/sdma-imx7d.bin failed with error -2
+[    0.147049] imx-sdma 30bd0000.dma-controller: Falling back to sysfs fallback for: imx/sdma/sdma-imx7d.bin
+[    0.163784] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[    0.166902] 30890000.serial: ttymxc1 at MMIO 0x30890000 (irq = 24, base_baud = 1500000) is a IMX
+[    0.167051] printk: legacy console [ttymxc1] enabled
+[    0.184111] loop: module loaded
+[    0.185440] of_reserved_mem_lookup() returned NULL
+[    0.185612] megasas: 07.725.01.00-rc1
+[    0.192667] tun: Universal TUN/TAP device driver, 1.6
+[    0.193449] thunder_xcv, ver 1.0
+[    0.193479] thunder_bgx, ver 1.0
+[    0.193512] nicpf, ver 1.0
+[    0.195946] hns3: Hisilicon Ethernet Network Driver for Hip08 Family - version
+[    0.195951] hns3: Copyright (c) 2017 Huawei Corporation.
+[    0.195992] hclge is initializing
+[    0.196025] e1000: Intel(R) PRO/1000 Network Driver
+[    0.196028] e1000: Copyright (c) 1999-2006 Intel Corporation.
+[    0.196060] e1000e: Intel(R) PRO/1000 Network Driver
+[    0.196061] e1000e: Copyright(c) 1999 - 2015 Intel Corporation.
+[    0.196090] igb: Intel(R) Gigabit Ethernet Network Driver
+[    0.196093] igb: Copyright (c) 2007-2014 Intel Corporation.
+[    0.196119] igbvf: Intel(R) Gigabit Virtual Function Network Driver
+[    0.196122] igbvf: Copyright (c) 2009 - 2012 Intel Corporation.
+[    0.196291] sky2: driver version 1.30
+[    0.196827] usbcore: registered new device driver r8152-cfgselector
+[    0.196862] usbcore: registered new interface driver r8152
+[    0.197296] VFIO - User Level meta-driver version: 0.3
+[    0.198620] platform 38100000.usb: Fixed dependency cycle(s) with /soc@0/bus@30800000/i2c@30a20000/tcpc@22
+[    0.203557] usbcore: registered new interface driver uas
+[    0.203593] usbcore: registered new interface driver usb-storage
+[    0.203670] usbcore: registered new interface driver usbserial_generic
+[    0.203692] usbserial: USB Serial support registered for generic
+[    0.203717] usbcore: registered new interface driver ftdi_sio
+[    0.203744] usbserial: USB Serial support registered for FTDI USB Serial Device
+[    0.203769] usbcore: registered new interface driver usb_serial_simple
+[    0.203796] usbserial: USB Serial support registered for carelink
+[    0.203815] usbserial: USB Serial support registered for flashloader
+[    0.203836] usbserial: USB Serial support registered for funsoft
+[    0.203856] usbserial: USB Serial support registered for google
+[    0.203878] usbserial: USB Serial support registered for hp4x
+[    0.203901] usbserial: USB Serial support registered for kaufmann
+[    0.203922] usbserial: USB Serial support registered for libtransistor
+[    0.203947] usbserial: USB Serial support registered for moto_modem
+[    0.203969] usbserial: USB Serial support registered for motorola_tetra
+[    0.203990] usbserial: USB Serial support registered for nokia
+[    0.204012] usbserial: USB Serial support registered for novatel_gps
+[    0.204037] usbserial: USB Serial support registered for siemens_mpi
+[    0.204059] usbserial: USB Serial support registered for suunto
+[    0.204083] usbserial: USB Serial support registered for vivopay
+[    0.204105] usbserial: USB Serial support registered for zio
+[    0.204138] usbcore: registered new interface driver usb_ehset_test
+[    0.205894] gadgetfs: USB Gadget filesystem, version 24 Aug 2004
+[    0.207075] input: 30370000.snvs:snvs-powerkey as /devices/platform/soc@0/30000000.bus/30370000.snvs/30370000.snvs:snvs-powerkey/input/input0
+[    0.209317] snvs_rtc 30370000.snvs:snvs-rtc-lp: registered as rtc0
+[    0.209341] snvs_rtc 30370000.snvs:snvs-rtc-lp: setting system clock to 2026-11-18T09:55:43 UTC (1794995743)
+[    0.209494] i2c_dev: i2c /dev entries driver
+[    0.215248] Bluetooth: HCI UART driver ver 2.3
+[    0.215258] Bluetooth: HCI UART protocol H4 registered
+[    0.215261] Bluetooth: HCI UART protocol BCSP registered
+[    0.215286] Bluetooth: HCI UART protocol LL registered
+[    0.215289] Bluetooth: HCI UART protocol ATH3K registered
+[    0.215312] Bluetooth: HCI UART protocol Three-wire (H5) registered
+[    0.215412] Bluetooth: HCI UART protocol Broadcom registered
+[    0.215432] Bluetooth: HCI UART protocol QCA registered
+[    0.215636] EDAC MC: ECC not enabled
+[    0.217176] sdhci: Secure Digital Host Controller Interface driver
+[    0.217180] sdhci: Copyright(c) Pierre Ossman
+[    0.217689] Synopsys Designware Multimedia Card Interface Driver
+[    0.218275] sdhci-pltfm: SDHCI platform and OF driver helper
+[    0.221558] SMCCC: SOC_ID: ARCH_SOC_ID not implemented, skipping ....
+[    0.221684] usbcore: registered new interface driver usbhid
+[    0.221687] usbhid: USB HID core driver
+[    0.235152] hw perfevents: enabled with armv8_cortex_a53 PMU driver, 7 counters available
+[    0.237903]  cs_system_cfg: CoreSight Configuration manager initialised
+[    0.238784] platform soc@0: Fixed dependency cycle(s) with /soc@0/bus@30000000/efuse@30350000
+[    0.239906] optee: probing for conduit method.
+[    0.239916] optee: api uid mismatch
+[    0.239918] optee: probe of firmware:optee failed with error -22
+[    0.241795] Galcore version 6.4.11.p2.745085
+[    0.251891] mmc2: SDHCI controller on 30b60000.mmc [30b60000.mmc] using ADMA
+[    0.255588] [drm] Initialized vivante 1.0.0 20170808 for 40000000.mix_gpu_ml on minor 0
+[    0.258684] pktgen: Packet Generator for packet performance testing. Version: 2.75
+[    0.263044] NET: Registered PF_LLC protocol family
+[    0.263070] Mirror/redirect action on
+[    0.263153] u32 classifier
+[    0.263156]     input device check on
+[    0.263157]     Actions configured
+[    0.263522] NET: Registered PF_INET6 protocol family
+[    0.264104] Segment Routing with IPv6
+[    0.264140] In-situ OAM (IOAM) with IPv6
+[    0.264185] NET: Registered PF_PACKET protocol family
+[    0.264207] bridge: filtering via arp/ip/ip6tables is no longer available by default. Update your scripts to load br_netfilter if you need this.
+[    0.264274] Bluetooth: RFCOMM TTY layer initialized
+[    0.264292] Bluetooth: RFCOMM socket layer initialized
+[    0.264323] Bluetooth: RFCOMM ver 1.11
+[    0.264333] Bluetooth: BNEP (Ethernet Emulation) ver 1.3
+[    0.264336] Bluetooth: BNEP filters: protocol multicast
+[    0.264342] Bluetooth: BNEP socket layer initialized
+[    0.264345] Bluetooth: HIDP (Human Interface Emulation) ver 1.2
+[    0.264353] Bluetooth: HIDP socket layer initialized
+[    0.264466] 8021q: 802.1Q VLAN Support v1.8
+[    0.264485] lib80211: common routines for IEEE802.11 drivers
+[    0.264521] 9pnet: Installing 9P2000 support
+[    0.264662] Key type dns_resolver registered
+[    0.264821] NET: Registered PF_VSOCK protocol family
+[    0.290745] registered taskstats version 1
+[    0.290929] Loading compiled-in X.509 certificates
+[    0.304385] mmc2: new HS400 Enhanced strobe MMC card at address 0001
+[    0.305678] mmcblk2: mmc2:0001 TY2964 58.3 GiB
+[    0.313573]  mmcblk2: p1 p2 p3
+[    0.314436] mmcblk2boot0: mmc2:0001 TY2964 4.00 MiB
+[    0.319952] mmcblk2boot1: mmc2:0001 TY2964 4.00 MiB
+[    0.321427] mmcblk2rpmb: mmc2:0001 TY2964 4.00 MiB, chardev (234:0)
+[    0.329098] gpio gpiochip0: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.331275] gpio gpiochip1: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.333168] gpio gpiochip2: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.335071] gpio gpiochip3: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.336736] gpio gpiochip4: Static allocation of GPIO base is deprecated, use dynamic allocation.
+[    0.340468] i2c i2c-0: using pinctrl states for GPIO recovery
+[    0.340596] platform 38100000.usb: Fixed dependency cycle(s) with /soc@0/bus@30800000/i2c@30a20000/tcpc@22
+[    0.340765] i2c 0-0022: Fixed dependency cycle(s) with /soc@0/usb@32f10100/usb@38100000
+[    0.343142] hwmon hwmon0: temp1_input not attached to any thermal zone
+[    0.343153] tmp102 0-0048: initialized
+[    0.345483] RFNM: Motherboard id 4 revision 1 serial XXXXXXXX mac-addr 00:04:9f:xx:xx:xx
+[    0.350501] RFNM: User config loaded, nickname ''
+[    0.350909] i2c i2c-0: IMX I2C adapter registered
+[    0.354153] RFNM: Daughterboard detected on slot 1, board id 3 revision 1 serial 7J2CT7ZJ
+[    0.355447] hwmon hwmon1: temp1_input not attached to any thermal zone
+[    0.355458] tmp102 1-0048: initialized
+[    0.355514] i2c i2c-1: IMX I2C adapter registered
+[    0.358482] RFNM: Daughterboard detected on slot 2, board id 1 revision 1 serial J69RMFVG
+[    0.359037] tmp102 2-0048: error reading config register
+[    0.359158] i2c i2c-2: IMX I2C adapter registered
+[    0.360473] imx8mq-usb-phy 382f0040.usb-phy: supply vbus not found, using dummy regulator
+[    0.360865] RFNM: Deferring PCIe probe...
+[    0.363097] nxp-pca9450 0-0025: reboot = SW_RST cold reset (rails recycle, #93)
+[    0.363126] nxp-pca9450 0-0025: pca9450bc probed.
+[    0.382067] dwhdmi-imx 32fd8000.hdmi: Detected HDMI TX controller v2.13a with HDCP (samsung_dw_hdmi_phy2)
+[    0.382804] dwhdmi-imx 32fd8000.hdmi: registered DesignWare HDMI I2C bus driver
+[    0.385327] imx-drm display-subsystem: bound imx-lcdifv3-crtc.0 (ops lcdifv3_crtc_ops)
+[    0.385387] imx-drm display-subsystem: bound 32fd8000.hdmi (ops dw_hdmi_imx_ops)
+[    0.385785] [drm] Initialized imx-drm 1.0.0 20120507 for display-subsystem on minor 1
+[    0.385871] imx-drm display-subsystem: [drm] Cannot find any crtc or sizes
+[    0.385948] imx-drm display-subsystem: [drm] Cannot find any crtc or sizes
+[    0.387160] spi_imx 30820000.spi: delaying SPI clock from CS by 1 clocks
+[    0.388814] spi_imx 30830000.spi: delaying SPI clock from CS by 1 clocks
+[    0.390593] imx-dwmac 30bf0000.ethernet: IRQ eth_lpi not found
+[    0.390862] imx-dwmac 30bf0000.ethernet: User ID: 0x10, Synopsys ID: 0x51
+[    0.390872] imx-dwmac 30bf0000.ethernet:     DWMAC4/5
+[    0.390878] imx-dwmac 30bf0000.ethernet: DMA HW capability register supported
+[    0.390882] imx-dwmac 30bf0000.ethernet: RX Checksum Offload Engine supported
+[    0.390886] imx-dwmac 30bf0000.ethernet: TX Checksum insertion supported
+[    0.390889] imx-dwmac 30bf0000.ethernet: Wake-Up On Lan supported
+[    0.390993] imx-dwmac 30bf0000.ethernet: Enable RX Mitigation via HW Watchdog Timer
+[    0.391000] imx-dwmac 30bf0000.ethernet: Enabled L3L4 Flow TC (entries=8)
+[    0.391005] imx-dwmac 30bf0000.ethernet: Enabled RFS Flow TC (entries=10)
+[    0.391013] imx-dwmac 30bf0000.ethernet: Enabling HW TC (entries=256, max_off=256)
+[    0.391020] imx-dwmac 30bf0000.ethernet: Using 34/40 bits DMA host/device width
+[    0.652795] Hot alarm is canceled. GPU3D clock will return to 64/64
+[    0.653326] xhci-hcd xhci-hcd.1.auto: xHCI Host Controller
+[    0.653352] xhci-hcd xhci-hcd.1.auto: new USB bus registered, assigned bus number 1
+[    0.653735] xhci-hcd xhci-hcd.1.auto: hcc params 0x0220fe6d hci version 0x110 quirks 0x000000a001000010
+[    0.653892] xhci-hcd xhci-hcd.1.auto: irq 218, io mem 0x38200000
+[    0.654057] xhci-hcd xhci-hcd.1.auto: xHCI Host Controller
+[    0.654069] xhci-hcd xhci-hcd.1.auto: new USB bus registered, assigned bus number 2
+[    0.654081] xhci-hcd xhci-hcd.1.auto: Host supports USB 3.0 SuperSpeed
+[    0.654239] imx-cpufreq-dt imx-cpufreq-dt: cpu speed grade 7 mkt segment 2 supported-hw 0x80 0x4
+[    0.654981] hub 1-0:1.0: USB hub found
+[    0.655011] hub 1-0:1.0: 1 port detected
+[    0.655588] usb usb2: We don't know the algorithms for LPM for this host, disabling LPM.
+[    0.656495] hub 2-0:1.0: USB hub found
+[    0.656523] hub 2-0:1.0: 1 port detected
+[    0.658007] sdhci-esdhc-imx 30b50000.mmc: Got CD GPIO
+[    0.658615] RFNM: WSLED driver
+[    0.660388] remoteproc remoteproc0: imx8mp-cm7 is available
+[    0.670763] RFNM: Deferring PCIe probe...
+[    0.672932] RFNM: Deferring PCIe probe...
+[    0.676541] RFNM: Starting up Si5510...
+[    0.689917] mmc1: SDHCI controller on 30b50000.mmc [30b50000.mmc] using ADMA
+[    0.691403] RFNM: Deferring PCIe probe...
+[    1.418970] random: crng init done
+[    1.907862] RFNM: Selected plan 2 RFNM_DAUGHTERBOARD_LIME, RFNM_DAUGHTERBOARD_LIME
+[    1.907867] RFNM: Enabling clock output 15
+[    1.930930] RFNM: Enabling clocks for RBA
+[    1.930933] RFNM: Enabling clock output 6
+[    1.954340] RFNM: Enabling clock output 8
+[    1.978604] RFNM: Waiting for reference clock to lock...
+[    2.129122] RFNM: Si5510 is ready and providing a PCIe clock!
+[    2.130207] RFNM: Si5510 DCO set to 2849 steps (0.1 ppb/step, absolute)
+[    2.130211] RFNM: Si5510: applied persisted DCO cal (2849 steps = 284.9 ppb)
+[    2.159612] RFNM: Performed LA9310 reset
+[    2.160323] cfg80211: Loading compiled-in X.509 certificates for regulatory database
+[    2.161412] RFNM: PCIe started
+[    2.161709] Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+[    2.162260] Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+[    2.162339] clk: Disabling unused clocks
+[    2.162719] imx6q-pcie 33800000.pcie: host bridge /soc@0/pcie@33800000 ranges:
+[    2.162751] imx6q-pcie 33800000.pcie:       IO 0x001ff80000..0x001ff8ffff -> 0x0000000000
+[    2.162767] imx6q-pcie 33800000.pcie:      MEM 0x0018000000..0x001fefffff -> 0x0018000000
+[    2.163096] platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+[    2.163103] platform regulatory.0: Falling back to sysfs fallback for: regulatory.db
+[    2.167469] ALSA device list:
+[    2.167475]   No soundcards found.
+[    2.168755] imx6q-pcie 33800000.pcie: RFNM: IMX8MP HSIO PCIe init: GPR0=0x00000033 GPR1=0x00003001 GPR2=0x1fccc80c GPR3=0x80021000
+[    2.168960] imx6q-pcie 33800000.pcie: iATU: unroll T, 4 ob, 4 ib, align 64K, limit 16G
+[    2.173028] imx6q-pcie 33800000.pcie: PCIe Gen.1 x1 link up
+[    2.175051] imx6q-pcie 33800000.pcie: PCIe Gen.3 x1 link up
+[    2.175059] imx6q-pcie 33800000.pcie: Link up, Gen3
+[    2.175064] imx6q-pcie 33800000.pcie: PCIe Gen.3 x1 link up
+[    2.175379] imx6q-pcie 33800000.pcie: PCI host bridge to bus 0000:00
+[    2.175386] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    2.175394] pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+[    2.175399] pci_bus 0000:00: root bus resource [mem 0x18000000-0x1fefffff]
+[    2.175425] pci 0000:00:00.0: [16c3:abcd] type 01 class 0x060400
+[    2.175438] pci 0000:00:00.0: reg 0x10: [mem 0x00000000-0x000fffff]
+[    2.175447] pci 0000:00:00.0: reg 0x38: [mem 0x00000000-0x0000ffff pref]
+[    2.175486] pci 0000:00:00.0: supports D1
+[    2.175490] pci 0000:00:00.0: PME# supported from D0 D1 D3hot D3cold
+[    2.177486] pci 0000:01:00.0: Setting PCI class for LA9310 PCIe device!
+[    2.177492] pci 0000:01:00.0: [1957:1c12] type 00 class 0x000280
+[    2.177524] pci 0000:01:00.0: reg 0x10: forcing BAR0 readback 0xf0000000 to 0xfc000000 (i.e.64MB)
+[    2.177530] pci 0000:01:00.0: reg 0x10: [mem 0x00000000-0x03ffffff]
+[    2.177547] pci 0000:01:00.0: reg 0x14: [mem 0x00000000-0x0001ffff]
+[    2.177573] pci 0000:01:00.0: reg 0x18: [mem 0x00000000-0x007fffff 64bit pref]
+[    2.177619] pci 0000:01:00.0: reg 0x30: [mem 0x00000000-0x00ffffff pref]
+[    2.177759] pci 0000:01:00.0: PME# supported from D0 D3hot
+[    2.187026] pci 0000:00:00.0: BAR 14: assigned [mem 0x18000000-0x1dffffff] (96MB 98304KB)
+[    2.187038] pci 0000:00:00.0: BAR 15: assigned [mem 0x1e000000-0x1f7fffff pref] (24MB 24576KB)
+[    2.187046] pci 0000:00:00.0: BAR 0: assigned [mem 0x1f800000-0x1f8fffff] (1MB 1024KB)
+[    2.187056] pci 0000:00:00.0: BAR 6: assigned [mem 0x1f900000-0x1f90ffff pref] (0MB 64KB)
+[    2.187070] pci 0000:01:00.0: BAR 0: assigned [mem 0x18000000-0x1bffffff] (64MB 65536KB)
+[    2.187083] pci 0000:01:00.0: BAR 0: error updating (0x18000000 != 0x10000000)
+[    2.187090] pci 0000:01:00.0: BAR 6: assigned [mem 0x1e000000-0x1effffff pref] (16MB 16384KB)
+[    2.187100] pci 0000:01:00.0: BAR 2: assigned [mem 0x1f000000-0x1f7fffff 64bit pref] (8MB 8192KB)
+[    2.187126] pci 0000:01:00.0: BAR 1: assigned [mem 0x1c000000-0x1c01ffff] (0MB 128KB)
+[    2.187141] pci 0000:00:00.0: PCI bridge to [bus 01-ff]
+[    2.187148] pci 0000:00:00.0:   bridge window [mem 0x18000000-0x1dffffff]
+[    2.187153] pci 0000:00:00.0:   bridge window [mem 0x1e000000-0x1f7fffff pref]
+[    2.187698] pcieport 0000:00:00.0: PME: Signaling with IRQ 223
+[    3.018737] EXT4-fs (mmcblk2p3): mounted filesystem b06c724b-cacc-4134-b05d-0c9d116d648b r/w with ordered data mode. Quota mode: none.
+[    3.018796] VFS: Mounted root (ext4 filesystem) on device 179:3.
+[    3.019689] devtmpfs: mounted
+[    3.020162] Freeing unused kernel memory: 1984K
+[    3.020245] Run /sbin/init as init process
+
+Welcome to Armbian 25.2.3 n[    3.263727] systemd[1]: systemd 255.4-1ubuntu8.16 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+oble!
+
+[    3.263756] systemd[1]: Detected architecture arm64.
+[    3.309318] systemd[1]: Hostname set to <imx8mp-rfnm>.
+[    3.904352] systemd[1]: Queued start job for default target graphical.target.
+[  OK  ] Created slice[    3.939828] systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+ system-modprobe.slice - Slice /system/modprobe.
+[  OK  ] Created slice[    3.965261] systemd[1]: Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
+ system-serial\x2dget?slice - Slice /system/serial-getty.
+[  OK  ] Created slice[    3.997162] systemd[1]: Created slice user.slice - User and Session Slice.
+ user.slice - User and Session Slice.
+[  OK  ] Started systemd-ask-password-conso?[    4.020063] systemd[1]: Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
+?equests to Console Directory Watch.
+[  OK  ] Started systemd-ask-password-wall.?[    4.051979] systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+d Requests to Wall Directory Watch.
+         Expecting device     4.083945] systemd[1]: proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point was skipped because of an unmet condition check (ConditionPathExists=/proc/sys/fs/binfmt_misc).
+9mdev-ttymxc1.device - /dev/t[    4.084064] systemd[1]: Expecting device dev-ttymxc1.device - /dev/ttymxc1...
+tymxc1...
+[  OK  ] Reached target cryptsetup.target [    4.127758] systemd[1]: Reached target cryptsetup.target - Local Encrypted Volumes.
+- Local Encrypted Volumes.
+[  OK  ] Reached target integritysetup.targ?[    4.151488] systemd[1]: Reached target integritysetup.target - Local Integrity Protected Volumes.
+? Local Integrity Protected Volumes.
+[  OK  ] Reached target paths.target - Pat[    4.179547] systemd[1]: Reached target paths.target - Path Units.
+h Units.
+[  OK  ] Reached target remote-fs.target -[    4.203427] systemd[1]: Reached target remote-fs.target - Remote File Systems.
+ Remote File Systems.
+[  OK  ] Reached target slices.target - [    4.227410] systemd[1]: Reached target slices.target - Slice Units.
+Slice Units.
+[  OK  ] Reached target swap.target - Sw[    4.251722] systemd[1]: Reached target swap.target - Swaps.
+aps.
+[  OK  ] Reached target veritysetup.target[    4.275855] systemd[1]: Reached target veritysetup.target - Local Verity Protected Volumes.
+ - Local Verity Protected Volumes.
+[  OK  ] Listening on [    4.304495] systemd[1]: Listening on syslog.socket - Syslog Socket.
+syslog.socket - Syslog Socket.
+[  OK  ] Listening on systemd-initctl.socke?[    4.327767] systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+- initctl Compatibility Named Pipe.
+[  OK  ] Listening on [    4.356394] systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+systemd-journald-dev-?socket - Journal Socket (/dev/log).
+[  OK  ] Listening on [    4.384442] systemd[1]: Listening on systemd-journald.socket - Journal Socket.
+systemd-journald.socket - Journal Socket.
+[  OK  ] Listening on [    4.408242] systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
+systemd-networkd.socket - Network Service Netlink Socket.
+[    4.435500] systemd[1]: systemd-pcrextend.socket - TPM2 PCR Extension (Varlink) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    4.441183] systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+[  OK  ] Listening on systemd-udevd-control.socket - udev Control Socket.
+[  OK  ] Listening on [    4.483995] systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+systemd-udevd-kernel.socket - udev Kernel Socket.
+         Mounting dev-hugepages.mount - Huge Pages Fi[    4.539417] systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
+le System...
+         Mounting dev-mq[    4.565752] systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+ueue.mount - POSIX Message Queue File System...
+         Mounting sys-ke[    4.594578] systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+rnel-debug.mount - Kernel Debug File System...
+[    4.624389] systemd[1]: sys-kernel-tracing.mount - Kernel Trace File System was skipped because of an unmet condition check (ConditionPathExists=/sys/kernel/tracing).
+         Starting system[    4.664346] systemd[1]: Starting systemd-journald.service - Journal Service...
+d-journald.service - Journal Service...
+         Starting fake-h[    4.700894] systemd[1]: Starting fake-hwclock-load.service - Restore the current clock...
+wclock-load.service - Restore the current clock...
+[    4.729835] (-hwclock)[185]: fake-hwclock-load.service: Referenced but unset environment variable evaluates to an empty string: FORCE
+[    4.731396] systemd[1]: Starting keyboard-setup.service - Set the console keyboard layout...
+         Starting keyboard-setup.service - Set the [    4.754421] systemd-journald[184]: Collecting audit messages is disabled.
+console keyboard layout...
+[    4.779452] systemd[1]: kmod-static-nodes.service - Create List of Static Device Nodes was skipped because of an unmet condition check (ConditionFileNotEmpty=/lib/modules/6.6.36-rt35-g7ecf6daa9278-dirty/modules.devname).
+         Starting modpro[    4.817345] systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+be@configfs.service - Load Kernel Module configfs...
+         Starting modpro[    4.849037] systemd[1]: Starting modprobe@dm_mod.service - Load Kernel Module dm_mod...
+be@dm_mod.service - Load Kernel Module dm_mod...
+         Starting modpro[    4.878601] systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+be@drm.service - Load Kernel Module drm...
+         Starting modpro[    4.910392] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+be@efi_pstore.servi? - Load Kernel Module efi_pstore...
+         Starting modpro[    4.938484] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+be@fuse.service - Load Kernel Module fuse...
+         Starting modpro[    4.973134] systemd[1]: Starting modprobe@loop.service - Load Kernel Module loop...
+be@loop.service - Load Kernel Module loop...
+[    4.999796] systemd[1]: netplan-ovs-cleanup.service - OpenVSwitch configuration for cleanup was skipped because of an unmet condition check (ConditionFileIsExecutable=/usr/bin/ovs-vsctl).
+[    5.011532] systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+         Starting systemd-modules-load.service - Load Kernel Modules...
+         Starting systemd-network-generator?k uni[    5.051043] systemd[1]: Starting systemd-network-generator.service - Generate network units from Kernel command line...
+ts from Kernel command line...
+         Starting system[    5.079201] systemd[1]: systemd-pcrmachine.service - TPM2 PCR Machine ID Measurement was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    5.082461] systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+d-remount-fs.servic?unt Root and Kernel File Systems...
+         Starting systemd-tmpfiles-setup-de? Devi[    5.143781] systemd[1]: Starting systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully...
+ce Nodes in /dev gracefully...
+[    5.175859] systemd[1]: systemd-tpm2-setup-early.service - TPM2 SRK Setup (Early) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    5.179992] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+         Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+[  OK  ] Started     5.225873] systemd[1]: Started systemd-journald.service - Journal Service.
+;39msystemd-journald.service - Journal Service.
+[  OK  ] Mounted dev-hugepages.mount - Huge Pages File System.
+[  OK  ] Mounted dev-mqueue.mount - POSIX Message Queue File System.
+[  OK  ] Mounted sys-kernel-debug.mount - Kernel Debug File System.
+[  OK  ] Finished fake-hwclock-load.service - Restore the current clock.
+[  OK  ] Finished keyboard-setup.service - Set the console keyboard layout.
+[  OK  ] Finished modprobe@configfs.service - Load Kernel Module configfs.
+[  OK  ] Finished modprobe@dm_mod.service - Load Kernel Module dm_mod.
+[  OK  ] Finished modprobe@drm.service - Load Kernel Module drm.
+[  OK  ] Finished modprobe@efi_pstore.service - Load Kernel Module efi_pstore.
+[  OK  ] Finished modprobe@fuse.service - Load Kernel Module fuse.
+[  OK  ] Finished modprobe@loop.service - Load Kernel Module loop.
+[  OK  ] Finished systemd-modules-load.service - Load Kernel Modules.
+[  OK  ] Finished systemd-network-generator?ork units from Kernel command line.
+[  OK  ] Finished systemd-remount-fs.servic?mount Root and Kernel File Systems.
+[  OK  ] Finished systemd-tmpfiles-setup-de?ic Device Nodes in /dev gracefully.
+[  OK  ] Reached target network-pre.target - Preparation for Network.
+         Mounting sys-kernel-config.mount - Kernel Configuration File System...
+         Starting systemd-journal-flush.ser?sh Journal to Persistent Storage...
+         Starting systemd-random-seed.service - Load/Save OS Random Seed...
+[    5.668535] systemd-journald[184]: Received client request to flush runtime journal.
+         Starting systemd-sysctl.service - Apply Kernel Variables...
+         Starting systemd-tmpfiles-setup-de?eate Static Device Nodes in /dev...
+[  OK  ] Mounted sys-kernel-config.mount - Kernel Configuration File System.
+[  OK  ] Finished systemd-journal-flush.ser?lush Journal to Persistent Storage.
+[  OK  ] Finished systemd-random-seed.service - Load/Save OS Random Seed.
+[  OK  ] Finished systemd-tmpfiles-setup-de?Create Static Device Nodes in /dev.
+[  OK  ] Finished systemd-sysctl.service - Apply Kernel Variables.
+[  OK  ] Reached target local-fs-pre.target?Preparation for Local File Systems.
+         Mounting tmp.mount - /tmp...
+         Starting systemd-udevd.service - R?ager for Device Events and Files...
+[  OK  ] Mounted tmp.mount - /tmp.
+[  OK  ] Reached target local-fs.target - Local File Systems.
+[  OK  ] Listening on systemd-sysext.socket?tension Image Management (Varlink).
+         Starting console-setup.service - Set console font and keymap...
+         Starting systemd-tmpfiles-setup.se?e Volatile Files and Directories...
+[  OK  ] Finished systemd-udev-trigger.service - Coldplug All udev Devices.
+[  OK  ] Finished console-setup.service - Set console font and keymap.
+[  OK  ] Started systemd-udevd.service - Ru?anager for Device Events and Files.
+         Starting systemd-networkd.service - Network Configuration...
+[  OK  ] Found device dev-ttymxc1.device - /dev/ttymxc1.
+[  OK  ] Finished systemd-tmpfiles-setup.se?ate Volatile Files and Directories.
+         Starting systemd-resolved.service - Network Name Resolution...
+         Starting systemd-timesyncd.service - Network Time Synchronization...
+         Starting systemd-update-utmp.servi?ord System Boot/Shutdown in UTMP...
+[  OK  ] Started systemd-networkd.service - Network Configuration.
+[  OK  ] Finished systemd-update-utmp.servi?ecord System Boot/Shutdown in UTMP.
+         Starting systemd-networkd-wait-onl?ait for Network to be Configured...
+[  OK  ] Started systemd-timesyncd.service - Network Time Synchronization.
+[  OK  ] Reached target time-set.target - System Time Set.
+[  OK  ] Reached target usb-gadget.target - Hardware activated USB gadget.
+[  OK  ] Started systemd-resolved.service - Network Name Resolution.
+[  OK  ] Reached target nss-lookup.target - Host and Network Name Lookups.
+[  OK  ] Reached target sysinit.target - System Initialization.
+[  OK  ] Started apt-daily.timer - Daily apt download activities.
+[  OK  ] Started apt-daily-upgrade.timer - ?y apt upgrade and clean activities.
+[  OK  ] Started dpkg-db-backup.timer - Daily dpkg database backup timer.
+[  OK  ] Started e2scrub_all.timer - Period?Metadata Check for All Filesystems.
+[  OK  ] Started fake-hwclock-save.timer - Periodically save current clock.
+[  OK  ] Started fstrim.timer - Discard unused filesystem blocks once a week.
+[  OK  ] Started logrotate.timer - Daily rotation of log files.
+[  OK  ] Started man-db.timer - Daily man-db regeneration.
+[  OK  ] Started rfnm-calib-fetch.timer - R?factory calibration fetch schedule.
+[  OK  ] Started systemd-tmpfiles-clean.tim?y Cleanup of Temporary Directories.
+[  OK  ] Reached target timers.target - Timer Units.
+[  OK  ] Listening on dbus.socket - D-Bus System Message Bus Socket.
+[  OK  ] Listening on ssh.socket - OpenBSD Secure Shell server socket.
+[  OK  ] Reached target sockets.target - Socket Units.
+         Starting bench-cpufreq-pin.service?X8MP regulator-storm workaround)...
+[  OK  ] Reached target basic.target - Basic System.
+[  OK  ] Started codecserver.service - CodecServer.
+[  OK  ] Started cron.service - Regular background program processing daemon.
+         Starting dbus.service - D-Bus System Message Bus...
+[  OK  ] Started dmesg.service - Save initial kernel messages after boot.
+         Starting e2scrub_reap.service - Re?ne ext4 Metadata Check Snapshots...
+         Starting rsyslog.service - System Logging Service...
+         Starting systemd-logind.service - User Login Management...
+         Starting udisks2.service - Disk Manager...
+[  OK  ] Started dbus.service - D-Bus System Message Bus.
+[  OK  ] Finished bench-cpufreq-pin.service?.MX8MP regulator-storm workaround).
+         Starting wpa_supplicant.service - WPA supplicant...
+         Starting polkit.service - Authorization Manager...
+[  OK  ] Started rsyslog.service - System Logging Service.
+[  OK  ] Started systemd-logind.service - User Login Management.
+[  OK  ] Started wpa_supplicant.service - WPA supplicant.
+[  OK  ] Reached target network.target - Network.
+[  OK  ] Started rfnm-boardio.service - RFN?7.0.0.1:7691 behind nginx /ioapi/).
+[  OK  ] Started rfnm-clockgen.service - RF?.0.0.1:7690 behind nginx /clkapi/).
+         Starting systemd-user-sessions.service - Permit User Sessions...
+[  OK  ] Started unattended-upgrades.service - Unattended Upgrades Shutdown.
+[  OK  ] Finished e2scrub_reap.service - Re?line ext4 Metadata Check Snapshots.
+[  OK  ] Finished systemd-user-sessions.service - Permit User Sessions.
+         Starting setvtrgb.service - Set console scheme...
+[  OK  ] Finished setvtrgb.service - Set console scheme.
+[  OK  ] Created slice system-getty.slice - Slice /system/getty.
+[  OK  ] Started polkit.service - Authorization Manager.
+[  OK  ] Started udisks2.service - Disk Manager.
+         Starting systemd-hostnamed.service - Hostname Service...
+[  OK  ] Finished systemd-networkd-wait-onl? Wait for Network to be Configured.
+[  OK  ] Reached target network-online.target - Network is Online.
+         Starting nginx.service - A high pe?erver and a reverse proxy server...
+         Starting rc-local.service - /etc/rc.local Compatibility...
+[  OK  ] Started rc-local.service - /etc/rc.local Compatibility.
+[  OK  ] Started getty@tty1.service - Getty on tty1.
+[  OK  ] Started serial-getty@ttymxc1.service - Serial Getty on ttymxc1.
+[  OK  ] Reached target getty.target - Login Prompts.
+[  OK  ] Started nginx.service - A high per? server and a reverse proxy server.
+[  OK  ] Started rfnm-appd.service - RFNM app switcher (HTTP control on 7683).
+[  OK  ] Started rfnm-ddns.service - RFNM d?ame.rfnm.me, HTTP control on 7685).
+         Starting rfnm-spectrum.service - R?10 -> GC7000UL FFT -> WebSocket)...
+[  OK  ] Started rfnm-spectrum.service - RF?9310 -> GC7000UL FFT -> WebSocket).
+[  OK  ] Reached target multi-user.target - Multi-User System.
+[  OK  ] Reached target graphical.target - Graphical Interface.
+         Starting rfnm-m7.service - RFNM M7? (rfnm_m7_v0.elf via remoteproc)...
+         Starting systemd-update-utmp-runle?- Record Runlevel Change in UTMP...
+[  OK  ] Finished systemd-update-utmp-runle?e - Record Runlevel Change in UTMP.
+[  OK  ] Started systemd-hostnamed.service - Hostname Service.
+[  OK  ] Finished rfnm-m7.service - RFNM M7?or (rfnm_m7_v0.elf via remoteproc).
+
+Armbian 25.2.3 Noble ttymxc1
+
+imx8mp-rfnm login: root
+Password:
+root@imx8mp-rfnm:~# cd host_utils/
+root@imx8mp-rfnm:~/host_utils# ./load-rfnm.sh
+insmod /rfnm/kernel/la9310shiva.ko scratch_buf_size=0x04000000 scratch_buf_phys_addr=0x92400000 adc_mask=0xf adc_rate_mask=0 dac_mask=0x1 dac_rate_mask=0
+[  174.751334] la9310shiva: loading out-of-tree module taints kernel.
+[  174.753289] LA9310 0000:01:00.0: enabling device (0000 -> 0002)
+[  174.809888] LA9310 0000:01:00.0: iqplayer IQFLOOD Buff:0xb0001000[H]-0x96400000[M],size 117440512 (win 3)
+[  174.811575] LA9310 0000:01:00.0: loaded firmware la9310.bin: 64072 bytes, csum aacef7f5
+[  175.042788] LA9310 0000:01:00.0: loaded firmware apm.eld: 900464 bytes, csum bee07626
+[  175.049989] LA9310 0000:01:00.0: VSPA Boot Complete via status flag
+[  175.050010] LA9310 0000:01:00.0: VSPA booted from legacy apm.eld (registry empty)
+[  175.050480] LA9310 0000:01:00.0: la9310_modinfo: /dev/shiva0 ready (minor 122)
+[  175.050497] LA9310 0000:01:00.0: la9310_modinfo: /sys/shiva created
+[  175.064951] Mapped rfnm_bufdesc_rx from 96500000 to ffff8000a0000000 size 16777216
+[  175.065440] Mapped rfnm_bufdesc_tx from 97500000 to ffff8000a8000000 size 33554432
+[  175.065447] Mapped rfnm_rx_usb_buf from 9d400000 to ffff00005d400000 size 4917760
+[  175.065979] Mapped rfnm_local_buf_rx from 82400000 to ffff8000b0000000 size 65561600
+[  175.066511] Mapped rfnm_local_buf_tx from 87400000 to ffff8000b4000000 size 65561600
+[  175.066529] RFNM_USB_RX_PACKET_SIZE is 61472
+[  175.066532] flush_all_queues: One or more queue pointers are NULL!
+[  175.067244] rfnm_dev: loaded. Major=508 Minor=0
+[  175.067541] rx too many buffers behind (-559038738), jumping forward...
+[  175.097274] init rfnm_daughterboard
+[  175.107800] SPI driver rfnm_lime has no spi_device_id for rfnm,daughterboard
+[  175.107984] RFNM: Loading Lime driver for daughterboard at slot 0
+[  175.320341] ver 0x7, rev 0x1, mask 0x1
+[  175.336804] RFNM: Lime daughterboard initialized
+[  175.336918] RFNM: no TX dBm map (rfnm/tx_dbm_7J2CT7ZJ.map) - legacy raw power semantics
+[  175.353335] SPI driver rfnm_granita has no spi_device_id for rfnm,daughterboard
+[  176.064573] RFNM: rx producer standing down, no live consumer on any transport
+iqflood_addr 0x96400000
+iqflood_size 0x7000000
+proxy_addr 0x9D3FFC00
+memtool: zeroed 1024 bytes at phys=0x9d3ffc00
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x11000000-0x06fffc00 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x06fffc00, LSB:0x00000001.
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x12000000-0x00000001 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000001, LSB:0x00000001.
+RX IQ swap set to 1
+rfnm RX defaults applied
+root@imx8mp-rfnm:~/host_utils# [  236.643625] RFNM: bring-up gate released by 60 s timeout - the boot script never signaled bringup_complete; investigate load_drivers
+
+root@imx8mp-rfnm:~/host_utils# ./iq-app-rx.sh -X
+N_RX=1  (auto-detected from proxy at 0x9D3FFC1C)
+N_TX=1
+iqflood     : host=0x96400000  ep=0xb0001000  size=0x7000000
+slot_size   : 0x37FF000
+rx_base     : 0xB3800000
+fifo/chan    : 0x80000  total: 0x80000
+rx_cmd      : MSB=0x6900080  LSB=0xB3800000  (num_4KB=128)
+
+Clearing RX proxy produced/consumed for 1 channel(s)...
+memtool: zeroed 8 bytes at phys=0x9d3ffc40
+  ch0 proxy 0x9D3FFC40: cleared
+
+vspa_mbox send 0 0 0x6900080 0xB3800000
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x06900080-0xb3800000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+
+Starting spectrum mode (foreground): iq_app -X -n 1 -c 0 -F 0x37FF000 524288 -N 8192 -Y 61.44 -K 0 -B -100 -M 8 -L 40  -Q /root/host_utils/qec  -w /root/host_utils/capture/rx -d 1ms
+note: tcmu not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+iq_app: Fs 61.440 MHz / decim 1 = 61.440 MHz (-Y to change converter rate, -Z to override)
+note: VSPA mbox1 not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+libiqplayer: mbox1 mapped at phys=0x0000000019000688 core=0 msb_virt=0xffffbd810688
+libiqplayer: rx_fc_ptr[0] -> BAR2+0x400044 (ahb=0x20400044)
+spectrum ch0: fifo_start=0x037FF000 size=0x80000 ring=0x400000
+iq_app: RX drain: 1 thread ch0-0 on CPU 2, chunk 16384, rt 0
+libiqplayer: RX ack_min 32768 bytes, mbox kick 1
+RX QEC ch 0/1  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 61.44 MHz  FFT 8192 x8  RBW 7.5 kHz  rect/mag
+  RSSI -34.5  floor -94.9  DC -36.8 dBFS
+  spurs: -38.5@+5.76 -54.1@-5.76 -57.3@+11.52 -75.0@-11.52 MHz
+  peak I -31.0  Q -32.2 dBFS  clip 0 (0.000%)  crest 6.5 dB
+  -2.5 |                                                                                |
+  -5.0 |                                                                                |
+  -7.5 |                                                                                |
+ -10.0 |                                                                                |
+ -12.5 |                                                                                |
+ -15.0 |                                                                                |
+ -17.5 |                                                                                |
+ -20.0 |                                                                                |
+ -22.5 |                                                                                |
+ -25.0 |                                                                                |
+ -27.5 |                                                                                |
+ -30.0 |                                                                                |
+ -32.5 |                                                                                |
+ -35.0 |                                                                                |
+ -37.5 |                                        |                                       |
+ -40.0 |                                        |      |                                |
+ -42.5 |                                        |      |                                |
+ -45.0 |                                        |      |                                |
+ -47.5 |                                        |      |                                |
+ -50.0 |                                        |      |                                |
+ -52.5 |                                        |      |                                |
+ -55.0 |                                |       |      |                                |
+ -57.5 |                                |       #      |       |                        |
+ -60.0 |                                |       #      #       |                        |
+ -62.5 |                                |       #      #       |                        |
+ -65.0 |                                |       #      #       |                        |
+ -67.5 |                                |       #      #       |                        |
+ -70.0 |                                |       #      #       |                        |
+ -72.5 |                                |       #      #       |                        |
+ -75.0 |                                #       #      #       |                        |
+ -77.5 |                         |      #       #      #       #      |       |         |
+ -80.0 |                 |       |      #       #      #       #      |       |         |
+ -82.5 |                 |       |      #       #      #       #      |       |         |
+ -85.0 || |              |       |      #      |#      #       #    | |       |         |
+ -87.5 ||||              |  |    |      #      |#      #       #    | |       |         |
+ -90.0 ||||              |  |    | |    #    | |#    | # |     #|  || |       |      |  |
+ -92.5 ||||||||||||||||||||||||||#||||||#||||||##||||||#|||||||#||||||||||||||#||||| ||||
+ -95.0 |###||||||||||||||####################################################|#|#||||||#|
+ -97.5 |################################################################################|
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -30.72              -15.36               +0.00              +15.36              +30.72       MHz
+
+iq_app: drain0 ch0-0: 245.8 MB/s, busy 81% (inval 2%, copy 20%), calls 1048897107, idle 94%
+libiqplayer: ch0 acks 3673613 (7499/s) skipped 54323878, notify 0.3% of run, max lag 0x80000, max VSPA consumed lag 0xa000
+root@imx8mp-rfnm:~/host_utils# ./iq-stop.sh
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x06000000-0x00000000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x05000000-0x00000000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+root@imx8mp-rfnm:~/host_utils# ./iq-reload-vspa.sh
+Arguments wrong.
+usage: ./iq-reload-vspa.sh [-v] [-n] <eld file>
+  -v  trace commands (set -x)
+  -n  do not update /lib/firmware/apm.eld
+ex : ./iq-reload-vspa.sh /lib/firmware/apm-iqplayer-1T2R.eld
+root@imx8mp-rfnm:~/host_utils#  ./iq-reload-vspa.sh /lib/firmware/apm-iqplayer-1T2R.eld
+VSPA software reset
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+load /usr/lib/firmware/apm-iqplayer-1T2R.eld at 0x92400000
+  .vpram: dst 0x00000000 size 0x00005f78 src 0xA0003A60
+  .vdram: dst 0x00000000 size 0x00003954 src 0xA0000100
+  .idram: dst 0x4000 size 0x00003100 src 0xA00099E0
+/lib/firmware/apm.eld = copy of /usr/lib/firmware/apm-iqplayer-1T2R.eld
+VSPA boot handshake
+note: VSPA mbox not mappable via [  762.092408] phytimer: fw parked an RX lane after overrun (cnt 541065300)
+/dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+proxy offset 0x6FFFC00
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+VSPA running apm-iqplayer-1T2R.eld
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x12000000-0x00000001 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000001, LSB:0x00000001.
+RX IQ swap set to 1
+rfnm RX defaults applied
+root@imx8mp-rfnm:~/host_utils# ./iq-app-rx.sh -X
+N_RX=2  (auto-detected from proxy at 0x9D3FFC1C)
+N_TX=1
+iqflood     : host=0x96400000  ep=0xb0001000  size=0x7000000
+slot_size   : 0x2555000
+rx_base     : 0xB2556000
+fifo/chan    : 0x80000  total: 0x100000
+rx_cmd      : MSB=0x6900100  LSB=0xB2556000  (num_4KB=256)
+
+Clearing RX proxy produced/consumed for 2 channel(s)...
+memtool: zeroed 8 bytes at phys=0x9d3ffc40
+  ch0 proxy 0x9D3FFC40: cleared
+memtool: zeroed 8 bytes at phys=0x9d3ffc50
+  ch1 proxy 0x9D3FFC50: cleared
+
+vspa_mbox send 0 0 0x6900100 0xB2556000
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x06900100-0xb2556000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+
+Starting spectrum mode (foreground): iq_app -X -n 2 -c 0 -F 0x2555000 524288 -N 8192 -Y 61.44 -K 0 -B -100 -M 8 -L 16  -Q /root/host_utils/qec  -w /root/host_utils/capture/rx -d 1ms
+note: tcmu not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+iq_app: Fs 61.440 MHz / decim 2 = 30.720 MHz (-Y to change converter rate, -Z to override)
+note: VSPA mbox1 not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+libiqplayer: mbox1 mapped at phys=0x0000000019000688 core=0 msb_virt=0xffffb4046688
+libiqplayer: rx_fc_ptr[0] -> BAR2+0x400044 (ahb=0x20400044)
+spectrum ch0: fifo_start=0x02555000 size=0x80000 ring=0x400000
+libiqplayer: rx_fc_ptr[1] -> BAR2+0x400054 (ahb=0x20400054)
+spectrum ch1: fifo_start=0x025D5000 size=0x80000 ring=0x400000
+iq_app: RX drain: 1 thread ch0-1 on CPU 2, chunk 16384, rt 0
+libiqplayer: RX ack_min 32768 bytes, mbox kick 1
+RX QEC ch 0/2  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.6  floor -91.9  DC -26.8 dBFS
+  spurs: -24.7@+5.76 -52.3@+11.52 -55.7@-5.76 -55.7@-11.52 MHz
+  peak I -19.3  Q -22.1 dBFS  clip 0 (0.000%)  crest 6.4 dB
+  -6.2 |                                                                                |
+ -12.5 |                                                                                |
+ -18.8 |                                                                                |
+ -25.0 |                                                       |                        |
+ -31.2 |                                        |              |                        |
+ -37.5 |                                        |              |                        |
+ -43.8 |                                        |              |                        |
+ -50.0 |                                        #              #                        |
+ -56.2 |          |              |              #              #              |         |
+ -62.5 |          |              |              #              #              |    |    |
+ -68.8 |          |              |              #              #              |    |    |
+ -75.0 |          |              |              #              #              #    |    |
+ -81.2 ||         #    |    |    #         |   |#         |   |#              #    #    |
+ -87.5 ||         #    ||  |||| |#||  |    ||| ##|     | || ||##||| ||| ||    #    #    |
+ -93.8 ||||||||||###############################################################|||#|| ||
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch1 [chan 1 RX1 | RBA_RX2 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -54.3  floor -99.4  DC -56.8 dBFS
+  spurs: -66.9@+5.76 -66.9@-5.76 -83.7@-15.36 -91.7@+0.07 MHz
+  peak I -47.1  Q -45.0 dBFS  clip 0 (0.000%)  crest 12.3 dB
+  -6.2 |                                                                                |
+ -12.5 |                                                                                |
+ -18.8 |                                                                                |
+ -25.0 |                                                                                |
+ -31.2 |                                                                                |
+ -37.5 |                                                                                |
+ -43.8 |                                                                                |
+ -50.0 |                                                                                |
+ -56.2 |                                                                                |
+ -62.5 |                                        |                                       |
+ -68.8 |                         |              |              |                        |
+ -75.0 |                         |              |              |                        |
+ -81.2 |                         |              #              |                        |
+ -87.5 ||                        #              #              #                        |
+ -93.8 ||         |              #             |#              #                        |
+-100.0 |# |  |||||############################################################|||||||  ||
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+
+iq_app: drain0 ch0-1: 245.7 MB/s, busy 83% (inval 4%, copy 23%), calls 100217207, idle 90%
+libiqplayer: ch0 acks 248312 (3749/s) skipped 7589477, notify 0.2% of run, max lag 0x80000, max VSPA consumed lag 0x8400
+libiqplayer: ch1 acks 248314 (3749/s) skipped 7589137, notify 0.2% of run, max lag 0x80000, max VSPA consumed lag 0x8400
+root@imx8mp-rfnm:~/host_utils# ./iq-stop.sh
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x06000000-0x00000000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x05000000-0x00000000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+root@imx8mp-rfnm:~/host_utils# ./iq-stop.sh ^C
+root@imx8mp-rfnm:~/host_utils# ./iq-reload-vspa.sh
+Arguments wrong.
+usage: ./iq-reload-vspa.sh [-v] [-n] <eld file>
+  -v  trace commands (set -x)
+  -n  do not update /lib/firmware/apm.eld
+ex : ./iq-reload-vspa.sh /lib/firmware/apm-iqplayer-1T2R.eld
+T4R.eld 8mp-rfnm:~/host_utils#  ./iq-reload-vspa.sh /lib/firmware/apm-iqplayer-0
+VSPA software reset
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+load /usr/lib/firmware/apm-iqplayer-0T4R.eld at 0x92400000
+  .vpram: dst 0x00000000 size 0x00005648 src 0xA0001E70
+  .vdram: dst 0x00000000 size 0x00001db0 src 0xA00000C0
+  .idram: dst 0x4000 size 0x00004200 src 0xA00074C0
+/lib/firmware/apm.eld = copy of /usr/lib/firmware/apm-iqplayer-0T4R.eld
+VSPA boot handshake
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+proxy offset 0x6FFFC00
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+VSPA running apm-iqplayer-0T4R.eld
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x12000000-0x00000001 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000001, LSB:0x00000001.
+RX IQ swap set to 1
+rfnm RX defaults applied
+root@imx8mp-rfnm:~/host_utils# ./iq-app-rx.sh -X
+N_RX=4  (auto-detected from proxy at 0x9D3FFC1C)
+N_TX=0
+iqflood     : host=0x96400000  ep=0xb0001000  size=0x7000000
+slot_size   : 0x1BFF000
+rx_base     : 0xB0001000
+fifo/chan    : 0x80000  total: 0x200000
+rx_cmd      : MSB=0x6900200  LSB=0xB0001000  (num_4KB=512)
+
+Clearing RX proxy produced/consumed for 4 channel(s)...
+memtool: zeroed 8 bytes at phys=0x9d3ffc40
+  ch0 proxy 0x9D3FFC40: cl[  866.676451] phytimer: fw parked an RX lane after overrun (cnt 4210558932)
+eared
+memtool: zeroed 8 bytes at phys=0x9d3ffc50
+  ch1 proxy 0x9D3FFC50: cleared
+memtool: zeroed 8 bytes at phys=0x9d3ffc60
+  ch2 proxy 0x9D3FFC60: cleared
+memtool: zeroed 8 bytes at phys=0x9d3ffc70
+  ch3 proxy 0x[  866.698429] phytimer: fw parked an RX lane after overrun (cnt 4219865004)
+[  866.702319] phytimer: fw parked an RX lane after overrun (cnt 4217767808)
+9D3FFC70: cleared
+
+vspa_mbox send 0 0 0x6900200 0xB0001000
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x06900200-0xb0001000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+
+Starting spectrum mode (foreground): iq_app -X -n 4 -c 0 -F 0x0 524288 -N 8192 -Y 61.44 -K 0 -B -100 -M 8 -L 10  -Q /root/host_utils/qec  -w /root/host_utils/capture/rx -d 1ms
+note: tcmu not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+iq_app: Fs 61.440 MHz / decim 2 = 30.720 MHz (-Y to change converter rate, -Z to override)
+note: VSPA mbox1 not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+libiqplayer: mbox1 mapped at phys=0x0000000019000688 core=0 msb_virt=0xffffbebeb688
+libiqplayer: rx_fc_ptr[0] -> BAR2+0x400044 (ahb=0x20400044)
+spectrum ch0: fifo_start=0x00000000 size=0x80000 ring=0x400000
+libiqplayer: rx_fc_ptr[1] -> BAR2+0x400054 (ahb=0x20400054)
+spectrum ch1: fifo_start=0x00080000 size=0x80000 ring=0x400000
+libiqplayer: rx_fc_ptr[2] -> BAR2+0x400064 (ahb=0x20400064)
+spectrum ch2: fifo_start=0x00100000 size=0x80000 ring=0x400000
+libiqplayer: rx_fc_ptr[3] -> BAR2+0x400074 (ahb=0x20400074)
+spectrum ch3: fifo_start=0x00180000 size=0x80000 ring=0x400000
+iq_app: RX drain split: ch0-1 on CPU 2, ch2-3 on CPU 1, chunk 16384, rt 0
+
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.9  floor -91.4  DC -22.9 dBFS
+  spurs: -70.5@+1.44 -70.6@-0.48 -70.7@-0.06 -70.7@+0.96 MHz
+  peak I -23.0  Q -26.9 dBFS  clip 0 (0.000%)  crest 3.0 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.8  floor -90.0  DC -22.8 dBFS
+  spurs: -70.8@+1.20 -71.0@+1.44 -71.0@-0.96 -71.1@-0.72 MHz
+  peak I -22.9  Q -26.7 dBFS  clip 0 (0.000%)  crest 2.9 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.9  floor -89.9  DC -22.9 dBFS
+  spurs: -70.7@-0.48 -71.0@-1.44 -71.0@+0.72 -71.1@+1.68 MHz
+  peak I -23.1  Q -26.8 dBFS  clip 0 (0.000%)  crest 2.8 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.8  floor -90.1  DC -22.9 dBFS
+  spurs: -71.1@-1.68 -71.2@-0.72 -71.3@+2.64 -71.3@-1.92 MHz
+  peak I -22.9  Q -26.7 dBFS  clip 0 (0.000%)  crest 2.9 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.9  floor -90.2  DC -22.9 dBFS
+  spurs: -71.1@+2.40 -71.2@-3.60 -71.2@+0.72 -71.3@+1.44 MHz
+  peak I -23.0  Q -26.8 dBFS  clip 0 (0.000%)  crest 2.9 dB
+ -10.0 |                                                                                |
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.9  floor -90.0  DC -22.9 dBFS
+  spurs: -70.9@-1.20 -71.0@-1.92 -71.0@+3.36 -71.0@-0.96 MHz
+  peak I -23.1  Q -26.7 dBFS  clip 0 (0.000%)  crest 2.8 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                        |                                       |
+ -40.0 |                                        |                                       |
+ -50.0 |                                        #                                       |
+ -60.0 |          [  870.205829] pr_unflood: 116 callbacks suppressed                   |
+[  870.205851] phytimer: fw parked an RX lane after overrun (cnt 4217374688)            |
+[  870.210474] phytimer: fw parked an RX lane after overrun (cnt 4216588272)            |
+[  870.214619] phytimer: fw parked an RX lane after overrun (cnt 4219733926)||          |
+                              #                                       |
+ -70.0 |                                        #                                       |
+ -80.0 |          ||||||||||||||||||||||||||||||#|||||||||||||||||||||||||||||          |
+ -90.0 |||||||||||############################################################|||||||||||
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch1 [chan 1 RX1 | RBA_RX2 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -54.8  floor -99.4  DC -56.9 dBFS
+  spurs: -83.8@-15.36 -91.9@-0.05 -92.2@+0.04 -93.1@+0.07 MHz
+  peak I -47.5  Q -47.3 dBFS  clip 0 (0.000%)  crest 10.6 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                        |                                       |
+ -70.0 |                                        |                                       |
+ -80.0 |                                        #                                       |
+ -90.0 ||                                       #                                       |
+-100.0 |#| ||||||||##########################################################||||||||| ||
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch2 [chan 2 RO0 | RBB_RX1 sma_a]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -59.5  floor -99.8  DC -84.8 dBFS
+  spurs: -83.0@-15.36 -93.2@+0.06 -93.5@-0.09 -93.6@+0.04 MHz
+  peak I -49.8  Q -50.0 dBFS  clip 0 (0.000%)  crest 12.7 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                                                                |
+ -70.0 |                                                                                |
+ -80.0 |                                                                                |
+ -90.0 ||                                       |                                       |
+-100.0 |#||  |||||||########################################################||||||  | |||
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch3 [chan 3 RX0 | RBB_RX2 sma_a]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -37.9  floor -98.9  DC -52.7 dBFS
+  spurs: -53.0@-0.12 -53.0@-0.06 -53.1@-0.18 -53.1@+0.06 MHz
+  peak I -22.8  Q -27.2 dBFS  clip 0 (0.000%)  crest 18.1 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                    ||||||||                                    |
+ -70.0 |                           |   ||||||######||||||   |                           |
+ -80.0 |       |   |||  ||||||||||||||||##||########||##||||||||||||||||  |||   |       |
+ -90.0 |||||||||||||#|||###||###||############################||###||###|||#|||||||||||||
+-100.0 |###############################################################################||
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+ -20.0 |                                                                                |
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.9  floor -90.0  DC -22.9 dBFS
+  spurs: -71.2@+1.92 -71.2@-0.72 -71.2@+2.64 -71.2@-1.92 MHz
+  peak I -23.0  Q -26.8 dBFS  clip 0 (0.000%)  crest 2.9 dB
+ -10.0 |                                                                                |
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.9  floor -89.8  DC -22.9 dBFS
+  spurs: -71.1@+0.96 -71.2@+1.92 -71.2@+1.68 -71.2@+0.48 MHz
+  peak I -23.2  Q -26.8 dBFS  clip 0 (0.000%)  crest 2.7 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                        |                                       |
+ -40.0 |                                        |                                       |
+ -50.0 |                                        #                                       |
+ -60.0 |                                        #                                       |
+ -70.0 |                                        #      [  875.755673] pr_unflood: 115 callbacks suppressed
+[  875.755694] phytimer: fw parked an RX lane after overrun (cnt 4211738662)|           |
+[  875.760360] phytimer: fw parked an RX lane after overrun (cnt 4217505764)##|||||||||||
+[  875.764514] phytimer: fw parked an RX lane after overrun (cnt 4206888914)############|
+                                 |
+ -80.0 |           |||||||||||||||||||||||||||||#||||||||||||||||||||||||||||           |
+ -90.0 |||||||||||############################################################||||||||| |
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch1 [chan 1 RX1 | RBA_RX2 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -54.8  floor -99.4  DC -56.9 dBFS
+  spurs: -91.3@-0.04 -91.8@+0.05 -91.9@+0.07 -92.3@-0.14 MHz
+  peak I -47.8  Q -46.8 dBFS  clip 0 (0.000%)  crest 11.0 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                        |                                       |
+ -70.0 |                                        |                                       |
+ -80.0 |                                        #                                       |
+ -90.0 |                                        #                                       |
+-100.0 || |||||||||##########################################################|||||||  |||
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch2 [chan 2 RO0 | RBB_RX1 sma_a]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -59.5  floor -99.9  DC -83.4 dBFS
+  spurs: -83.1@-15.36 -92.9@-0.08 -92.9@+0.05 -93.1@+0.02 MHz
+  peak I -48.9  Q -49.8 dBFS  clip 0 (0.000%)  crest 13.6 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                                                                |
+ -70.0 |                                                                                |
+ -80.0 |                                                                                |
+ -90.0 ||                                       |                                       |
+-100.0 |#|  ||||||||#########################################################|||||||   ||
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch3 [chan 3 RX0 | RBB_RX2 sma_a]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -37.9  floor -98.9  DC -52.7 dBFS
+  spurs: -53.0@-0.18 -53.0@-0.12 -53.0@-0.06 -53.1@+0.06 MHz
+  peak I -23.1  Q -26.9 dBFS  clip 0 (0.000%)  crest 17.8 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                    ||||||||                                    |
+ -70.0 |                           ||  ||||||######||||||   |                           |
+ -80.0 |       |   |||  ||||||||||||||||##||########||##||||||||||||||||  |||   |       |
+ -90.0 |||||||||||||#|||###||###||############################||###||###|||#|||||||||||||
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+
+iq_app: drain0 ch0-1: 244.7 MB/s, busy 89% (inval 7%, copy 38%), calls 9178378, idle 74%
+libiqplayer: ch0 acks 34915 (3733/s) skipped 2154401, notify 0.2% of run, max lag 0x80000, max VSPA consumed lag 0x8400
+libiqplayer: ch1 acks 34916 (3733/s) skipped 2154143, notify 0.3% of run, max lag 0x80000, max VSPA consumed lag 0x8400
+iq_app: drain1 ch2-3: 245.6 MB/s, busy 89% (inval 7%, copy 39%), calls 8416240, idle 73%
+libiqplayer: ch2 acks 35035 (3746/s) skipped 2067946, notify 0.2% of run, max lag 0x80000, max VSPA consumed lag 0x8a00
+libiqplayer: ch3 acks 35040 (3746/s) skipped 2067906, notify 0.3% of run, max lag 0x80000, max VSPA consumed lag 0x8a00
+root@imx8mp-rfnm:~/host_utils# ./iq-stop.sh
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x06000000-0x00000000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x05000000-0x00000000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000000.
+VSPA:0 MBox:0 NACK (command not supported by this firmware)
+root@imx8mp-rfnm:~/host_utils# ./iq-app-rx.sh -X
+N_RX=4  (auto-detected from proxy at 0x9D3FFC1C)
+N_TX=0
+iqflood     : host=0x96400000  ep=0xb0001000  size=0x7000000
+slot_size   : 0x1BFF000
+rx_base     : 0xB0001000
+fifo/chan    : 0x80000  total: 0x200000
+rx_cmd      : MSB=0x6900200  LSB=0xB0001000  (num_4KB=512)
+
+Clearing RX proxy produced/consumed for 4 channel(s)...
+memtool: zeroed 8 bytes at phys=0x9d3ffc40
+  ch0 proxy 0x9D3FFC40: cl[  880.371677] pr_unflood: 68 callbacks suppressed
+eared
+memtool: zeroed 8 bytes at[  880.371692] phytimer: fw parked an RX lane after overrun (cnt 4214360030)
+ phys=0x9d3ffc50
+  ch1 proxy 0x9D3FFC50: cleared
+memtool: zeroed 8 bytes at phys=0x9d3ffc60
+  ch2 proxy 0x9D3FFC60: cleared
+memtool: zeroed 8 bytes at ph[  880.400693] phytimer: fw parked an RX lane after overrun (cnt 4214228974)
+ys=0x9d3ffc70
+  ch3 proxy 0x9D3F[  880.405228] phytimer: fw parked an RX lane after overrun (cnt 4219865072)
+FC70: cleared
+
+vspa_mbox send 0 0 0x6900200 0xB0001000
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x06900200-0xb0001000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+
+Starting spectrum mode (foreground): iq_app -X -n 4 -c 0 -F 0x0 524288 -N 8192 -Y 61.44 -K 0 -B -100 -M 8 -L 10  -Q /root/host_utils/qec  -w /root/host_utils/capture/rx -d 1ms
+note: tcmu not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+iq_app: Fs 61.440 MHz / decim 2 = 30.720 MHz (-Y to change converter rate, -Z to override)
+note: VSPA mbox1 not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+libiqplayer: mbox1 mapped at phys=0x0000000019000688 core=0 msb_virt=0xffffac5b7688
+libiqplayer: rx_fc_ptr[0] -> BAR2+0x400044 (ahb=0x20400044)
+spectrum ch0: fifo_start=0x00000000 size=0x80000 ring=0x400000
+libiqplayer: rx_fc_ptr[1] -> BAR2+0x400054 (ahb=0x20400054)
+spectrum ch1: fifo_start=0x00080000 size=0x80000 ring=0x400000
+libiqplayer: rx_fc_ptr[2] -> BAR2+0x400064 (ahb=0x20400064)
+spectrum ch2: fifo_start=0x00100000 size=0x80000 ring=0x400000
+libiqplayer: rx_fc_ptr[3] -> BAR2+0x400074 (ahb=0x20400074)
+spectrum ch3: fifo_start=0x00180000 size=0x80000 ring=0x400000
+iq_app: RX drain split: ch0-1 on CPU 2, ch2-3 on CPU 1, chunk 16384, rt 0
+
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 M[  884.403096] pr_unflood: 115 callbacks suppressed
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.9  floor -91.8  DC -22.9 dBFS
+  spurs: -70.5@-0.60 -70.5@+0.90 -70.6@-2.22 -70.6@-1.44 MHz
+  peak I -23.0  Q -26.9 dBFS  clip 0 (0.000%)  crest 2.9 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                        |                                       |
+ -40.0 |                                        |                                       |
+ -50.0 |                                        #                                       |
+ -60.0 |                                        #                                       |
+ -70.0 |                                        #                                       |
+ -80.0 |         |||||||||||||||||||||||||||||||#|||||||||||||||||||||||||||||          |
+ -90.0 |||||||||||#############################################################||||||||||
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch1 [chan 1 RX1 | RBA_RX2 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -54.9  floor -99.4  DC -57.0 dBFS
+  spurs: -83.6@-15.36 -91.6@-0.12 -92.3@+0.06 -92.3@-0.02 MHz
+  peak I -47.5  Q -47.3 dBFS  clip 0 (0.000%)  crest 10.6 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                        |                                       |
+ -70.0 |                                        |                                       |
+ -80.0 |                                        #                                       |
+ -90.0 ||                                       #                                       |
+-100.0 |#|| ||||||############################################################||||||| |||
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch2 [chan 2 RO0 | RBB_RX1 sma_a]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -59.5  floor -99.9  DC -82.9 dBFS
+  spurs: -83.3@-15.36 -91.8@-0.06 -92.6@+0.03 -93.1@+0.05 MHz
+  peak I -50.0  Q -49.3 dBFS  clip 0 (0.000%)  crest 13.2 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                                                                |
+ -70.0 |                                                                                |
+ -80.0 |                                                                                |
+ -90.0 ||                                       |                                       |
+-100.0 |#|  |||||||||#######################################################|||||||    ||
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch3 [chan 3 RX0 | RBB_RX2 sma_a]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -37.9  floor -98.9  DC -52.7 dBFS
+  spurs: -53.0@-0.06 -53.0@-0.12 -53.1@-0.18 -53.1@+0.06 MHz
+  peak I -23.0  Q -27.0 dBFS  clip 0 (0.000%)  crest 17.8 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                    ||||||||                                    |
+ -70.0 |                           ||  ||||||######||||||   |                           |
+ -80.0 ||      ||  |||  ||||||||||||||||##||########||##||||||||||||||||  |||   |       |
+ -90.0 |||||||||||||#|||###||###||############################||###||###|||#|||||||||||||
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+
+iq_app: drain0 ch0-1: 245.9 MB/s, busy 90% (inval 7%, copy 44%), calls 5361856, idle 70%
+libiqplayer: ch0 acks 24170 (3752/s) skipped 1490815, notify 0.1% of run, max lag 0x80000, max VSPA consumed lag 0x8200
+libiqplayer: ch1 acks 24171 (3752/s) skipped 1491271, notify 0.1% of run, max lag 0x80000, max VSPA consumed lag 0x8200
+iq_app: drain1 ch2-3: 245.9 MB/s, busy 91% (inval 6%, copy 46%), calls 4747220, idle 66%
+libiqplayer: ch2 acks 24166 (3752/s) skipped 1433041, notify 0.2% of run, max lag 0x80000, max VSPA consumed lag 0x8a00
+libiqplayer: ch3 acks 24165 (3751/s) skipped 1433145, notify 0.2% of run, max lag 0x80000, max VSPA consumed lag 0x8800
+root@imx8mp-rfnm:~/host_utils# ./iq-app-rx.sh -X
+N_RX=4  (auto-detected from proxy at 0x9D3FFC1C)
+N_TX=0
+iqflood     : host=0x96400000  ep=0xb0001000  size=0x7000000
+slot_size   : 0x1BFF000
+rx_base     : 0xB0001000
+fifo/chan    : 0x80000  total: 0x200000
+rx_cmd      : MSB=0x6900200  LSB=0xB0001000  (num_4KB=512)
+
+Clearing RX proxy produced/consumed for 4 channel(s)...
+memtool: zeroed 8 bytes at phys=0x9d3ffc40
+  ch0 proxy 0x9D3FFC40: cleared
+memtool: zeroed 8 bytes [  890.370798] pr_unflood: 96 callbacks suppressed
+at phys=0x9d3ffc50
+  ch1 proxy 0[  890.370813] phytimer: fw parked an RX lane after overrun (cnt 4206364716)
+x9D3FFC50: cleared
+memtool: zeroed 8 bytes at phys=0x9d3ffc60
+  ch2 proxy 0x9D3FFC60: cleared
+memtool: zeroed 8 bytes at phys=0x9d3ffc70
+  ch3 proxy 0x9D[  890.400802] phytimer: fw parked an RX lane after overrun (cnt 4210558914)
+3FFC70: cleared
+
+vspa_mbox send[  890.405266] phytimer: fw parked an RX lane after overrun (cnt 4214884248)
+ 0 0 0x6900200 0xB0001000
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x06900200-0xb0001000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+
+Starting spectrum mode (foreground): iq_app -X -n 4 -c 0 -F 0x0 524288 -N 8192 -Y 61.44 -K 0 -B -100 -M 8 -L 10  -Q /root/host_utils/qec  -w /root/host_utils/capture/rx -d 1ms
+note: tcmu not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+iq_app: Fs 61.440 MHz / decim 2 = 30.720 MHz (-Y to change converter rate, -Z to override)
+note: VSPA mbox1 not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+libiqplayer: mbox1 mapped at phys=0x0000000019000688 core=0 msb_virt=0xffff8c2c4688
+libiqplayer: rx_fc_ptr[0] -> BAR2+0x400044 (ahb=0x20400044)
+spectrum ch0: fifo_start=0x00000000 size=0x80000 ring=0x400000
+libiqplayer: rx_fc_ptr[1] -> BAR2+0x400054 (ahb=0x20400054)
+spectrum ch1: fifo_start=0x00080000 size=0x80000 ring=0x400000
+libiqplayer: rx_fc_ptr[2] -> BAR2+0x400064 (ahb=0x20400064)
+spectrum ch2: fifo_start=0x00100000 size=0x80000 ring=0x400000
+libiqplayer: rx_fc_ptr[3] -> BAR2+0x400074 (ahb=0x20400074)
+spectrum ch3: fifo_start=0x00180000 size=0x80000 ring=0x400000
+iq_app: RX drain split: ch0-1 on CPU 2, ch2-3 on CPU 1, chunk 16384, rt 0
+
+RX QEC ch 0/4  gain  +0.0[  894.910559] pr_unflood: 115 callbacks suppressedkeys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+[  894.910580] phytimer: fw parked an RX lane after overrun (cnt 4220913628)
+[  894.915210] phytimer: fw parked an RX lane after overrun (cnt 4216326112)3.8 kHz  rect/mag
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.0[  901.472634] pr_unflood: 115 callbacks suppressedap t=time q=quit
+[  901.472659] phytimer: fw parked an RX lane after overrun (cnt 4218685502)
+00   keys: c=chan g/G p/P i/I j/J[  901.476842] phytimer: fw parked an RX lane after overrun (cnt 4208461766)
+RX [  907.016412] pr_unflood: 115 callbacks suppressed+0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+[  907.016435] phytimer: fw parked an RX lane after overrun (cnt 4215801710)
+QEC ch 0/4  gain  +0.00 dB  phase[  907.020609] phytimer: fw parked an RX lane after overrun (cnt 4214228958)
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 [  913.061917] pr_unflood: 115 callbacks suppressed8192 x8  RBW 3.8 kHz  rect/mag
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save[  926.691087] pr_unflood: 115 callbacks suppressed
+[  926.691109] phytimer: fw parked an RX lane after overrun (cnt 4216719286)
+[  926.695283] phytimer: fw parked an RX lane after overrun (cnt 4221175816)3.8 kHz  rect/mag
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [[  932.237544] pr_unflood: 116 callbacks suppressedz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+RX QEC ch 0/4  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 0 RO1 | RBA_RX1 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -22.9  floor -89.9  DC -22.9 dBFS
+  spurs: -71.0@-0.24 -71.0@+0.72 -71.1@+1.92 -71.1@+0.24 MHz
+  peak I -23.0  Q -26.9 dBFS  clip 0 (0.000%)  crest 2.9 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                        |                                       |
+ -40.0 |                                        |                                       |
+ -50.0 |                                        #                                       |
+ -60.0 |                                        #                                       |
+ -70.0 |                                        #                                       |
+ -80.0 |           |||||||||||||||||||||||||||||#|||||||||||||||||||||||||||| |         |
+ -90.0 |||||||||||############################################################|||||||||||
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch1 [chan 1 RX1 | RBA_RX2 sma_b]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -54.9  floor -99.4 [  936.772945] pr_unflood: 115 callbacks suppressed
+ DC -56.9 dBFS
+  spurs: -91.7[  936.772968] phytimer: fw parked an RX lane after overrun (cnt 4215015352)
+@-0.03 -92.0@+0.03 -92.3@-0.14 -9[  936.777150] phytimer: fw parked an RX lane after overrun (cnt 4212000748)
+2.3@+0.01 MHz
+  peak I -46.9 [  936.781317] phytimer: fw parked an RX lane after overrun (cnt 4214884298)
+ Q -47.5 dBFS  clip 0 (0.000%)  crest 11.0 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                        |                                       |
+ -70.0 |                                        |                                       |
+ -80.0 |                                        #                                       |
+ -90.0 |                                        #                                       |
+-100.0 ||||||||||||###########################################################|||||||  ||
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch2 [chan 2 RO0 | RBB_RX1 sma_a]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -59.5  floor -99.8  DC -83.4 dBFS
+  spurs: -83.4@-15.36 -92.5@-0.05 -93.6@-0.11 -93.8@+0.03 MHz
+  peak I -48.4  Q -48.7 dBFS  clip 0 (0.000%)  crest 14.0 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                                                                |
+ -70.0 |                                                                                |
+ -80.0 |                                                                                |
+ -90.0 ||                                       |                                       |
+-100.0 |#   |||||||#########################################################||||||  | |||
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+Ch3 [chan 3 RX0 | RBB_RX2 sma_a]  IQ swap 1  Fs 30.72 MHz  FFT 8192 x8  RBW 3.8 kHz  rect/mag
+  RSSI -38.2  floor -96.4  DC -53.4 dBFS
+  spurs: -53.8@-0.06 -53.8@-0.12 -53.8@-0.18 -53.9@+0.06 MHz
+  peak I -22.9  Q -26.8 dBFS  clip 0 (0.000%)  crest 18.3 dB
+ -10.0 |                                                                                |
+ -20.0 |                                                                                |
+ -30.0 |                                                                                |
+ -40.0 |                                                                                |
+ -50.0 |                                                                                |
+ -60.0 |                                     ||||||                                     |
+ -70.0 |                               ||||||######|| |||                               |
+ -80.0 |           |||  ||||||||||||||||##||########||##||||||||||||||||  |||           |
+ -90.0 |||||||||||||#|||###||###||############################||###||###|||#|||||||||||||
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -15.36               -7.68               +0.00               +7.68              +15.36       MHz
+
+iq_app: drain0 ch0-1: 245.7 MB/s, busy 89% (inval 7%, copy 39%), calls 44491305, idle 73%
+libiqplayer: ch0 acks 174273 (3749/s) skipped 10776794, notify 0.2% of run, max lag 0x80000, max VSPA consumed lag 0x8400
+libiqplayer: ch1 acks 174275 (3749/s) skipped 10776333, notify 0.2% of run, max lag 0x80000, max VSPA consumed lag 0x8400
+iq_app: drain1 ch2-3: 245.8 MB/s, busy 89% (inval 7%, copy 41%), calls 39610426, idle 71%
+libiqplayer: ch2 acks 174288 (3750/s) skipped 10282777, notify 0.2% of run, max lag 0x80000, max VSPA consumed lag 0x8a00
+libiqplayer: ch3 acks 174274 (3749/s) skipped 10282885, notify 0.2% of run, max lag 0x80000, max VSPA consumed lag 0x8a00
+root@imx8mp-rfnm:~/host_utils# ./iq-stop.sh
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x06000000-0x00000000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x05000000-0x00000000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000000.
+VSPA:0 MBox:0 NACK (command not supported by this firmware)
+root@imx8mp-rfnm:~/host_utils#
+root@imx8mp-rfnm:~/host_utils# ./iq-app-tx.sh -T
+TX fifo: 262144 bytes (64 x 4KB), TX slot 58716160 bytes, N_RX=1
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Ready to send 0x05100040-0xb0001000 to vspa:0 mail box:0
+get_modem_ccsr_base: Base PCI addr phy 0x18000000
+note: VSPA mbox not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+note: tcmu not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+iq_app: auto-detected rx_num_chan=1 from VSPA proxy
+iq_app: Fs 61.440 MHz / upsmp 1 = 61.440 MHz (-Y to change converter rate, -Z to override)
+note: VSPA mbox1 not mappable via /dev/shiva0 (Invalid argument), using /dev/mem (fails with CONFIG_STRICT_DEVMEM)
+libiqplayer: mbox1 mapped at phys=0x0000000019000688 core=0 msb_virt=0xffffbcddd688
++-----------------------------------------------------------------+
+| iq_app  Tone TX (LA9310)                                        |
++-----------------------------------------------------------------+
+|  Waveform  : tone                                               |
+|  Frequency :     +5760.000 kHz  (up/dn:  960.000 kHz/step)      |
+|  Amplitude :  0.100              (lt/rt: 0.050 /step)           |
++-----------------------------------------------------------------+
+|  TX QEC                                                         |
++-----------------------------------------------------------------+
+|  Gain      :    +0.00 dB           ( g/G : step 0.1 dB  )       |
+|  Phase     :    +0.00 deg          ( p/P : step 0.5 deg )       |
+|  DC I      :   +0.000              ( i/I : step 0.01    )       |
+|  DC Q      :   +0.000              ( j/J : step 0.01    )       |
++-----------------------------------------------------------------+
+|  Keys: up/dn=freq  lt/rt=amp  w=wave  r=rst  s=save  q=quit     |
++-----------------------------------------------------------------+
+| TX spectrum  FFT=512   SR=61.440 MHz
+| ...
+|     6.720 MHz |                                                                                | -110.16 dBFS
+|     5.760 MHz |#######                                                                         |  -20.00 dBFS
+|     4.800 MHz |                                                                                | -110.12 dBFS
+| ...
++-----------------------------------------------------------------+
+
+Tone TX stopped. Stopping VSPA TX ...
+
+
+root@imx8mp-rfnm:~# rf_tune
+rf_tune 1.1  /sys/kernel/rfnm_primary  board: lime (dmesg)  ext att 0 dB  cabled
+
+            rx0                   tx0
+enable      on                    on
+path        sma_a                 sma_b
+freq        1850.000000 MHz       1850.000000 MHz
+gain/pwr    20 dB                 10 pwr
+lpf_bw      100                   20
+agc         off                   -
+fm_notch    auto                  -
+bias_tee    off                   off
+
+tx0 enable: off / on / tdd
+guard: TX+RX on, gain 20 + power 10 - ext 0 = 30 <= 40 (cabled)  OK
+applied: tx0
+keys: up/dn field  tab , . column  -/+ lt/rt change  [ ] big step  f freq step  0-9 type value
+      z safe (TX min, RX 0)  s/l save/load profile  r re-read sysfs  o cabled/over the air  x ext att  q quit
+      S save next-run defaults  L load them  R reset to built-in  (/etc/rf_tune/lime.cfg)
+      * pending  ~ held (channel off, applied on enable)  ! changed by driver
+
+

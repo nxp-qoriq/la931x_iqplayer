@@ -5,6 +5,8 @@ PROJ_DIR ?= $(CURDIR)
 DEST_DIR ?= ${PROJ_DIR}/install
 
 CFLAGS  +=  -g -O0 -Wall -Werror
+# shiva_map.h: map through /dev/shiva0 (CONFIG_STRICT_DEVMEM kernels)
+INCLUDES += -I$(CURDIR)/../lib_iqplayer
 
 CROSS_COMPILE?=aarch64-linux-gnu-
 CC=gcc
@@ -21,7 +23,7 @@ BIN_INSTALL_DIR?=${DEST_DIR}/usr/bin
 all: $(BIN_TEST)
 
 $(BIN_TEST): ${OBJS_TEST}
-	$(CROSS_COMPILE)${CC} ${CFLAGS} ${LDFLAGS} -o $(BIN_TEST) ${OBJS_TEST} $(INCLUDES)
+	$(CROSS_COMPILE)${CC} ${CFLAGS} $(INCLUDES) ${LDFLAGS} -o $(BIN_TEST) ${OBJS_TEST}
 
 %.o: %.c
 	$(CROSS_COMPILE)${CC} -c ${CFLAGS} ${INCLUDES}  $< -o $@

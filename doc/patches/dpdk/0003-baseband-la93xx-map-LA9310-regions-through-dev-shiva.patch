@@ -1,0 +1,116 @@
+From ab2eadfbf3fe32f07705abe89a40ecc9ba7aab40 Mon Sep 17 00:00:00 2001
+From: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+Date: Tue, 17 Nov 2026 18:17:55 +0100
+Subject: [PATCH] baseband/la93xx: map LA9310 regions through /dev/shiva0
+
+On kernels with CONFIG_STRICT_DEVMEM / CONFIG_IO_STRICT_DEVMEM the
+/dev/mem mmap of the LA9310 BARs and of the NLM ops buffer is refused,
+the probe fails and dfe_app only reports "No BBDEV device detected".
+
+Map MHIF, TCML, CCSR and NLM ops through /dev/shiva0 first (la9310shiva
+with the modinfo mmap patch, offset = host physical address), keep
+/dev/mem as fallback, and log the region and the cause on failure.
+
+Signed-off-by: Francois Massot-Pellet <francois.massot-pellet@nxp.com>
+---
+ drivers/baseband/la93xx/bbdev_la93xx.c | 48 +++++++++++++++++++++-----
+ 1 file changed, 39 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/baseband/la93xx/bbdev_la93xx.c b/drivers/baseband/la93xx/bbdev_la93xx.c
+index 4d6e4ceb0f..81726e4bb5 100644
+--- a/drivers/baseband/la93xx/bbdev_la93xx.c
++++ b/drivers/baseband/la93xx/bbdev_la93xx.c
+@@ -666,6 +666,40 @@ get_hugepage_info(struct rte_bbdev *dev)
+ 	return hp_info;
+ }
+ 
++/*
++ * mmap() of a LA9310 region given by its host physical address (off).
++ * /dev/shiva0 (la9310shiva with the modinfo mmap patch) is tried first: it
++ * serves the PCIe BARs and the scratch buffer (NLM ops) with
++ * CONFIG_STRICT_DEVMEM=y and CONFIG_IO_STRICT_DEVMEM=y. The /dev/mem fd
++ * passed by the caller is the fallback for an unpatched driver on a kernel
++ * without STRICT_DEVMEM.
++ */
++#define LA93XX_SHIVA_DEV "/dev/shiva0"
++static void *
++la93xx_mmap(void *addr, size_t len, int prot, int flags, int dev_mem,
++	    off_t off)
++{
++	void *va = MAP_FAILED;
++	int fd;
++
++	fd = open(LA93XX_SHIVA_DEV, O_RDWR | O_SYNC);
++	if (fd >= 0) {
++		va = mmap(addr, len, prot, flags, fd, off);
++		close(fd);
++	}
++	if (va == MAP_FAILED && dev_mem >= 0)
++		va = mmap(addr, len, prot, flags, dev_mem, off);
++	if (va == MAP_FAILED) {
++		BBDEV_LA93XX_PMD_ERR("cannot map 0x%llx (0x%zx) through "
++			LA93XX_SHIVA_DEV " or /dev/mem: %s",
++			(unsigned long long)off, len, strerror(errno));
++		BBDEV_LA93XX_PMD_ERR("la9310shiva needs the modinfo mmap patch "
++			"when the kernel has CONFIG_STRICT_DEVMEM / "
++			"CONFIG_IO_STRICT_DEVMEM");
++	}
++	return va;
++}
++
+ static int open_ipc_dev(int modem_id __rte_unused)
+ {
+ 	char dev_path[PATH_MAX];
+@@ -730,12 +764,8 @@ setup_la93xx_dev(struct rte_bbdev *dev)
+ 			ipc_priv->channels[i] = ipc_priv_ch;
+ 		}
+ 
++		/* fallback only, see la93xx_mmap() */
+ 		dev_mem = open("/dev/mem", O_RDWR);
+-		if (dev_mem < 0) {
+-			BBDEV_LA93XX_PMD_ERR("Error: Cannot open /dev/mem");
+-			ret = -errno;
+-			goto err;
+-		}
+ 
+ 		ipc_priv->instance_id = 0;
+ 		ipc_priv->dev_mem = dev_mem;
+@@ -772,7 +802,7 @@ setup_la93xx_dev(struct rte_bbdev *dev)
+ 
+ 	phy_align = (ipc_priv->sys_map.mhif_start.host_phys % 0x1000);
+ 	ipc_priv->mhif_start.host_vaddr =
+-		mmap(0, ipc_priv->sys_map.mhif_start.size + phy_align,
++		la93xx_mmap(0, ipc_priv->sys_map.mhif_start.size + phy_align,
+ 		     (PROT_READ | PROT_WRITE), MAP_SHARED, ipc_priv->dev_mem,
+ 		     (ipc_priv->sys_map.mhif_start.host_phys - phy_align));
+ 	if (ipc_priv->mhif_start.host_vaddr == MAP_FAILED) {
+@@ -786,7 +816,7 @@ setup_la93xx_dev(struct rte_bbdev *dev)
+ 
+ 	phy_align = (ipc_priv->sys_map.tcml_start.host_phys % 0x1000);
+ 	ipc_priv->tcml_start.host_vaddr =
+-		mmap(0, ipc_priv->sys_map.tcml_start.size + phy_align,
++		la93xx_mmap(0, ipc_priv->sys_map.tcml_start.size + phy_align,
+ 		     (PROT_READ | PROT_WRITE), MAP_SHARED, ipc_priv->dev_mem,
+ 		     (ipc_priv->sys_map.tcml_start.host_phys - phy_align));
+ 	if (ipc_priv->tcml_start.host_vaddr == MAP_FAILED) {
+@@ -800,7 +830,7 @@ setup_la93xx_dev(struct rte_bbdev *dev)
+ 
+ 	phy_align = (ipc_priv->sys_map.modem_ccsrbar.host_phys % 0x1000);
+ 	ipc_priv->modem_ccsrbar.host_vaddr =
+-		mmap(0, ipc_priv->sys_map.modem_ccsrbar.size + phy_align,
++		la93xx_mmap(0, ipc_priv->sys_map.modem_ccsrbar.size + phy_align,
+ 		     (PROT_READ | PROT_WRITE), MAP_SHARED, ipc_priv->dev_mem,
+ 		     (ipc_priv->sys_map.modem_ccsrbar.host_phys - phy_align));
+ 	if (ipc_priv->modem_ccsrbar.host_vaddr == MAP_FAILED) {
+@@ -814,7 +844,7 @@ setup_la93xx_dev(struct rte_bbdev *dev)
+ 
+ 	phy_align = (ipc_priv->sys_map.nlm_ops.host_phys % 0x1000);
+ 	ipc_priv->nlm_ops.host_vaddr =
+-		mmap(0, ipc_priv->sys_map.nlm_ops.size + phy_align,
++		la93xx_mmap(0, ipc_priv->sys_map.nlm_ops.size + phy_align,
+ 		     (PROT_READ | PROT_WRITE), MAP_SHARED, ipc_priv->dev_mem,
+ 		     (ipc_priv->sys_map.nlm_ops.host_phys - phy_align));
+ 	if (ipc_priv->nlm_ops.host_vaddr == MAP_FAILED) {
+-- 
+2.43.0
+

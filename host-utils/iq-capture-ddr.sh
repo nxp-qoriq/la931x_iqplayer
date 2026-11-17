@@ -49,5 +49,6 @@ fi
 vspa_mbox send 0 0 $cmd $buffep
 vspa_mbox recv 0 0
 echo running until ./iq-stop.sh and 
-echo bin2mem -f iqdata.bin -a $buff -r $[4096 * $1]
+echo "memtool -d /dev/shiva0 -a $buff -o iqdata.bin $[4096 * $1]"
+echo "(bin2mem -f iqdata.bin -a $buff -r $[4096 * $1] on kernels without CONFIG_STRICT_DEVMEM)"
 

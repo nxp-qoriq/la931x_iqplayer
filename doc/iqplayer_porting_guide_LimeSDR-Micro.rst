@@ -43,6 +43,16 @@ software and cannot run at the same time:
 This guide covers IQ Player and fr1_fr2_test_tool on LimeSDR-Micro. IQ Player on RFNM is
 described in ``iqplayer_porting_guide_RFNM-SDK.rst``.
 
+Patches (temporary)
+*******************
+
+This guide applies patches from ``doc/patches/`` to three NXP repositories:
+``la93xx_host_sw``, ``la93xx_freertos`` and ``dpdk``, plus the optional
+``la9310_debug`` (6G for All). They are temporary: pull requests to the upstream
+repositories are pending, and each patch is dropped once it is merged.
+The ``la9310-driver`` and ``la9310-freertos`` folders are for the RFNM SDK, not for
+this environment. Base commits and contents: ``doc/patches/README.md``.
+
 Hardware Requirements
 *********************
 
@@ -305,7 +315,7 @@ clone and patch la93xx_host_sw linux kernel module source code
 
  git clone  https://github.com/nxp-qoriq/la93xx_host_sw.git
  cd la93xx_host_sw
- git checkout bc0a100
+ git checkout ad9f1db    # base checked for this release, see doc/patches/README.md
  git apply --index <la931x_iqplayer>/doc/patches/la93xx_host_sw/*.patch
 
 .. list-table::
@@ -396,6 +406,7 @@ apply the IQ Player LimeSDR-Micro patches (LA9310 clock 122.88 MHz, LMS7002M RX 
 VSPA debugger sw_cmd, see `VSPA debugger (la9310_debug)`_, clean -Werror build with gcc 6)
 ::
 
+ git checkout c914cfe    # base checked for this release
  git am $IQP/doc/patches/la93xx_freertos/*.patch      # IQP = la931x_iqplayer clone
 
 Compile FreeRTOS with LimeSDR-micro support 
@@ -451,7 +462,8 @@ clone dpdk source code
 ::
 
  git clone https://github.com/NXP/dpdk -b 25.11-qoriq
- cd dpdk 
+ cd dpdk
+ git checkout 93c0678597    # base checked for this release
  git am $IQP/doc/patches/dpdk/*.patch    # dfe_app: no core starvation, probe fixes
 
 Compile dpdk dfe_app

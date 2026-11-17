@@ -11,8 +11,14 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # scratch_addr and scratch_size are deprecated parameters for la9310shiva, keeping it for backward compatibility
-scratch_addr=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/reg |cut -f 7-10 -d " " |sed 's/ //g'|cut -f 1 -d " " |head -1`
-scratch_size=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/reg |cut -f 16-19 -d " " |sed 's/ //g'|head -1`
+# (passed only when the device tree has a la93 reserved-memory node)
+scratch_args=
+dt_la93=$(ls /sys/firmware/devicetree/base/reserved-memory/la93@*/reg 2>/dev/null | head -1)
+if [ -n "$dt_la93" ]; then
+        scratch_addr=0x`hexdump -C $dt_la93 |cut -f 7-10 -d " " |sed 's/ //g'|cut -f 1 -d " " |head -1`
+        scratch_size=0x`hexdump -C $dt_la93 |cut -f 16-19 -d " " |sed 's/ //g'|head -1`
+        scratch_args="scratch_buf_size=$scratch_size scratch_buf_phys_addr=$scratch_addr"
+fi
 
 [ -f /lib/firmware/la9310_dfe.bin ] || { echo "***ERROR: missing /lib/firmware/la9310_dfe.bin. You are using old BSP, upgrade to BSP 0.4 or above, or rename la9310.bin to la9310_dfe.bin. Boot failed"; exit 1; }
 [ -f /lib/firmware/apm-iqplayer-1T1R.eld ] || { echo "***ERROR: missing /lib/firmware/apm-iqplayer-1T1R.eld. You are using old BSP, upgrade to BSP 0.4.3 or above, or rename la9310.bin to la9310_dfe.bin. Boot failed"; exit 1; }
@@ -32,8 +38,8 @@ fi
 
 # load la9310
 echo 7 > /proc/sys/kernel/printk
-echo insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko scratch_buf_size=$scratch_size scratch_buf_phys_addr=$scratch_addr adc_mask=0xf adc_rate_mask=$adcm dac_mask=0x1 dac_rate_mask=$dacm alt_firmware_name=la9310_dfe.bin alt_vspa_fw_name=apm.eld
-insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko scratch_buf_size=$scratch_size scratch_buf_phys_addr=$scratch_addr adc_mask=0xf adc_rate_mask=$adcm dac_mask=0x1 dac_rate_mask=$dacm alt_firmware_name=la9310_dfe.bin alt_vspa_fw_name=apm.eld
+echo insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko $scratch_args adc_mask=0xf adc_rate_mask=$adcm dac_mask=0x1 dac_rate_mask=$dacm alt_firmware_name=la9310_dfe.bin alt_vspa_fw_name=apm.eld
+insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko $scratch_args adc_mask=0xf adc_rate_mask=$adcm dac_mask=0x1 dac_rate_mask=$dacm alt_firmware_name=la9310_dfe.bin alt_vspa_fw_name=apm.eld
 
 # insert rf modules kernel modules
 [ -f /lib/modules/$(uname -r)/extra/sdr_gpio.ko ] && insmod /lib/modules/$(uname -r)/extra/sdr_gpio.ko
@@ -44,7 +50,7 @@ insmod /lib/modules/$(uname -r)/extra/la9310shiva.ko scratch_buf_size=$scratch_s
 
 # enable ADC/DAC always on
 sleep 1
-./fdd-start.sh
+$SCRIPT_DIR/fdd-start.sh
 
 #
 #echo -n "rfnm_m7_v0.elf" > /sys/class/remoteproc/remoteproc0/firmware

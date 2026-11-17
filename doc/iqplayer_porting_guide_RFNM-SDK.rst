@@ -59,6 +59,9 @@ IQ Player on RFNM therefore uses:
 All changes are provided as patches in ``doc/patches/`` on top of the RFNM repositories at
 the commits given in `Sources`_. They are being upstreamed to RFNM (pull requests to come);
 until they are merged, use only the RFNM repositories plus these patches.
+Use only the ``la9310-driver``, ``la9310-freertos`` and optional ``la9310_debug``
+folders. ``la93xx_host_sw``, ``la93xx_freertos`` and ``dpdk`` are for the NXP BSP
+(LimeSDR-Micro). See ``doc/patches/README.md``.
 
 Requirements
 ************
@@ -69,7 +72,12 @@ Hardware
 - RFNM Blue board on the current RFNM firmware image. A board still on the original factory
   image must first be updated from the web GUI (Settings -> Update); ``rfnm-sdk sysroot``
   and ``deploy`` check this.
-- Linux development host, Ubuntu 22.04 or Debian 12, x86-64, with SSH access to the board.
+- Linux development host, x86-64, with SSH access to the board. Ubuntu 22.04 or Debian 12
+  is enough for everything IQ Player needs (``rfnm-sdk build kernel|modules|m4|m7`` and
+  all IQ Player components). A full ``./rfnm-sdk build`` (librfnm, vsg, webgui, apps)
+  against RFNM image 0.1.15 needs glibc 2.38 or later on the host (Ubuntu 24.04, or a
+  container): on Ubuntu 22.04 the link fails with ``undefined reference to
+  __isoc23_*@GLIBC_2.38`` from the sysroot ``libudev`` / ``libusb``.
 - Optional: a server providing TFTP and NFS for network boot (see `NFS Boot (optional)`_).
 
 Host packages
@@ -205,6 +213,8 @@ Sysroot, build, deploy
     ./rfnm-sdk build             # kernel, modules, m4, m7, librfnm, vsg, webgui, apps
 
 Single components: ``./rfnm-sdk build kernel|modules|m4|m7|librfnm|vsg|webgui|apps``.
+IQ Player needs only ``kernel``, ``modules``, ``m4`` and ``m7``; the userland components
+are for the stock RFNM stack (see `Hardware`_ for the host requirement).
 After a failed librfnm configure, remove ``sources/librfnm/build-host`` and
 ``sources/librfnm/build-imx8mp`` before retrying.
 
@@ -327,9 +337,8 @@ Sources
      - this repository
      - -
 
-Patches (``doc/patches/``, upstream pull requests to come). 0001-0003 of each set are
-the commits of the development forks https://github.com/mxstrk/la9310-driver and
-https://github.com/mxstrk/la9310-freertos, exported with ``git format-patch``:
+Patches (``doc/patches/``, upstream pull requests to come), on top of the RFNM
+repositories at the pinned commits above:
 
 .. list-table::
    :header-rows: 1
@@ -351,6 +360,10 @@ https://github.com/mxstrk/la9310-freertos, exported with ``git format-patch``:
        ``doc/patches/la93xx_host_sw/0001-*.patch``. The BARs are still mapped through
        ``/dev/mem`` on RFNM (MMIO, allowed with ``CONFIG_STRICT_DEVMEM``); host-utils
        print ``note: ... using /dev/mem`` once
+   * - ``la9310-driver/0005-app-add-la9310_modem_info.patch``
+     - ``app/modem_info``: the ``la9310_modem_info`` tool (port of the NXP
+       ``la93xx_host_sw`` one, builds with ``-Werror`` against this tree). Required:
+       ``load-rfnm.sh`` and the go/no-go checks read the IQFLOOD region from it
    * - ``la9310-freertos/0001-sw_cmd_engine-LA9310_SW_CMD_VSPA_DBG-proxy-for-the-V.patch``
      - ``LA9310_SW_CMD_VSPA_DBG`` proxy for the VSPA debug block
    * - ``la9310-freertos/0002-avi-let-the-PCIe-host-own-VSPA-mailbox-0-LA9310_HOST.patch``
@@ -535,21 +548,25 @@ patched RFNM trees::
     ./deploy.sh <board ip>     # scp -r install/* to the board root
 
 This installs ``/lib/firmware/apm-iqplayer-*.eld`` and ``apm.eld``, ``vspa_mbox``,
-``iq_app``, ``iq_mon`` and ``memtool`` in ``/usr/bin``, and the scripts in
-``/root/host_utils``.
+``iq_app``, ``iq_mon``, ``iq_trace``, ``memtool`` and ``rf_tune`` in ``/usr/bin``, and the
+scripts in ``/root/host_utils``.
 
-Optional NXP host tools
------------------------
+la9310_modem_info
+-----------------
 
-``devmem``, ``bin2mem`` and ``la9310_modem_info`` come from ``la93xx_host_sw``
-(https://github.com/nxp-qoriq/la93xx_host_sw)::
+``load-rfnm.sh`` and the go/no-go checks read the IQFLOOD region from
+``la9310_modem_info``. It is added to RFNM ``la9310-driver`` by
+``la9310-driver/0005`` (``app/modem_info``) and uses the same headers as
+``la9310shiva.ko``::
 
-    for app in devmem bin2mem modem_info; do
-        make -C $WS/la93xx_host_sw/app/$app CC=aarch64-linux-gnu-gcc UAPI_DIR=$DRIVER/uapi
-    done
-    scp $WS/la93xx_host_sw/app/devmem/devmem         $BOARD:/usr/bin/
-    scp $WS/la93xx_host_sw/app/bin2mem/bin2mem       $BOARD:/usr/bin/
-    scp $WS/la93xx_host_sw/app/modem_info/la9310_modem_info $BOARD:/usr/bin/
+    make -C $DRIVER/app/modem_info CC=aarch64-linux-gnu-gcc \
+        LA9310_COMMON_HEADERS=$M4SRC/common_headers UAPI_DIR=$DRIVER/uapi
+    scp $DRIVER/app/modem_info/la9310_modem_info $BOARD:/usr/bin/
+
+No NXP ``la93xx_host_sw`` tree is needed on RFNM. ``devmem`` and ``bin2mem`` are not
+needed either: the host-utils scripts access the LA9310 through ``memtool``
+(``la9310-io.sh``), which uses ``/dev/shiva0`` with ``la9310-driver/0004``. They are only
+a fallback in ``la9310-io.sh`` for a driver without that patch.
 
 Install on the board
 --------------------
@@ -654,8 +671,12 @@ The scripts call each other with ``./``; run them from ``/root/host_utils``::
     ssh $BOARD 'cd /root/host_utils && ./txrx_en.sh limetxrx'
     ssh -t $BOARD 'cd /root/host_utils && ./iq-app-rx.sh -X'     # live RX spectrum, q to quit
     ssh -t $BOARD 'cd /root/host_utils && ./iq-app-tx.sh -T'     # interactive tone TX
-    ssh $BOARD 'cd /root/host_utils && ./iq-app-rx.sh -D ./rx.bin 4915200'
+    ssh -t $BOARD 'cd /root/host_utils && ./iq-app-rx.sh -D ./rx 4915200'   # Ctrl-C to stop
     ssh -t $BOARD 'cd /root/host_utils && ./iq_mon'              # rates, no overrun counters
+
+``-D`` captures in the background until Ctrl-C, then writes the files. The file argument
+is a base name: the output is one file per RX channel, ``<base>_ch<N>.bin``
+(``./rx_ch0.bin`` above), each truncated to the requested size.
 
 In ``-X``, check that ``[CLIP]`` stays off on the saturation line (key ``t`` shows the
 I/Q waveform); keep the peak around -6 dBFS with the TX power and RX gain.
@@ -792,7 +813,8 @@ through the HIF ``sw_cmd_desc`` (``LA9310_SW_CMD_VSPA_DBG``), served by the M4 i
 with ``la9310-freertos/0001`` (part of the standard build above). The host side finds
 CCSR/TCML/TCMU through the ``la9310shiva`` modinfo ioctl and maps them through
 ``/dev/shiva0`` when the driver allows it, else ``/dev/mem`` (PCIe MMIO, allowed with
-``CONFIG_STRICT_DEVMEM``).
+``CONFIG_STRICT_DEVMEM``). The stock RFNM ``la9310shiva`` has no modinfo ioctl: the
+debugger needs the patched driver (``la9310-driver/0001``, part of the required set).
 
 Clone and patch::
 
@@ -836,8 +858,11 @@ Known Traps
    Player kernel. ``kpage_ncache``, ``rfnm_gpio``, ``la9310rfnm``, ``rfnm_lalib``,
    ``rfnm_daughterboard`` and ``rfnm_lime`` are safe.
 
-5. **vermagic.** Modules must be built against ``rfnm_6.6.36``; check ``modinfo -F
-   vermagic`` against ``uname -r`` on the board before installing.
+5. **vermagic.** Modules must be built against ``rfnm_6.6.36``. Compare ``modinfo -F
+   vermagic`` of the new module with the stock one on the board
+   (``modinfo -F vermagic /rfnm/kernel/la9310shiva.ko.stock``), not with ``uname -r``:
+   on image 0.1.15 ``uname -r`` is ``6.6.36-rt35-g7ecf6daa9278-dirty`` while the stock
+   modules (and a correct build) are ``6.6.36-rt35-ga13146252326``.
 
 6. **RFNM messages on the console during captures.** With the stock ``la9310rfnm.ko``,
    ``iq-app-rx.sh`` prints repeatedly on the UART console::
@@ -862,6 +887,18 @@ Known Traps
    before TX (``limetxrx``); ``limerx`` re-applies tx0 when it is on. ``off`` turns TX
    off and gives the port back to RX.
 
+8. **RFNM messages during load-rfnm.sh.** The stock ``la9310rfnm.ko`` prints three
+   messages once per load::
+
+       flush_all_queues: One or more queue pointers are NULL!
+       rx too many buffers behind (-559038738), jumping forward...
+       RFNM: rx producer standing down, no live consumer on any transport
+
+   They are harmless. IQ Player does not use the RFNM USB / local RX queues or the RFNM
+   RX ring: -559038738 is 0xDEADBEEE, the unwritten ring pattern, and the RFNM RX
+   producer then stops because no RFNM client is attached. The load is good if the
+   `Go / no-go checks`_ pass.
+
 References
 **********
 
@@ -869,8 +906,6 @@ References
 - RFNM kernel: https://github.com/rfnm/imx8mp-kernel
 - RFNM la9310-driver: https://github.com/rfnm/la9310-driver
 - RFNM la9310-freertos: https://github.com/rfnm/la9310-freertos
-- development forks (source of ``doc/patches/`` 0001-0003): https://github.com/mxstrk/la9310-driver,
-  https://github.com/mxstrk/la9310-freertos
 - ``iqplayer_reference_manual.rst``, ``iqplayer_design_notes.rst``
 
 Annex A: Example build on a development host
@@ -933,6 +968,12 @@ la9310shiva.ko
     # 6.6.36-rt35-ga13146252326 SMP preempt_rt mod_unload modversions aarch64
     cp $DRIVER/kernel_driver/la9310shiva/la9310shiva.ko $OUT/
 
+la9310_modem_info (``la9310-driver/0005``)::
+
+    make -C $DRIVER/app/modem_info CC=aarch64-linux-gnu-gcc \
+        LA9310_COMMON_HEADERS=$LA9310_COMMON_HEADERS UAPI_DIR=$UAPI_DIR
+    cp $DRIVER/app/modem_info/la9310_modem_info $OUT/
+
 M4 firmware, both rates
 -----------------------
 
@@ -975,6 +1016,7 @@ Back up everything that is overwritten, then copy::
                      cd /lib/firmware && for f in la9310*.bin; do cp -n \$f \$f.prev; done"
     scp $OUT/la9310shiva.ko $BOARD:/rfnm/kernel/
     scp $OUT/la9310_dfe_61.bin $OUT/la9310_dfe_122.bin $BOARD:/lib/firmware/
+    scp $OUT/la9310_modem_info $BOARD:/usr/bin/
     ssh $BOARD 'ln -sf /lib/firmware/la9310_dfe_61.bin /lib/firmware/la9310.bin; sync'
     cd $IQP && ./deploy.sh $BOARD
 

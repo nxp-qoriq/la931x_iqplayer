@@ -12,13 +12,13 @@ NOTICE:  BL31: Built : 15:20:06, Jan 12 2026
 U-Boot 2025.04 (Jan 12 2026 - 15:19:22 +0100)
 
 CPU:   i.MX95 rev2.0 at 1800MHz
-CPU:   Extended Consumer temperature grade (-20C to 105C) at 35C
+CPU:   Extended Consumer temperature grade (-20C to 105C) at 29C
 LM Boot reason: sw, origin: 2, errid: 1
 LM shutdown reason: sw, origin: 2, errid: 1
 Model: NXP FRDM-IMX95 board
 DRAM:  Delete node /soc/netc-blk-ctrl@4cde0000/pcie@4ca00000/ethernet@10,0
 7.8 GiB
-BOARD: V1.0(ADC2:677,ADC3:3)
+BOARD: V1.0(ADC2:678,ADC3:12)
 TCPC:  Vendor ID [0x1fc9], Product ID [0x5110], Addr [I2C2 0x52]
 Power supply on USB PD
 TCPC:  Vendor ID [0x1fc9], Product ID [0x5110], Addr [I2C2 0x50]
@@ -61,7 +61,7 @@ Scanning bootdev 'mmc@42850000.bootdev':
   1  script       ready   mmc          1  mmc@42850000.bootdev.part /boot.scr
 ** Booting bootflow 'mmc@42850000.bootdev.part_1' with script
 92880 bytes read in 4 ms (22.1 MiB/s)
-37024256 bytes read in 119 ms (296.7 MiB/s)
+36893184 bytes read in 117 ms (300.7 MiB/s)
 ## Flattened Device Tree blob at 93000000
    Booting using the fdt blob at 0x93000000
 Working FDT set to 93000000
@@ -74,7 +74,7 @@ Delete node /soc/netc-blk-ctrl@4cde0000/pcie@4ca00000/ethernet@10,0
 Starting kernel ...
 
 [    0.000000] Booting Linux on physical CPU 0x0000000000 [0x412fd050]
-[    0.000000] Linux version 6.12.34-rt11-g088030202a4b (builder@buildhost) (aarch64-linux-gnu-gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, GNU ld (GNU Binutils for Ubuntu) 2.38) #2 SMP PREEMPT_RT Wed Apr 22 15:04:42 CEST 2026
+[    0.000000] Linux version 6.12.34-rt11-strict-g088030202a4b (builder@buildhost) (aarch64-linux-gnu-gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, GNU ld (GNU Binutils for Ubuntu) 2.42) #1 SMP PREEMPT_RT Tue Nov 17 16:09:07 CET 2026
 [    0.000000] KASLR disabled due to lack of seed
 [    0.000000] Machine model: NXP FRDM-IMX95
 [    0.000000] efi: UEFI not found.
@@ -157,663 +157,661 @@ Starting kernel ...
 [    0.000000] arch_timer: cp15 timer(s) running at 24.00MHz (phys).
 [    0.000000] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x588fe9dc0, max_idle_ns: 440795202592 ns
 [    0.000000] sched_clock: 56 bits at 24MHz, resolution 41ns, wraps every 4398046511097ns
-[    0.000433] Console: colour dummy device 80x25
+[    0.000434] Console: colour dummy device 80x25
 [    0.000511] Calibrating delay loop (skipped), value calculated using timer frequency.. 48.00 BogoMIPS (lpj=96000)
 [    0.000520] pid_max: default: 32768 minimum: 301
-[    0.000570] LSM: initializing lsm=capability
-[    0.000660] Mount-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
-[    0.000677] Mountpoint-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
-[    0.002582] rcu: Hierarchical SRCU implementation.
-[    0.002589] rcu:     Max phase no-delay instances is 1000.
-[    0.002856] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
-[    0.003363] EFI services will not be available.
-[    0.003598] smp: Bringing up secondary CPUs ...
-[    0.004319] Detected VIPT I-cache on CPU1
-[    0.004388] GICv3: CPU1: found redistributor 100 region 0:0x0000000048080000
-[    0.004399] GICv3: CPU1: using allocated LPI pending table @0x00000001000a0000
-[    0.004437] CPU1: Booted secondary processor 0x0000000100 [0x412fd050]
-[    0.005240] Detected VIPT I-cache on CPU2
-[    0.005302] GICv3: CPU2: found redistributor 200 region 0:0x00000000480a0000
-[    0.005312] GICv3: CPU2: using allocated LPI pending table @0x00000001000b0000
-[    0.005344] CPU2: Booted secondary processor 0x0000000200 [0x412fd050]
-[    0.006110] Detected VIPT I-cache on CPU3
-[    0.006167] GICv3: CPU3: found redistributor 300 region 0:0x00000000480c0000
-[    0.006176] GICv3: CPU3: using allocated LPI pending table @0x00000001000c0000
-[    0.006204] CPU3: Booted secondary processor 0x0000000300 [0x412fd050]
-[    0.006939] Detected VIPT I-cache on CPU4
-[    0.006993] GICv3: CPU4: found redistributor 400 region 0:0x00000000480e0000
-[    0.007002] GICv3: CPU4: using allocated LPI pending table @0x00000001000d0000
-[    0.007028] CPU4: Booted secondary processor 0x0000000400 [0x412fd050]
-[    0.007753] Detected VIPT I-cache on CPU5
-[    0.007809] GICv3: CPU5: found redistributor 500 region 0:0x0000000048100000
-[    0.007818] GICv3: CPU5: using allocated LPI pending table @0x00000001000e0000
-[    0.007844] CPU5: Booted secondary processor 0x0000000500 [0x412fd050]
-[    0.008009] smp: Brought up 1 node, 6 CPUs
-[    0.008015] SMP: Total of 6 processors activated.
-[    0.008017] CPU: All CPU(s) started at EL2
-[    0.008020] CPU features: detected: 32-bit EL0 Support
-[    0.008022] CPU features: detected: 32-bit EL1 Support
-[    0.008025] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
-[    0.008028] CPU features: detected: Common not Private translations
-[    0.008030] CPU features: detected: CRC32 instructions
-[    0.008035] CPU features: detected: RCpc load-acquire (LDAPR)
-[    0.008037] CPU features: detected: LSE atomic instructions
-[    0.008039] CPU features: detected: Privileged Access Never
-[    0.008041] CPU features: detected: RAS Extension Support
-[    0.008045] CPU features: detected: Speculative Store Bypassing Safe (SSBS)
-[    0.008091] alternatives: applying system-wide alternatives
-[    0.011747] Memory: 6876700K/8126464K available (21888K kernel code, 1660K rwdata, 8176K rodata, 4288K init, 780K bss, 260616K reserved, 983040K cma-reserved)
-[    0.013939] devtmpfs: initialized
-[    0.026252] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
-[    0.026271] futex hash table entries: 2048 (order: 5, 131072 bytes, linear)
-[    0.038588] 23520 pages in range for non-PLT usage
-[    0.038603] 515040 pages in range for PLT usage
-[    0.038833] pinctrl core: initialized pinctrl subsystem
-[    0.040737] DMI not present or invalid.
-[    0.042450] NET: Registered PF_NETLINK/PF_ROUTE protocol family
-[    0.043758] DMA: preallocated 1024 KiB GFP_KERNEL pool for atomic allocations
-[    0.044325] DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
-[    0.044974] DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
-[    0.045049] audit: initializing netlink subsys (disabled)
-[    0.045247] audit: type=2000 audit(0.044:1): state=initialized audit_enabled=0 res=1
-[    0.045725] thermal_sys: Registered thermal governor 'step_wise'
-[    0.045730] thermal_sys: Registered thermal governor 'power_allocator'
-[    0.045771] cpuidle: using governor menu
-[    0.045984] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
-[    0.046092] ASID allocator initialised with 65536 entries
-[    0.046374] Serial: AMBA PL011 UART driver
-[    0.046456] imx mu driver is registered.
+[    0.000571] LSM: initializing lsm=capability
+[    0.000662] Mount-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.000678] Mountpoint-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.002583] rcu: Hierarchical SRCU implementation.
+[    0.002591] rcu:     Max phase no-delay instances is 1000.
+[    0.002860] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.003360] EFI services will not be available.
+[    0.003600] smp: Bringing up secondary CPUs ...
+[    0.004317] Detected VIPT I-cache on CPU1
+[    0.004384] GICv3: CPU1: found redistributor 100 region 0:0x0000000048080000
+[    0.004394] GICv3: CPU1: using allocated LPI pending table @0x00000001000a0000
+[    0.004432] CPU1: Booted secondary processor 0x0000000100 [0x412fd050]
+[    0.005223] Detected VIPT I-cache on CPU2
+[    0.005287] GICv3: CPU2: found redistributor 200 region 0:0x00000000480a0000
+[    0.005297] GICv3: CPU2: using allocated LPI pending table @0x00000001000b0000
+[    0.005331] CPU2: Booted secondary processor 0x0000000200 [0x412fd050]
+[    0.006069] Detected VIPT I-cache on CPU3
+[    0.006131] GICv3: CPU3: found redistributor 300 region 0:0x00000000480c0000
+[    0.006141] GICv3: CPU3: using allocated LPI pending table @0x00000001000c0000
+[    0.006174] CPU3: Booted secondary processor 0x0000000300 [0x412fd050]
+[    0.006903] Detected VIPT I-cache on CPU4
+[    0.006965] GICv3: CPU4: found redistributor 400 region 0:0x00000000480e0000
+[    0.006974] GICv3: CPU4: using allocated LPI pending table @0x00000001000d0000
+[    0.007006] CPU4: Booted secondary processor 0x0000000400 [0x412fd050]
+[    0.007724] Detected VIPT I-cache on CPU5
+[    0.007788] GICv3: CPU5: found redistributor 500 region 0:0x0000000048100000
+[    0.007798] GICv3: CPU5: using allocated LPI pending table @0x00000001000e0000
+[    0.007828] CPU5: Booted secondary processor 0x0000000500 [0x412fd050]
+[    0.007996] smp: Brought up 1 node, 6 CPUs
+[    0.008002] SMP: Total of 6 processors activated.
+[    0.008004] CPU: All CPU(s) started at EL2
+[    0.008008] CPU features: detected: 32-bit EL0 Support
+[    0.008011] CPU features: detected: 32-bit EL1 Support
+[    0.008014] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+[    0.008017] CPU features: detected: Common not Private translations
+[    0.008019] CPU features: detected: CRC32 instructions
+[    0.008025] CPU features: detected: RCpc load-acquire (LDAPR)
+[    0.008027] CPU features: detected: LSE atomic instructions
+[    0.008029] CPU features: detected: Privileged Access Never
+[    0.008031] CPU features: detected: RAS Extension Support
+[    0.008035] CPU features: detected: Speculative Store Bypassing Safe (SSBS)
+[    0.008079] alternatives: applying system-wide alternatives
+[    0.011730] Memory: 6876824K/8126464K available (21760K kernel code, 1660K rwdata, 8180K rodata, 4288K init, 780K bss, 260488K reserved, 983040K cma-reserved)
+[    0.013918] devtmpfs: initialized
+[    0.026148] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.026167] futex hash table entries: 2048 (order: 5, 131072 bytes, linear)
+[    0.038973] 23552 pages in range for non-PLT usage
+[    0.038986] 515072 pages in range for PLT usage
+[    0.039217] pinctrl core: initialized pinctrl subsystem
+[    0.041115] DMI not present or invalid.
+[    0.042851] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.044042] DMA: preallocated 1024 KiB GFP_KERNEL pool for atomic allocations
+[    0.044440] DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.044983] DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.045058] audit: initializing netlink subsys (disabled)
+[    0.045253] audit: type=2000 audit(0.044:1): state=initialized audit_enabled=0 res=1
+[    0.045734] thermal_sys: Registered thermal governor 'step_wise'
+[    0.045739] thermal_sys: Registered thermal governor 'power_allocator'
+[    0.045778] cpuidle: using governor menu
+[    0.045987] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+[    0.046093] ASID allocator initialised with 65536 entries
+[    0.046375] Serial: AMBA PL011 UART driver
+[    0.046457] imx mu driver is registered.
 [    0.046476] imx rpmsg driver is registered.
-[    0.052018] /soc/bus@42000000/i2c@42530000/tcpc@50: Fixed dependency cycle(s) with /soc/usb@4c010010/usb@4c100000
+[    0.052017] /soc/bus@42000000/i2c@42530000/tcpc@50: Fixed dependency cycle(s) with /soc/usb@4c010010/usb@4c100000
 [    0.052046] /soc/bus@42000000/i2c@42530000/tcpc@50/connector: Fixed dependency cycle(s) with /soc/phy@4c1f0040
 [    0.052078] /soc/bus@42000000/i2c@42540000/bridge@4c: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
-[    0.052216] /soc/bus@44000000/sai@443b0000: Fixed dependency cycle(s) with /mqs1
-[    0.052407] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
-[    0.052429] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/bridge@4b0d0000/channel@1
-[    0.052462] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42540000/bridge@4c
-[    0.052481] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
-[    0.052515] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
-[    0.052530] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/display-controller@4b400000
-[    0.052550] /soc/display-controller@4b400000: Fixed dependency cycle(s) with /soc/bridge@4b0d0000/channel@1
-[    0.052571] /soc/phy@4c1f0040: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50/connector
-[    0.052598] /soc/usb@4c010010/usb@4c100000: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50
-[    0.052968] /soc/bus@42000000/i2c@42530000/tcpc@50: Fixed dependency cycle(s) with /soc/usb@4c010010/usb@4c100000
-[    0.052989] /soc/bus@42000000/i2c@42530000/tcpc@50/connector: Fixed dependency cycle(s) with /soc/phy@4c1f0040
-[    0.053018] /soc/bus@42000000/i2c@42540000/bridge@4c: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
-[    0.053584] /soc/bus@42000000/i2c@42530000/tcpc@50: Fixed dependency cycle(s) with /soc/usb@4c010010/usb@4c100000
-[    0.053605] /soc/bus@42000000/i2c@42530000/tcpc@50/connector: Fixed dependency cycle(s) with /soc/phy@4c1f0040
-[    0.053733] /soc/bus@42000000/i2c@42540000/bridge@4c: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
-[    0.055356] /soc/bus@44000000/sai@443b0000: Fixed dependency cycle(s) with /mqs1
-[    0.055998] /mqs1: Fixed dependency cycle(s) with /soc/bus@44000000/sai@443b0000
-[    0.056055] /soc/bus@44000000/sai@443b0000: Fixed dependency cycle(s) with /mqs1
-[    0.059004] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
-[    0.059028] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/bridge@4b0d0000/channel@1
-[    0.059257] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42540000/bridge@4c
-[    0.059279] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
-[    0.059462] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
-[    0.059477] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/display-controller@4b400000
-[    0.059586] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/display-controller@4b400000
-[    0.059665] /soc/display-controller@4b400000: Fixed dependency cycle(s) with /soc/bridge@4b0d0000/channel@1
-[    0.059829] /soc/bus@42000000/i2c@42530000/tcpc@50/connector: Fixed dependency cycle(s) with /soc/phy@4c1f0040
-[    0.059887] /soc/phy@4c1f0040: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50/connector
-[    0.060016] /soc/usb@4c010010/usb@4c100000: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50
-[    0.062950] /soc/bus@42000000/i2c@42540000/bridge@4c: Fixed dependency cycle(s) with /hdmi-connector
-[    0.063026] /hdmi-connector: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42540000/bridge@4c
-[    0.066406] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
-[    0.066414] HugeTLB: 0 KiB vmemmap can be freed for a 1.00 GiB page
-[    0.066417] HugeTLB: registered 32.0 MiB page size, pre-allocated 0 pages
-[    0.066420] HugeTLB: 0 KiB vmemmap can be freed for a 32.0 MiB page
-[    0.066423] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
-[    0.066424] HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
-[    0.066427] HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
-[    0.066429] HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
-[    0.068015] ACPI: Interpreter disabled.
-[    0.069049] iommu: Default domain type: Passthrough (set via kernel command line)
-[    0.069845] SCSI subsystem initialized
-[    0.070181] usbcore: registered new interface driver usbfs
-[    0.070211] usbcore: registered new interface driver hub
-[    0.070241] usbcore: registered new device driver usb
-[    0.070999] mc: Linux media interface: v0.10
-[    0.071039] videodev: Linux video capture interface: v2.00
-[    0.071102] pps_core: LinuxPPS API ver. 1 registered
-[    0.071105] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
-[    0.071117] PTP clock support registered
-[    0.071141] EDAC MC: Ver: 3.0.0
-[    0.071388] scmi_core: SCMI protocol bus registered
-[    0.071751] FPGA manager framework
-[    0.071828] Advanced Linux Sound Architecture Driver Initialized.
-[    0.073096] Bluetooth: Core ver 2.22
-[    0.073134] NET: Registered PF_BLUETOOTH protocol family
-[    0.073137] Bluetooth: HCI device and connection manager initialized
-[    0.073145] Bluetooth: HCI socket layer initialized
-[    0.073150] Bluetooth: L2CAP socket layer initialized
-[    0.073161] Bluetooth: SCO socket layer initialized
-[    0.073580] vgaarb: loaded
-[    0.074090] clocksource: Switched to clocksource arch_sys_counter
-[    0.074322] VFS: Disk quotas dquot_6.6.0
-[    0.074337] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
-[    0.074569] pnp: PnP ACPI: disabled
-[    0.081260] NET: Registered PF_INET protocol family
-[    0.081442] IP idents hash table entries: 131072 (order: 8, 1048576 bytes, linear)
-[    0.084944] tcp_listen_portaddr_hash hash table entries: 4096 (order: 5, 163840 bytes, linear)
-[    0.085081] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
-[    0.085095] TCP established hash table entries: 65536 (order: 7, 524288 bytes, linear)
-[    0.085606] TCP bind hash table entries: 65536 (order: 10, 5242880 bytes, linear)
-[    0.088317] TCP: Hash tables configured (established 65536 bind 65536)
-[    0.088464] UDP hash table entries: 4096 (order: 6, 393216 bytes, linear)
-[    0.088711] UDP-Lite hash table entries: 4096 (order: 6, 393216 bytes, linear)
-[    0.089097] NET: Registered PF_UNIX/PF_LOCAL protocol family
-[    0.089533] RPC: Registered named UNIX socket transport module.
-[    0.089538] RPC: Registered udp transport module.
-[    0.089540] RPC: Registered tcp transport module.
-[    0.089542] RPC: Registered tcp-with-tls transport module.
-[    0.089544] RPC: Registered tcp NFSv4.1 backchannel transport module.
-[    0.090319] NET: Registered PF_XDP protocol family
-[    0.090333] PCI: CLS 0 bytes, default 64
-[    0.093762] kvm [1]: nv: 554 coarse grained trap handlers
-[    0.094196] kvm [1]: IPA Size Limit: 40 bits
-[    0.094220] kvm [1]: GICv3: no GICV resource entry
-[    0.094224] kvm [1]: disabling GICv2 emulation
-[    0.094245] kvm [1]: GIC system register CPU interface enabled
-[    0.094282] kvm [1]: vgic interrupt IRQ17
-[    0.094308] kvm [1]: VHE mode initialized successfully
-[    0.095744] Initialise system trusted keyrings
-[    0.095917] workingset: timestamp_bits=42 max_order=21 bucket_order=0
-[    0.096208] squashfs: version 4.0 (2009/01/31) Phillip Lougher
-[    0.096425] NFS: Registering the id_resolver key type
-[    0.096446] Key type id_resolver registered
-[    0.096449] Key type id_legacy registered
-[    0.096466] nfs4filelayout_init: NFSv4 File Layout Driver Registering...
-[    0.096469] nfs4flexfilelayout_init: NFSv4 Flexfile Layout Driver Registering...
-[    0.096559] jffs2: version 2.2. (NAND) © 2001-2006 Red Hat, Inc.
-[    0.096749] 9p: Installing v9fs 9p2000 file system support
-[    0.129277] Key type asymmetric registered
-[    0.129286] Asymmetric key parser 'x509' registered
-[    0.129340] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 243)
-[    0.129346] io scheduler mq-deadline registered
-[    0.129349] io scheduler kyber registered
-[    0.129382] io scheduler bfq registered
-[    0.137139] Bus freq driver module loaded
-[    0.142928] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
-[    0.146242] arm-smmu-v3 490d0000.iommu: ias 40-bit, oas 36-bit (features 0x0074deaf)
-[    0.147012] arm-smmu-v3 490d0000.iommu: allocated 65536 entries for cmdq
-[    0.147891] arm-smmu-v3 490d0000.iommu: allocated 32768 entries for evtq
-[    0.147903] arm-smmu-v3 490d0000.iommu: 2-level strtab only covers 25/32 bits of SID
-[    0.148871] arm-smmu-v3 490d0000.iommu: msi_domain absent - falling back to wired irqs
-[    0.161955] loop: module loaded
-[    0.163518] megasas: 07.727.03.00-rc1
-[    0.165797] SPI driver spidev has no spi_device_id for silabs,si5518
-[    0.166733] MACsec IEEE 802.1AE
-[    0.169607] tun: Universal TUN/TAP device driver, 1.6
-[    0.170302] thunder_xcv, ver 1.0
-[    0.170345] thunder_bgx, ver 1.0
-[    0.170380] nicpf, ver 1.0
-[    0.171715] hns3: Hisilicon Ethernet Network Driver for Hip08 Family - version
-[    0.171719] hns3: Copyright (c) 2017 Huawei Corporation.
-[    0.171778] hclge is initializing
-[    0.171817] e1000: Intel(R) PRO/1000 Network Driver
-[    0.171820] e1000: Copyright (c) 1999-2006 Intel Corporation.
-[    0.171863] e1000e: Intel(R) PRO/1000 Network Driver
-[    0.171865] e1000e: Copyright(c) 1999 - 2015 Intel Corporation.
-[    0.171902] igb: Intel(R) Gigabit Ethernet Network Driver
-[    0.171905] igb: Copyright (c) 2007-2014 Intel Corporation.
-[    0.171940] igbvf: Intel(R) Gigabit Virtual Function Network Driver
-[    0.171942] igbvf: Copyright (c) 2009 - 2012 Intel Corporation.
-[    0.172073] sky2: driver version 1.30
-[    0.172497] usbcore: registered new device driver r8152-cfgselector
-[    0.172535] usbcore: registered new interface driver r8152
-[    0.173117] VFIO - User Level meta-driver version: 0.3
-[    0.175294] usbcore: registered new interface driver uas
-[    0.175334] usbcore: registered new interface driver usb-storage
-[    0.175417] usbcore: registered new interface driver usbserial_generic
-[    0.175435] usbserial: USB Serial support registered for generic
-[    0.175462] usbcore: registered new interface driver ftdi_sio
-[    0.175478] usbserial: USB Serial support registered for FTDI USB Serial Device
-[    0.175512] usbcore: registered new interface driver usb_serial_simple
-[    0.175529] usbserial: USB Serial support registered for carelink
-[    0.175546] usbserial: USB Serial support registered for flashloader
-[    0.175564] usbserial: USB Serial support registered for funsoft
-[    0.175581] usbserial: USB Serial support registered for google
-[    0.175597] usbserial: USB Serial support registered for hp4x
-[    0.175612] usbserial: USB Serial support registered for kaufmann
-[    0.175628] usbserial: USB Serial support registered for libtransistor
-[    0.175644] usbserial: USB Serial support registered for moto_modem
-[    0.175660] usbserial: USB Serial support registered for motorola_tetra
-[    0.175676] usbserial: USB Serial support registered for nokia
-[    0.175695] usbserial: USB Serial support registered for novatel_gps
-[    0.175711] usbserial: USB Serial support registered for owon
-[    0.175730] usbserial: USB Serial support registered for siemens_mpi
-[    0.175746] usbserial: USB Serial support registered for suunto
-[    0.175762] usbserial: USB Serial support registered for vivopay
-[    0.175778] usbserial: USB Serial support registered for zio
-[    0.175815] usbcore: registered new interface driver usb_ehset_test
-[    0.178958] i2c_dev: i2c /dev entries driver
-[    0.182767] Bluetooth: HCI UART driver ver 2.3
-[    0.182778] Bluetooth: HCI UART protocol H4 registered
-[    0.182780] Bluetooth: HCI UART protocol BCSP registered
-[    0.182802] Bluetooth: HCI UART protocol LL registered
-[    0.182805] Bluetooth: HCI UART protocol ATH3K registered
-[    0.182822] Bluetooth: HCI UART protocol Three-wire (H5) registered
-[    0.182904] Bluetooth: HCI UART protocol Broadcom registered
-[    0.182926] Bluetooth: HCI UART protocol QCA registered
-[    0.184406] sdhci: Secure Digital Host Controller Interface driver
-[    0.184411] sdhci: Copyright(c) Pierre Ossman
-[    0.184777] Synopsys Designware Multimedia Card Interface Driver
-[    0.185230] sdhci-pltfm: SDHCI platform and OF driver helper
-[    0.190008] arm-scmi arm-scmi.0.auto: Using scmi_mailbox_transport
-[    0.190020] arm-scmi arm-scmi.0.auto: SCMI max-rx-timeout: 5000ms
-[    0.191174] arm-scmi arm-scmi.0.auto: SCMI Notifications - Core Enabled.
-[    0.191365] arm-scmi arm-scmi.0.auto: SCMI Protocol v2.1 'NXP:IMX' Firmware version 0x9
-[    0.195087] cpu cpu0: EM: invalid power: 0
-[    0.195462] scmi-perf-domain scmi_dev.5: Initialized 13 performance domains
-[    0.233984] scmi_module: Loaded SCMI Vendor Protocol 0x81 - NXP IMX 0
-[    0.234067] arm-scmi arm-scmi.0.auto: NXP SM BBM Version 1.0
-[    0.235900] scmi-imx-bbm-rtc scmi_dev.10: registered as rtc0
-[    0.236581] scmi-imx-bbm-rtc scmi_dev.10: setting system clock to 2026-04-28T14:39:05 UTC (1777387145)
-[    0.236893] scmi-imx-bbm-key scmi_dev.11: key code is not specified, using default KEY_POWER
-[    0.237213] input: scmi_dev.11 as /devices/platform/arm-scmi.0.auto/scmi_dev.11/input/input0
-[    0.238859] scmi_module: Loaded SCMI Vendor Protocol 0x82 - NXP IMX 0
-[    0.238926] arm-scmi arm-scmi.0.auto: NXP SM CPU Protocol Version 1.0
-[    0.238978] arm-scmi arm-scmi.0.auto: i.MX SM CPU: 9 cpus
-[    0.239028] arm-scmi arm-scmi.0.auto: i.MX CPU: name: m33p
-[    0.239075] arm-scmi arm-scmi.0.auto: i.MX CPU: name: m7p
-[    0.239123] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c0
-[    0.239169] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c1
-[    0.239215] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c2
-[    0.239260] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c3
-[    0.239306] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c4
-[    0.239352] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c5
-[    0.239397] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55p
-[    0.239782] scmi_module: Loaded SCMI Vendor Protocol 0x84 - NXP IMX 0
-[    0.239835] arm-scmi arm-scmi.0.auto: NXP SM MISC Version 1.0
-[    0.239886] arm-scmi arm-scmi.0.auto: i.MX MISC NUM DEV CTRL: 7, NUM BRD CTRL: 7,NUM Reason: 32
-[    0.241418] scmi_module: Loaded SCMI Vendor Protocol 0x80 - NXP IMX 0
-[    0.241474] arm-scmi arm-scmi.0.auto: NXP SM LMM Version 1.1
-[    0.241524] arm-scmi arm-scmi.0.auto: i.MX LMM: 3 Logical Machines
-[    0.241613] arm-scmi arm-scmi.0.auto: Protocol 0x80 successfully negotiated version 0x10000
-[    0.244921] fsl-se secure-enclave-0: Successfully registered ele-trng
-[    0.244980] fsl-se secure-enclave-0: i.MX secure-enclave: hsm0 interface to firmware, configured.
-[    0.245247] random: crng init done
-[    0.245881] fsl-se secure-enclave-1: i.MX secure-enclave: v2x_dbg0 interface to firmware, configured.
-[    0.246685] fsl-se secure-enclave-2: i.MX secure-enclave: v2x_sv0 interface to firmware, configured.
-[    0.247383] fsl-se secure-enclave-3: i.MX secure-enclave: v2x_she0 interface to firmware, configured.
-[    0.248025] fsl-se secure-enclave-4: i.MX secure-enclave: v2x_sg0 interface to firmware, configured.
-[    0.248710] fsl-se secure-enclave-5: i.MX secure-enclave: v2x_sg1 interface to firmware, configured.
-[    0.248870] SMCCC: SOC_ID: ARCH_SOC_ID not implemented, skipping ....
-[    0.249137] usbcore: registered new interface driver usbhid
-[    0.249143] usbhid: USB HID core driver
-[    0.253288] remoteproc remoteproc0: neutron-rproc is available
-[    0.268132] hw perfevents: enabled with armv8_cortex_a55 PMU driver, 7 (0,8000003f) counters available
-[    0.272017]  cs_system_cfg: CoreSight Configuration manager initialised
-[    0.277207] pktgen: Packet Generator for packet performance testing. Version: 2.75
-[    0.278130] NET: Registered PF_LLC protocol family
-[    0.278215] GACT probability NOT on
-[    0.278228] Mirror/redirect action on
-[    0.278265] u32 classifier
-[    0.278268]     input device check on
-[    0.278269]     Actions configured
-[    0.278694] NET: Registered PF_INET6 protocol family
-[    0.279269] Segment Routing with IPv6
-[    0.279297] In-situ OAM (IOAM) with IPv6
-[    0.279338] NET: Registered PF_PACKET protocol family
-[    0.279360] bridge: filtering via arp/ip/ip6tables is no longer available by default. Update your scripts to load br_netfilter if you need this.
-[    0.279522] Bluetooth: RFCOMM TTY layer initialized
-[    0.279533] Bluetooth: RFCOMM socket layer initialized
-[    0.279558] Bluetooth: RFCOMM ver 1.11
-[    0.279565] Bluetooth: BNEP (Ethernet Emulation) ver 1.3
-[    0.279568] Bluetooth: BNEP filters: protocol multicast
-[    0.279574] Bluetooth: BNEP socket layer initialized
-[    0.279577] Bluetooth: HIDP (Human Interface Emulation) ver 1.2
-[    0.279582] Bluetooth: HIDP socket layer initialized
-[    0.279705] 8021q: 802.1Q VLAN Support v1.8
-[    0.279740] sctp: Hash tables configured (bind 64/102)
-[    0.279846] 9pnet: Installing 9P2000 support
-[    0.279958] Key type dns_resolver registered
-[    0.280118] NET: Registered PF_VSOCK protocol family
-[    0.302380] registered taskstats version 1
-[    0.302570] Loading compiled-in X.509 certificates
-[    0.311822] Demotion targets for Node 0: null
-[    0.330335] fsl-edma 42210000.dma-controller: Adding to iommu group 0
-[    0.345075] usb_phy_generic usbphynop: dummy supplies not allowed for exclusive requests (id=vbus)
-[    0.346975] /soc/usb@4c010010/usb@4c100000: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50
-[    0.347116] /soc/bus@42000000/i2c@42530000/tcpc@50: Fixed dependency cycle(s) with /soc/usb@4c010010/usb@4c100000
-[    0.347182] /soc/bus@42000000/i2c@42530000/tcpc@50/connector: Fixed dependency cycle(s) with /soc/phy@4c1f0040
-[    0.347367] i2c i2c-2: LPI2C adapter registered
-[    0.349586] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42540000/bridge@4c
-[    0.349720] /soc/bus@42000000/i2c@42540000/bridge@4c: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
-[    0.349824] i2c i2c-3: LPI2C adapter registered
-[    0.351942] i2c i2c-1: LPI2C adapter registered
-[    0.353122] imx8mq-usb-phy 4c1f0040.phy: supply vbus not found, using dummy regulator
-[    0.359192] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
-[    0.359299] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
-[    0.359377] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
-[    0.359395] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/bridge@4b0d0000/channel@1
-[    0.361252] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42540000/bridge@4c
-[    0.361349] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
-[    0.365742] 42590000.serial: ttyLP4 at MMIO 0x42590010 (irq = 149, base_baud = 1500000) is a FSL_LPUART
-[    0.365889] serial serial0: tty port ttyLP4 registered
-[    0.367222] 44380000.serial: ttyLP0 at MMIO 0x44380010 (irq = 150, base_baud = 1500000) is a FSL_LPUART
-[    0.367339] printk: legacy console [ttyLP0] enabled
-[    0.375866] mali 4d900000.gpu: Kernel DDK version r54p1-11eac0
-[    0.376212] mali 4d900000.gpu: GPU metrics tracepoint support enabled
-[    0.377707] mali 4d900000.gpu: Register LUT 000a0a00 initialized for GPU arch 0x000a0c07
-[    0.377733] mali 4d900000.gpu: r0p0 status 1 not found in HW issues table;
-[    0.377739] mali 4d900000.gpu: falling back to closest match: r0p0 status 0
-[    0.377744] mali 4d900000.gpu: Execution proceeding normally with fallback match
-[    0.377748] mali 4d900000.gpu: GPU identified as 0x4 arch 10.12.7 r0p0 status 0
-[    0.378654] mali 4d900000.gpu: CSF_GPU_RESET_TIMEOUT is capped from 12400ms to 4500ms
-[    0.378667] mali 4d900000.gpu: CSF_GPU_SUSPEND_TIMEOUT is capped from 6200ms to 4500ms
-[    0.378673] mali 4d900000.gpu: KBASE_PRFCNT_ACTIVE_TIMEOUT is capped from 24000ms to 4500ms
-[    0.378679] mali 4d900000.gpu: KBASE_AS_INACTIVE_TIMEOUT is capped from 24000ms to 4500ms
-[    0.378684] mali 4d900000.gpu: CSF_FIRMWARE_STOP_TIMEOUT is capped from 24000ms to 4500ms
-[    0.378892] mali 4d900000.gpu: No priority control manager is configured
-[    0.378899] mali 4d900000.gpu: Large page support was disabled at compile-time!
-[    0.379127] mali 4d900000.gpu: No memory group manager is configured
-[    0.379135] mali 4d900000.gpu: Protected memory allocator not available
-[    0.380202] mali 4d900000.gpu: Using configured power model mali-tvax-power-model, and fallback mali-simple-power-model
-[    0.380227] mali 4d900000.gpu: OPP 0 : opp_freq=500000000 core_mask=1
-[    0.380235] mali 4d900000.gpu: OPP 1 : opp_freq=800000000 core_mask=1
-[    0.380243] mali 4d900000.gpu: OPP 2 : opp_freq=1000000000 core_mask=1
-[    0.382161] mali 4d900000.gpu: * MALI kbase_mmap_min_addr compiled to CONFIG_DEFAULT_MMAP_MIN_ADDR, no runtime update possible! *
-[    0.382174] mali 4d900000.gpu: Probed as mali0
-[    0.388989] pci-host-generic 4ca00000.pcie: host bridge /soc/netc-blk-ctrl@4cde0000/pcie@4ca00000 ranges:
-[    0.389022] pci-host-generic 4ca00000.pcie:      MEM 0x004cc00000..0x004ccdffff -> 0x004cc00000
-[    0.389040] pci-host-generic 4ca00000.pcie:      MEM 0x004cd00000..0x004cd0ffff -> 0x004cd00000
-[    0.389056] pci-host-generic 4ca00000.pcie:      MEM 0x004cd20000..0x004cd7ffff -> 0x004cd20000
-[    0.389067] pci-host-generic 4ca00000.pcie:      MEM 0x004cd80000..0x004cddffff -> 0x004cd80000
-[    0.389112] pci-host-generic 4ca00000.pcie: ECAM at [mem 0x4ca00000-0x4cafffff] for [bus 00]
-[    0.389351] pci-host-generic 4ca00000.pcie: PCI host bridge to bus 0001:00
-[    0.389364] pci_bus 0001:00: root bus resource [bus 00]
-[    0.389370] pci_bus 0001:00: root bus resource [mem 0x4cc00000-0x4ccdffff]
-[    0.389374] pci_bus 0001:00: root bus resource [mem 0x4cd00000-0x4cd0ffff pref]
-[    0.389379] pci_bus 0001:00: root bus resource [mem 0x4cd20000-0x4cd7ffff]
-[    0.389383] pci_bus 0001:00: root bus resource [mem 0x4cd80000-0x4cddffff pref]
-[    0.389468] pci 0001:00:00.0: [1131:e101] type 00 class 0x020001 PCIe Root Complex Integrated Endpoint
-[    0.389513] pci 0001:00:00.0: BAR 0 [mem 0x4cc00000-0x4cc3ffff 64bit]: from Enhanced Allocation, properties 0x0
-[    0.389520] pci 0001:00:00.0: VF BAR 2 [mem 0x4cd20000-0x4cd2ffff 64bit]: from Enhanced Allocation, properties 0x4
-[    0.389526] pci 0001:00:00.0: VF BAR 4 [mem 0x4cd80000-0x4cd8ffff 64bit pref]: from Enhanced Allocation, properties 0x3
-[    0.389546] pci 0001:00:00.0: PME# supported from D0 D3hot
-[    0.389558] pci 0001:00:00.0: VF BAR 0 [mem 0x4cd20000-0x4cd3ffff 64bit]: contains BAR 0 for 2 VFs
-[    0.389564] pci 0001:00:00.0: VF BAR 2 [mem 0x4cd80000-0x4cd9ffff 64bit pref]: contains BAR 2 for 2 VFs
-[    0.389956] pci 0001:00:01.0: [1131:e001] type 00 class 0x080700 PCIe Root Complex Event Collector
-[    0.390006] OF: /soc/netc-blk-ctrl@4cde0000/pcie@4ca00000: no msi-map translation for id 0x8 on (null)
-[    0.390848] pci 0001:00:08.0: [1131:e101] type 00 class 0x020001 PCIe Root Complex Integrated Endpoint
-[    0.390893] pci 0001:00:08.0: BAR 0 [mem 0x4cc40000-0x4cc7ffff 64bit]: from Enhanced Allocation, properties 0x0
-[    0.390901] pci 0001:00:08.0: VF BAR 2 [mem 0x4cd40000-0x4cd4ffff 64bit]: from Enhanced Allocation, properties 0x4
-[    0.390907] pci 0001:00:08.0: VF BAR 4 [mem 0x4cda0000-0x4cdaffff 64bit pref]: from Enhanced Allocation, properties 0x3
-[    0.390927] pci 0001:00:08.0: PME# supported from D0 D3hot
-[    0.390938] pci 0001:00:08.0: VF BAR 0 [mem 0x4cd40000-0x4cd5ffff 64bit]: contains BAR 0 for 2 VFs
-[    0.390944] pci 0001:00:08.0: VF BAR 2 [mem 0x4cda0000-0x4cdbffff 64bit pref]: contains BAR 2 for 2 VFs
-[    0.391780] pci 0001:00:10.0: [1131:e101] type 00 class 0x020001 PCIe Root Complex Integrated Endpoint
-[    0.391820] pci 0001:00:10.0: BAR 0 [mem 0x4cc80000-0x4ccbffff 64bit]: from Enhanced Allocation, properties 0x0
-[    0.391828] pci 0001:00:10.0: VF BAR 2 [mem 0x4cd60000-0x4cd6ffff 64bit]: from Enhanced Allocation, properties 0x4
-[    0.391834] pci 0001:00:10.0: VF BAR 4 [mem 0x4cdc0000-0x4cdcffff 64bit pref]: from Enhanced Allocation, properties 0x3
-[    0.391852] pci 0001:00:10.0: PME# supported from D0 D3hot
-[    0.391863] pci 0001:00:10.0: VF BAR 0 [mem 0x4cd60000-0x4cd7ffff 64bit]: contains BAR 0 for 2 VFs
-[    0.391868] pci 0001:00:10.0: VF BAR 2 [mem 0x4cdc0000-0x4cddffff 64bit pref]: contains BAR 2 for 2 VFs
-[    0.392572] pci 0001:00:18.0: [1131:ee02] type 00 class 0x088001 PCIe Root Complex Integrated Endpoint
-[    0.392609] pci 0001:00:18.0: BAR 0 [mem 0x4ccc0000-0x4ccdffff 64bit]: from Enhanced Allocation, properties 0x0
-[    0.392616] pci 0001:00:18.0: BAR 2 [mem 0x4cd00000-0x4cd0ffff 64bit pref]: from Enhanced Allocation, properties 0x1
-[    0.392633] pci 0001:00:18.0: PME# supported from D0 D3hot
-[    0.393295] pci_bus 0001:00: resource 4 [mem 0x4cc00000-0x4ccdffff]
-[    0.393302] pci_bus 0001:00: resource 5 [mem 0x4cd00000-0x4cd0ffff pref]
-[    0.393306] pci_bus 0001:00: resource 6 [mem 0x4cd20000-0x4cd7ffff]
-[    0.393311] pci_bus 0001:00: resource 7 [mem 0x4cd80000-0x4cddffff pref]
-[    0.393909] pciback 0001:00:00.0: Adding to iommu group 1
-[    0.394625] OF: /soc/netc-blk-ctrl@4cde0000/pcie@4ca00000: no iommu-map translation for id 0x8 on (null)
-[    0.394759] OF: /soc/netc-blk-ctrl@4cde0000/pcie@4ca00000: no iommu-map translation for id 0x8 on (null)
-[    0.395056] pcieport 0001:00:01.0: PME: Signaling with IRQ 238
-[    0.395680] pciback 0001:00:08.0: Adding to iommu group 2
-[    0.396314] pciback 0001:00:10.0: Adding to iommu group 3
-[    0.498163] fsl_enetc4 0001:00:10.0: enabling device (0000 -> 0002)
-[    0.498518] fsl_enetc4 0001:00:10.0: no MAC address specified for SI0, using 7a:20:3c:fc:3a:63
-[    0.504689] fsl_enetc4 0001:00:10.0: Failed to get PHY mode
-[    0.545865] fsl_enetc4 0001:00:10.0: probe with driver fsl_enetc4 failed with error -22
-[    0.546141] pciback 0001:00:18.0: Adding to iommu group 4
-[    0.546303] ptp_netc 0001:00:18.0: enabling device (0000 -> 0002)
-[    0.547808] pci-host-generic 4cb00000.pcie: host bridge /soc/netc-blk-ctrl@4cde0000/pcie@4cb00000 ranges:
-[    0.547838] pci-host-generic 4cb00000.pcie:      MEM 0x004cce0000..0x004ccfffff -> 0x004cce0000
-[    0.547852] pci-host-generic 4cb00000.pcie:      MEM 0x004cd10000..0x004cd1ffff -> 0x004cd10000
-[    0.547905] pci-host-generic 4cb00000.pcie: ECAM at [mem 0x4cb00000-0x4cbfffff] for [bus 01]
-[    0.548017] pci-host-generic 4cb00000.pcie: PCI host bridge to bus 0002:01
-[    0.548025] pci_bus 0002:01: root bus resource [bus 01]
-[    0.548030] pci_bus 0002:01: root bus resource [mem 0x4cce0000-0x4ccfffff]
-[    0.548034] pci_bus 0002:01: root bus resource [mem 0x4cd10000-0x4cd1ffff pref]
-[    0.548113] pci 0002:01:00.0: [1131:ee00] type 00 class 0x088001 PCIe Root Complex Integrated Endpoint
-[    0.548158] pci 0002:01:00.0: BAR 0 [mem 0x4cce0000-0x4ccfffff 64bit]: from Enhanced Allocation, properties 0x0
-[    0.548165] pci 0002:01:00.0: BAR 2 [mem 0x4cd10000-0x4cd1ffff 64bit pref]: from Enhanced Allocation, properties 0x1
-[    0.548185] pci 0002:01:00.0: PME# supported from D0 D3hot
-[    0.548549] pci 0002:01:01.0: [1131:e001] type 00 class 0x080700 PCIe Root Complex Event Collector
-[    0.551098] pci_bus 0002:01: resource 4 [mem 0x4cce0000-0x4ccfffff]
-[    0.551114] pci_bus 0002:01: resource 5 [mem 0x4cd10000-0x4cd1ffff pref]
-[    0.654172] fsl_enetc_mdio 0002:01:00.0: enabling device (0000 -> 0002)
-[    0.656390] pcieport 0002:01:01.0: PME: Signaling with IRQ 240
-[    0.657583] /soc/bus@42000000/i2c@42530000/tcpc@50: Fixed dependency cycle(s) with /soc/usb@4c010010/usb@4c100000
-[    0.657722] /soc/usb@4c010010/usb@4c100000: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50
-[    0.658518] dwc3 4c100000.usb: Adding to iommu group 5
-[    0.698437] sdhci-esdhc-imx 42850000.mmc: Adding to iommu group 6
-[    0.700061] imx-rproc imx95-cm7: Using LMM Protocol OPS
-[    0.700194] remoteproc remoteproc1: imx95-cm7 is available
-[    0.700240] remoteproc remoteproc1: attaching to imx95-cm7
-[    0.700287] imx-rproc imx95-cm7: lmm(1) not under Linux Control
-[    0.700292] imx-rproc imx95-cm7: lmm(1) powered on
-[    0.700961] rproc-virtio rproc-virtio.2.auto: assigned reserved memory node vdevbuffer@88020000
-[    0.701393] virtio_rpmsg_bus virtio0: rpmsg host is online
-[    0.701413] rproc-virtio rproc-virtio.2.auto: registered virtio0 (type 7)
-[    0.701424] rproc-virtio rproc-virtio.3.auto: assigned reserved memory node vdevbuffer@88020000
-[    0.701818] virtio_rpmsg_bus virtio1: rpmsg host is online
-[    0.701838] rproc-virtio rproc-virtio.3.auto: registered virtio1 (type 7)
-[    0.701842] remoteproc remoteproc1: remote processor imx95-cm7 is now attached
-[    0.702898] wave6-vpu-ctrl 4c4c0000.vpu-ctrl: boot phys_addr: 0x00000000a0000000, dma_addr: 0x00000000a0000000, size: 0x100000
-[    0.702924] wave6-vpu-ctrl 4c4c0000.vpu-ctrl: sram 0x0x00000000204c0000, 0x0x00000000204c0000, size 0x14800
-[    0.709316] virtio_rpmsg_bus virtio0: creating channel rpmsg-i2c-channel addr 0x1
-[    0.709511] i2c-rpmsg virtio0.rpmsg-i2c-channel.-1.1: new channel: 0x400 -> 0x1!
-[    0.730294] pca953x 1-0022: using AI
-[    0.730374] mmc0: SDHCI controller on 42850000.mmc [42850000.mmc] using ADMA
-[    0.735700] imx6q-pcie 4c300000.pcie: host bridge /soc/pcie@4c300000 ranges:
-[    0.735745] imx6q-pcie 4c300000.pcie:       IO 0x006ff00000..0x006fffffff -> 0x0000000000
-[    0.735761] imx6q-pcie 4c300000.pcie:      MEM 0x0910000000..0x098fffffff -> 0x0010000000
-[    0.807515] mmc0: new HS400 Enhanced strobe MMC card at address 0001
-[    0.808270] mmcblk0: mmc0:0001 C9A551 29.1 GiB
-[    0.809735]  mmcblk0: p1 p2 p3
-[    0.810532] mmcblk0boot0: mmc0:0001 C9A551 4.00 MiB
-[    0.811770] mmcblk0boot1: mmc0:0001 C9A551 4.00 MiB
-[    0.812937] mmcblk0rpmb: mmc0:0001 C9A551 16.0 MiB, chardev (234:0)
-[    0.846168] fsl_enetc_mdio 0002:01:00.0: enabling device (0000 -> 0002)
-[    0.942284] imx6q-pcie 4c300000.pcie: iATU: unroll T, 128 ob, 128 ib, align 4K, limit 1024G
-[    1.038159] imx6q-pcie 4c300000.pcie: PCIe Gen.3 x1 link up
-[    1.038339] imx6q-pcie 4c300000.pcie: PCI host bridge to bus 0000:00
-[    1.038351] pci_bus 0000:00: root bus resource [bus 00-ff]
-[    1.038358] pci_bus 0000:00: root bus resource [io  0x0000-0xfffff]
-[    1.038363] pci_bus 0000:00: root bus resource [mem 0x910000000-0x98fffffff] (bus address [0x10000000-0x8fffffff])
-[    1.038392] pci 0000:00:00.0: [1131:0000] type 01 class 0x060400 PCIe Root Port
-[    1.038408] pci 0000:00:00.0: BAR 0 [mem 0x00000000-0x000fffff]
-[    1.038418] pci 0000:00:00.0: ROM [mem 0x00000000-0x0000ffff pref]
-[    1.038423] pci 0000:00:00.0: PCI bridge to [bus 01-ff]
-[    1.038429] pci 0000:00:00.0:   bridge window [io  0x0000-0x0fff]
-[    1.038433] pci 0000:00:00.0:   bridge window [mem 0x00000000-0x000fffff]
-[    1.038440] pci 0000:00:00.0:   bridge window [mem 0x00000000-0x000fffff 64bit pref]
-[    1.038477] pci 0000:00:00.0: supports D1 D2
-[    1.038481] pci 0000:00:00.0: PME# supported from D0 D1 D3hot D3cold
-[    1.041068] pci 0000:01:00.0: Setting PCI class for LA9310 PCIe device
-[    1.041076] pci 0000:01:00.0: [1957:1c12] type 00 class 0x000280 PCIe Endpoint
-[    1.041113] pci 0000:01:00.0: BAR 0 [mem 0x00000000-0x0fffffff]
-[    1.041132] pci 0000:01:00.0: BAR 1 [mem 0x00000000-0x0001ffff]
-[    1.041158] pci 0000:01:00.0: BAR 2 [mem 0x00000000-0x007fffff 64bit pref]
-[    1.041199] pci 0000:01:00.0: ROM [mem 0x00000000-0x00ffffff pref]
-[    1.041341] pci 0000:01:00.0: PME# supported from D0 D3hot
-[    1.041720] pci 0000:00:00.0: bridge window [mem 0x910000000-0x927ffffff]: assigned
-[    1.041728] pci 0000:00:00.0: bridge window [mem 0x928000000-0x9287fffff 64bit pref]: assigned
-[    1.041733] pci 0000:00:00.0: BAR 0 [mem 0x928800000-0x9288fffff]: assigned
-[    1.041739] pci 0000:00:00.0: ROM [mem 0x928900000-0x92890ffff pref]: assigned
-[    1.041747] pci 0000:01:00.0: BAR 0 [mem 0x910000000-0x91fffffff]: assigned
-[    1.041757] pci 0000:01:00.0: ROM [mem 0x920000000-0x920ffffff pref]: assigned
-[    1.041762] pci 0000:01:00.0: BAR 2 [mem 0x928000000-0x9287fffff 64bit pref]: assigned
-[    1.041782] pci 0000:01:00.0: BAR 1 [mem 0x921000000-0x92101ffff]: assigned
-[    1.041792] pci 0000:00:00.0: PCI bridge to [bus 01-ff]
-[    1.041797] pci 0000:00:00.0:   bridge window [mem 0x910000000-0x927ffffff]
-[    1.041802] pci 0000:00:00.0:   bridge window [mem 0x928000000-0x9287fffff 64bit pref]
-[    1.041808] pci_bus 0000:00: resource 4 [io  0x0000-0xfffff]
-[    1.041812] pci_bus 0000:00: resource 5 [mem 0x910000000-0x98fffffff]
-[    1.041816] pci_bus 0000:01: resource 1 [mem 0x910000000-0x927ffffff]
-[    1.041820] pci_bus 0000:01: resource 2 [mem 0x928000000-0x9287fffff 64bit pref]
-[    1.041970] pciback 0000:00:00.0: Adding to iommu group 7
-[    1.042778] pcieport 0000:00:00.0: PME: Signaling with IRQ 248
-[    1.042906] pci 0000:01:00.0: Unkown board !
-[    1.043003] pciback 0000:01:00.0: Adding to iommu group 7
-[    1.060478] sdhci-esdhc-imx 42860000.mmc: Adding to iommu group 8
-[    1.061788] sdhci-esdhc-imx 42860000.mmc: Got CD GPIO
-[    1.093801] mmc1: SDHCI controller on 42860000.mmc [42860000.mmc] using ADMA
-[    1.150196] pca953x 1-0020: using no AI
-[    1.150279] pca953x 1-0020: failed writing register: -5
-[    1.150504] pca953x 1-0020: probe with driver pca953x failed with error -5
-[    1.262156] fsl_enetc4 0001:00:00.0: enabling device (0000 -> 0002)
-[    1.352099] mmc1: host does not support reading read-only switch, assuming write-enable
-[    1.374165] fsl_enetc4 0001:00:08.0: enabling device (0000 -> 0002)
-[    1.381095] imx_usb 4c200000.usb: Adding to iommu group 9
-[    1.382356] ci_hdrc ci_hdrc.0: stream 15 already in tree from dev 4c200000.usb
-[    1.385102] ci_hdrc ci_hdrc.0: EHCI Host Controller
-[    1.385122] ci_hdrc ci_hdrc.0: new USB bus registered, assigned bus number 1
-[    1.394168] ci_hdrc ci_hdrc.0: USB 2.0 started, EHCI 1.00
-[    1.394901] hub 1-0:1.0: USB hub found
-[    1.394930] hub 1-0:1.0: 1 port detected
-[    1.397294] imx95-ldb 4b0c0000.syscon:ldb@4: Failed to create device link (0x180) with 4b010000.syscon:bridge@8
-[    1.397931] sdhci-esdhc-imx 428b0000.mmc: Adding to iommu group 10
-[    1.398638] sdhci-esdhc-imx 428b0000.mmc: allocated mmc-pwrseq
-[    1.407640] [drm] Initialized imx95-dpu 1.0.0 for 4b400000.display-controller on minor 0
-[    1.407869] imx95-dpu 4b400000.display-controller: [drm] Cannot find any crtc or sizes
-[    1.408044] imx95-pixel-interleaver 4b0d0000.bridge: Failed to create device link (0x180) with 4b400000.display-controller
-[    1.408087] imx95-dpu 4b400000.display-controller: [drm] Cannot find any crtc or sizes
-[    1.409147] neutron 4ab00004.imx95-neutron: Adding to iommu group 11
-[    1.410004] neutron 4ab00004.imx95-neutron: created neutron device, name=neutron0
-[    1.410344] cfg80211: Loading compiled-in X.509 certificates for regulatory database
-[    1.411387] Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
-[    1.411925] Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
-[    1.412005] platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
-[    1.412012] platform regulatory.0: Falling back to sysfs fallback for: regulatory.db
-[    1.412161] clk: Disabling unused clocks
-[    1.416738] PM: genpd: Disabling unused power domains
-[    1.416920] ALSA device list:
-[    1.416926]   No soundcards found.
-[    1.452840] mmc2: SDHCI controller on 428b0000.mmc [428b0000.mmc] using ADMA
-[    1.512726] mmc1: new ultra high speed SDR104 SDHC card at address 0001
-[    1.513438] mmcblk1: mmc1:0001 SD16G 14.9 GiB
-[    1.515406]  mmcblk1: p1 p2 p3
-[    1.642158] usb 1-1: new high-speed USB device number 2 using ci_hdrc
-[    1.673345] mmc2: Failed to initialize a non-removable card
-[    1.788122] hub 1-1:1.0: USB hub found
-[    1.788219] hub 1-1:1.0: 4 ports detected
-[    4.656703] EXT4-fs (mmcblk0p3): mounted filesystem 6d693fdd-ccf5-4d63-80f4-298867d6b116 r/w with ordered data mode. Quota mode: none.
-[    4.656826] VFS: Mounted root (ext4 filesystem) on device 179:3.
-[    4.657685] devtmpfs: mounted
-[    4.659587] Freeing unused kernel memory: 4288K
-[    4.659766] Run /sbin/init as init process
-[    4.878333] systemd[1]: systemd 257.9-1~deb13u1 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +IPE +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBCRYPTSETUP_PLUGINS +LIBFDISK +PCRE2 +PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD +BPF_FRAMEWORK +BTF -XKBCOMMON -UTMP +SYSVINIT +LIBARCHIVE)
-[    4.878365] systemd[1]: Detected architecture arm64.
+[    0.052214] /soc/bus@44000000/sai@443b0000: Fixed dependency cycle(s) with /mqs1
+[    0.052377] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
+[    0.052397] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/bridge@4b0d0000/channel@1
+[    0.052431] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42540000/bridge@4c
+[    0.052450] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
+[    0.052484] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
+[    0.052499] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/display-controller@4b400000
+[    0.052518] /soc/display-controller@4b400000: Fixed dependency cycle(s) with /soc/bridge@4b0d0000/channel@1
+[    0.052538] /soc/phy@4c1f0040: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50/connector
+[    0.052565] /soc/usb@4c010010/usb@4c100000: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50
+[    0.052961] /soc/bus@42000000/i2c@42530000/tcpc@50: Fixed dependency cycle(s) with /soc/usb@4c010010/usb@4c100000
+[    0.052982] /soc/bus@42000000/i2c@42530000/tcpc@50/connector: Fixed dependency cycle(s) with /soc/phy@4c1f0040
+[    0.053011] /soc/bus@42000000/i2c@42540000/bridge@4c: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
+[    0.053574] /soc/bus@42000000/i2c@42530000/tcpc@50: Fixed dependency cycle(s) with /soc/usb@4c010010/usb@4c100000
+[    0.053595] /soc/bus@42000000/i2c@42530000/tcpc@50/connector: Fixed dependency cycle(s) with /soc/phy@4c1f0040
+[    0.053723] /soc/bus@42000000/i2c@42540000/bridge@4c: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
+[    0.055340] /soc/bus@44000000/sai@443b0000: Fixed dependency cycle(s) with /mqs1
+[    0.055983] /mqs1: Fixed dependency cycle(s) with /soc/bus@44000000/sai@443b0000
+[    0.056041] /soc/bus@44000000/sai@443b0000: Fixed dependency cycle(s) with /mqs1
+[    0.059018] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
+[    0.059042] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/bridge@4b0d0000/channel@1
+[    0.059266] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42540000/bridge@4c
+[    0.059287] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
+[    0.059471] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
+[    0.059486] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/display-controller@4b400000
+[    0.059595] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/display-controller@4b400000
+[    0.059674] /soc/display-controller@4b400000: Fixed dependency cycle(s) with /soc/bridge@4b0d0000/channel@1
+[    0.059836] /soc/bus@42000000/i2c@42530000/tcpc@50/connector: Fixed dependency cycle(s) with /soc/phy@4c1f0040
+[    0.059895] /soc/phy@4c1f0040: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50/connector
+[    0.060022] /soc/usb@4c010010/usb@4c100000: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50
+[    0.062942] /soc/bus@42000000/i2c@42540000/bridge@4c: Fixed dependency cycle(s) with /hdmi-connector
+[    0.063017] /hdmi-connector: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42540000/bridge@4c
+[    0.066367] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.066375] HugeTLB: 0 KiB vmemmap can be freed for a 1.00 GiB page
+[    0.066378] HugeTLB: registered 32.0 MiB page size, pre-allocated 0 pages
+[    0.066380] HugeTLB: 0 KiB vmemmap can be freed for a 32.0 MiB page
+[    0.066383] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.066385] HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.066388] HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
+[    0.066390] HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
+[    0.067973] ACPI: Interpreter disabled.
+[    0.068997] iommu: Default domain type: Passthrough (set via kernel command line)
+[    0.069780] SCSI subsystem initialized
+[    0.070121] usbcore: registered new interface driver usbfs
+[    0.070152] usbcore: registered new interface driver hub
+[    0.070182] usbcore: registered new device driver usb
+[    0.070955] mc: Linux media interface: v0.10
+[    0.070993] videodev: Linux video capture interface: v2.00
+[    0.071057] pps_core: LinuxPPS API ver. 1 registered
+[    0.071059] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.071071] PTP clock support registered
+[    0.071097] EDAC MC: Ver: 3.0.0
+[    0.071355] scmi_core: SCMI protocol bus registered
+[    0.071715] FPGA manager framework
+[    0.071790] Advanced Linux Sound Architecture Driver Initialized.
+[    0.072981] Bluetooth: Core ver 2.22
+[    0.073020] NET: Registered PF_BLUETOOTH protocol family
+[    0.073022] Bluetooth: HCI device and connection manager initialized
+[    0.073030] Bluetooth: HCI socket layer initialized
+[    0.073035] Bluetooth: L2CAP socket layer initialized
+[    0.073047] Bluetooth: SCO socket layer initialized
+[    0.073465] vgaarb: loaded
+[    0.073966] clocksource: Switched to clocksource arch_sys_counter
+[    0.074192] VFS: Disk quotas dquot_6.6.0
+[    0.074208] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.074443] pnp: PnP ACPI: disabled
+[    0.080945] NET: Registered PF_INET protocol family
+[    0.081133] IP idents hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+[    0.084662] tcp_listen_portaddr_hash hash table entries: 4096 (order: 5, 163840 bytes, linear)
+[    0.084797] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.084811] TCP established hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.085321] TCP bind hash table entries: 65536 (order: 10, 5242880 bytes, linear)
+[    0.088062] TCP: Hash tables configured (established 65536 bind 65536)
+[    0.088210] UDP hash table entries: 4096 (order: 6, 393216 bytes, linear)
+[    0.088455] UDP-Lite hash table entries: 4096 (order: 6, 393216 bytes, linear)
+[    0.088843] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.089279] RPC: Registered named UNIX socket transport module.
+[    0.089284] RPC: Registered udp transport module.
+[    0.089286] RPC: Registered tcp transport module.
+[    0.089288] RPC: Registered tcp-with-tls transport module.
+[    0.089290] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[    0.090028] NET: Registered PF_XDP protocol family
+[    0.090043] PCI: CLS 0 bytes, default 64
+[    0.093431] kvm [1]: nv: 554 coarse grained trap handlers
+[    0.093783] kvm [1]: IPA Size Limit: 40 bits
+[    0.093806] kvm [1]: GICv3: no GICV resource entry
+[    0.093810] kvm [1]: disabling GICv2 emulation
+[    0.093831] kvm [1]: GIC system register CPU interface enabled
+[    0.093860] kvm [1]: vgic interrupt IRQ17
+[    0.093895] kvm [1]: VHE mode initialized successfully
+[    0.095389] Initialise system trusted keyrings
+[    0.095603] workingset: timestamp_bits=42 max_order=21 bucket_order=0
+[    0.095894] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    0.096118] NFS: Registering the id_resolver key type
+[    0.096146] Key type id_resolver registered
+[    0.096149] Key type id_legacy registered
+[    0.096166] nfs4filelayout_init: NFSv4 File Layout Driver Registering...
+[    0.096170] nfs4flexfilelayout_init: NFSv4 Flexfile Layout Driver Registering...
+[    0.096259] jffs2: version 2.2. (NAND) © 2001-2006 Red Hat, Inc.
+[    0.096447] 9p: Installing v9fs 9p2000 file system support
+[    0.131083] Key type asymmetric registered
+[    0.131092] Asymmetric key parser 'x509' registered
+[    0.131148] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 243)
+[    0.131154] io scheduler mq-deadline registered
+[    0.131157] io scheduler kyber registered
+[    0.131191] io scheduler bfq registered
+[    0.139006] Bus freq driver module loaded
+[    0.144623] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[    0.147794] arm-smmu-v3 490d0000.iommu: ias 40-bit, oas 36-bit (features 0x0074deaf)
+[    0.148426] arm-smmu-v3 490d0000.iommu: allocated 65536 entries for cmdq
+[    0.149136] arm-smmu-v3 490d0000.iommu: allocated 32768 entries for evtq
+[    0.149145] arm-smmu-v3 490d0000.iommu: 2-level strtab only covers 25/32 bits of SID
+[    0.149940] arm-smmu-v3 490d0000.iommu: msi_domain absent - falling back to wired irqs
+[    0.162846] loop: module loaded
+[    0.164286] megasas: 07.727.03.00-rc1
+[    0.166610] SPI driver spidev has no spi_device_id for silabs,si5518
+[    0.167493] MACsec IEEE 802.1AE
+[    0.170402] tun: Universal TUN/TAP device driver, 1.6
+[    0.171029] thunder_xcv, ver 1.0
+[    0.171069] thunder_bgx, ver 1.0
+[    0.171107] nicpf, ver 1.0
+[    0.172432] hns3: Hisilicon Ethernet Network Driver for Hip08 Family - version
+[    0.172436] hns3: Copyright (c) 2017 Huawei Corporation.
+[    0.172496] hclge is initializing
+[    0.172532] e1000: Intel(R) PRO/1000 Network Driver
+[    0.172534] e1000: Copyright (c) 1999-2006 Intel Corporation.
+[    0.172573] e1000e: Intel(R) PRO/1000 Network Driver
+[    0.172575] e1000e: Copyright(c) 1999 - 2015 Intel Corporation.
+[    0.172611] igb: Intel(R) Gigabit Ethernet Network Driver
+[    0.172614] igb: Copyright (c) 2007-2014 Intel Corporation.
+[    0.172652] igbvf: Intel(R) Gigabit Virtual Function Network Driver
+[    0.172655] igbvf: Copyright (c) 2009 - 2012 Intel Corporation.
+[    0.172784] sky2: driver version 1.30
+[    0.173218] usbcore: registered new device driver r8152-cfgselector
+[    0.173260] usbcore: registered new interface driver r8152
+[    0.173796] VFIO - User Level meta-driver version: 0.3
+[    0.175944] usbcore: registered new interface driver uas
+[    0.175990] usbcore: registered new interface driver usb-storage
+[    0.176070] usbcore: registered new interface driver usbserial_generic
+[    0.176089] usbserial: USB Serial support registered for generic
+[    0.176115] usbcore: registered new interface driver ftdi_sio
+[    0.176131] usbserial: USB Serial support registered for FTDI USB Serial Device
+[    0.176163] usbcore: registered new interface driver usb_serial_simple
+[    0.176180] usbserial: USB Serial support registered for carelink
+[    0.176196] usbserial: USB Serial support registered for flashloader
+[    0.176211] usbserial: USB Serial support registered for funsoft
+[    0.176229] usbserial: USB Serial support registered for google
+[    0.176244] usbserial: USB Serial support registered for hp4x
+[    0.176259] usbserial: USB Serial support registered for kaufmann
+[    0.176274] usbserial: USB Serial support registered for libtransistor
+[    0.176289] usbserial: USB Serial support registered for moto_modem
+[    0.176308] usbserial: USB Serial support registered for motorola_tetra
+[    0.176323] usbserial: USB Serial support registered for nokia
+[    0.176338] usbserial: USB Serial support registered for novatel_gps
+[    0.176353] usbserial: USB Serial support registered for owon
+[    0.176368] usbserial: USB Serial support registered for siemens_mpi
+[    0.176384] usbserial: USB Serial support registered for suunto
+[    0.176398] usbserial: USB Serial support registered for vivopay
+[    0.176413] usbserial: USB Serial support registered for zio
+[    0.176454] usbcore: registered new interface driver usb_ehset_test
+[    0.179521] i2c_dev: i2c /dev entries driver
+[    0.183345] Bluetooth: HCI UART driver ver 2.3
+[    0.183355] Bluetooth: HCI UART protocol H4 registered
+[    0.183358] Bluetooth: HCI UART protocol BCSP registered
+[    0.183381] Bluetooth: HCI UART protocol LL registered
+[    0.183383] Bluetooth: HCI UART protocol ATH3K registered
+[    0.183400] Bluetooth: HCI UART protocol Three-wire (H5) registered
+[    0.183483] Bluetooth: HCI UART protocol Broadcom registered
+[    0.183500] Bluetooth: HCI UART protocol QCA registered
+[    0.184965] sdhci: Secure Digital Host Controller Interface driver
+[    0.184971] sdhci: Copyright(c) Pierre Ossman
+[    0.185341] Synopsys Designware Multimedia Card Interface Driver
+[    0.185800] sdhci-pltfm: SDHCI platform and OF driver helper
+[    0.190696] arm-scmi arm-scmi.0.auto: Using scmi_mailbox_transport
+[    0.190708] arm-scmi arm-scmi.0.auto: SCMI max-rx-timeout: 5000ms
+[    0.191918] arm-scmi arm-scmi.0.auto: SCMI Notifications - Core Enabled.
+[    0.192175] arm-scmi arm-scmi.0.auto: SCMI Protocol v2.1 'NXP:IMX' Firmware version 0x9
+[    0.195982] cpu cpu0: EM: invalid power: 0
+[    0.196344] scmi-perf-domain scmi_dev.5: Initialized 13 performance domains
+[    0.234903] scmi_module: Loaded SCMI Vendor Protocol 0x81 - NXP IMX 0
+[    0.234976] arm-scmi arm-scmi.0.auto: NXP SM BBM Version 1.0
+[    0.236798] scmi-imx-bbm-rtc scmi_dev.10: registered as rtc0
+[    0.237490] scmi-imx-bbm-rtc scmi_dev.10: setting system clock to 2026-11-17T17:54:47 UTC (1794938087)
+[    0.238029] scmi-imx-bbm-key scmi_dev.11: key code is not specified, using default KEY_POWER
+[    0.238306] input: scmi_dev.11 as /devices/platform/arm-scmi.0.auto/scmi_dev.11/input/input0
+[    0.239883] scmi_module: Loaded SCMI Vendor Protocol 0x82 - NXP IMX 0
+[    0.239941] arm-scmi arm-scmi.0.auto: NXP SM CPU Protocol Version 1.0
+[    0.239992] arm-scmi arm-scmi.0.auto: i.MX SM CPU: 9 cpus
+[    0.240040] arm-scmi arm-scmi.0.auto: i.MX CPU: name: m33p
+[    0.240087] arm-scmi arm-scmi.0.auto: i.MX CPU: name: m7p
+[    0.240134] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c0
+[    0.240180] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c1
+[    0.240225] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c2
+[    0.240271] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c3
+[    0.240317] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c4
+[    0.240363] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55c5
+[    0.240409] arm-scmi arm-scmi.0.auto: i.MX CPU: name: a55p
+[    0.240775] scmi_module: Loaded SCMI Vendor Protocol 0x84 - NXP IMX 0
+[    0.240828] arm-scmi arm-scmi.0.auto: NXP SM MISC Version 1.0
+[    0.240877] arm-scmi arm-scmi.0.auto: i.MX MISC NUM DEV CTRL: 7, NUM BRD CTRL: 7,NUM Reason: 32
+[    0.242447] scmi_module: Loaded SCMI Vendor Protocol 0x80 - NXP IMX 0
+[    0.242503] arm-scmi arm-scmi.0.auto: NXP SM LMM Version 1.1
+[    0.242553] arm-scmi arm-scmi.0.auto: i.MX LMM: 3 Logical Machines
+[    0.242642] arm-scmi arm-scmi.0.auto: Protocol 0x80 successfully negotiated version 0x10000
+[    0.246458] fsl-se secure-enclave-0: Successfully registered ele-trng
+[    0.246526] fsl-se secure-enclave-0: i.MX secure-enclave: hsm0 interface to firmware, configured.
+[    0.246789] random: crng init done
+[    0.247308] fsl-se secure-enclave-1: i.MX secure-enclave: v2x_dbg0 interface to firmware, configured.
+[    0.247778] fsl-se secure-enclave-2: i.MX secure-enclave: v2x_sv0 interface to firmware, configured.
+[    0.248210] fsl-se secure-enclave-3: i.MX secure-enclave: v2x_she0 interface to firmware, configured.
+[    0.248641] fsl-se secure-enclave-4: i.MX secure-enclave: v2x_sg0 interface to firmware, configured.
+[    0.249086] fsl-se secure-enclave-5: i.MX secure-enclave: v2x_sg1 interface to firmware, configured.
+[    0.249204] SMCCC: SOC_ID: ARCH_SOC_ID not implemented, skipping ....
+[    0.249451] usbcore: registered new interface driver usbhid
+[    0.249455] usbhid: USB HID core driver
+[    0.252344] remoteproc remoteproc0: neutron-rproc is available
+[    0.268375] hw perfevents: enabled with armv8_cortex_a55 PMU driver, 7 (0,8000003f) counters available
+[    0.272905]  cs_system_cfg: CoreSight Configuration manager initialised
+[    0.278089] pktgen: Packet Generator for packet performance testing. Version: 2.75
+[    0.279041] NET: Registered PF_LLC protocol family
+[    0.279119] GACT probability NOT on
+[    0.279130] Mirror/redirect action on
+[    0.279160] u32 classifier
+[    0.279161]     input device check on
+[    0.279193]     Actions configured
+[    0.279497] NET: Registered PF_INET6 protocol family
+[    0.280048] Segment Routing with IPv6
+[    0.280070] In-situ OAM (IOAM) with IPv6
+[    0.280112] NET: Registered PF_PACKET protocol family
+[    0.280133] bridge: filtering via arp/ip/ip6tables is no longer available by default. Update your scripts to load br_netfilter if you need this.
+[    0.280303] Bluetooth: RFCOMM TTY layer initialized
+[    0.280312] Bluetooth: RFCOMM socket layer initialized
+[    0.280337] Bluetooth: RFCOMM ver 1.11
+[    0.280345] Bluetooth: BNEP (Ethernet Emulation) ver 1.3
+[    0.280348] Bluetooth: BNEP filters: protocol multicast
+[    0.280358] Bluetooth: BNEP socket layer initialized
+[    0.280361] Bluetooth: HIDP (Human Interface Emulation) ver 1.2
+[    0.280366] Bluetooth: HIDP socket layer initialized
+[    0.280485] 8021q: 802.1Q VLAN Support v1.8
+[    0.280521] sctp: Hash tables configured (bind 64/102)
+[    0.280632] 9pnet: Installing 9P2000 support
+[    0.280745] Key type dns_resolver registered
+[    0.280908] NET: Registered PF_VSOCK protocol family
+[    0.302663] registered taskstats version 1
+[    0.302855] Loading compiled-in X.509 certificates
+[    0.312132] Demotion targets for Node 0: null
+[    0.331759] fsl-edma 42210000.dma-controller: Adding to iommu group 0
+[    0.345597] usb_phy_generic usbphynop: dummy supplies not allowed for exclusive requests (id=vbus)
+[    0.347394] /soc/usb@4c010010/usb@4c100000: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50
+[    0.347531] /soc/bus@42000000/i2c@42530000/tcpc@50: Fixed dependency cycle(s) with /soc/usb@4c010010/usb@4c100000
+[    0.347601] /soc/bus@42000000/i2c@42530000/tcpc@50/connector: Fixed dependency cycle(s) with /soc/phy@4c1f0040
+[    0.347774] i2c i2c-2: LPI2C adapter registered
+[    0.349888] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42540000/bridge@4c
+[    0.350075] /soc/bus@42000000/i2c@42540000/bridge@4c: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
+[    0.350190] i2c i2c-3: LPI2C adapter registered
+[    0.352928] i2c i2c-1: LPI2C adapter registered
+[    0.354357] imx8mq-usb-phy 4c1f0040.phy: supply vbus not found, using dummy regulator
+[    0.360595] /soc/bridge@4b0d0000/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
+[    0.360685] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
+[    0.360752] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/syscon@4b0c0000/ldb@4/channel@1
+[    0.360766] /soc/syscon@4b010000/bridge@8: Fixed dependency cycle(s) with /soc/bridge@4b0d0000/channel@1
+[    0.362480] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42540000/bridge@4c
+[    0.362558] /soc/syscon@4b0c0000/ldb@4/channel@1: Fixed dependency cycle(s) with /soc/syscon@4b010000/bridge@8
+[    0.366416] 42590000.serial: ttyLP4 at MMIO 0x42590010 (irq = 149, base_baud = 1500000) is a FSL_LPUART
+[    0.366562] serial serial0: tty port ttyLP4 registered
+[    0.367741] 44380000.serial: ttyLP0 at MMIO 0x44380010 (irq = 150, base_baud = 1500000) is a FSL_LPUART
+[    0.367867] printk: legacy console [ttyLP0] enabled
+[    0.376045] mali 4d900000.gpu: Kernel DDK version r54p1-11eac0
+[    0.376358] mali 4d900000.gpu: GPU metrics tracepoint support enabled
+[    0.377893] mali 4d900000.gpu: Register LUT 000a0a00 initialized for GPU arch 0x000a0c07
+[    0.377916] mali 4d900000.gpu: r0p0 status 1 not found in HW issues table;
+[    0.377921] mali 4d900000.gpu: falling back to closest match: r0p0 status 0
+[    0.377925] mali 4d900000.gpu: Execution proceeding normally with fallback match
+[    0.377928] mali 4d900000.gpu: GPU identified as 0x4 arch 10.12.7 r0p0 status 0
+[    0.378577] mali 4d900000.gpu: CSF_GPU_RESET_TIMEOUT is capped from 12400ms to 4500ms
+[    0.378587] mali 4d900000.gpu: CSF_GPU_SUSPEND_TIMEOUT is capped from 6200ms to 4500ms
+[    0.378592] mali 4d900000.gpu: KBASE_PRFCNT_ACTIVE_TIMEOUT is capped from 24000ms to 4500ms
+[    0.378596] mali 4d900000.gpu: KBASE_AS_INACTIVE_TIMEOUT is capped from 24000ms to 4500ms
+[    0.378600] mali 4d900000.gpu: CSF_FIRMWARE_STOP_TIMEOUT is capped from 24000ms to 4500ms
+[    0.378774] mali 4d900000.gpu: No priority control manager is configured
+[    0.378780] mali 4d900000.gpu: Large page support was disabled at compile-time!
+[    0.378900] mali 4d900000.gpu: No memory group manager is configured
+[    0.378907] mali 4d900000.gpu: Protected memory allocator not available
+[    0.379594] mali 4d900000.gpu: Using configured power model mali-tvax-power-model, and fallback mali-simple-power-model
+[    0.379614] mali 4d900000.gpu: OPP 0 : opp_freq=500000000 core_mask=1
+[    0.379621] mali 4d900000.gpu: OPP 1 : opp_freq=800000000 core_mask=1
+[    0.379629] mali 4d900000.gpu: OPP 2 : opp_freq=1000000000 core_mask=1
+[    0.381397] mali 4d900000.gpu: * MALI kbase_mmap_min_addr compiled to CONFIG_DEFAULT_MMAP_MIN_ADDR, no runtime update possible! *
+[    0.381409] mali 4d900000.gpu: Probed as mali0
+[    0.387924] pci-host-generic 4ca00000.pcie: host bridge /soc/netc-blk-ctrl@4cde0000/pcie@4ca00000 ranges:
+[    0.387958] pci-host-generic 4ca00000.pcie:      MEM 0x004cc00000..0x004ccdffff -> 0x004cc00000
+[    0.387977] pci-host-generic 4ca00000.pcie:      MEM 0x004cd00000..0x004cd0ffff -> 0x004cd00000
+[    0.387993] pci-host-generic 4ca00000.pcie:      MEM 0x004cd20000..0x004cd7ffff -> 0x004cd20000
+[    0.388004] pci-host-generic 4ca00000.pcie:      MEM 0x004cd80000..0x004cddffff -> 0x004cd80000
+[    0.388048] pci-host-generic 4ca00000.pcie: ECAM at [mem 0x4ca00000-0x4cafffff] for [bus 00]
+[    0.388275] pci-host-generic 4ca00000.pcie: PCI host bridge to bus 0001:00
+[    0.388288] pci_bus 0001:00: root bus resource [bus 00]
+[    0.388294] pci_bus 0001:00: root bus resource [mem 0x4cc00000-0x4ccdffff]
+[    0.388298] pci_bus 0001:00: root bus resource [mem 0x4cd00000-0x4cd0ffff pref]
+[    0.388303] pci_bus 0001:00: root bus resource [mem 0x4cd20000-0x4cd7ffff]
+[    0.388308] pci_bus 0001:00: root bus resource [mem 0x4cd80000-0x4cddffff pref]
+[    0.388391] pci 0001:00:00.0: [1131:e101] type 00 class 0x020001 PCIe Root Complex Integrated Endpoint
+[    0.388435] pci 0001:00:00.0: BAR 0 [mem 0x4cc00000-0x4cc3ffff 64bit]: from Enhanced Allocation, properties 0x0
+[    0.388442] pci 0001:00:00.0: VF BAR 2 [mem 0x4cd20000-0x4cd2ffff 64bit]: from Enhanced Allocation, properties 0x4
+[    0.388448] pci 0001:00:00.0: VF BAR 4 [mem 0x4cd80000-0x4cd8ffff 64bit pref]: from Enhanced Allocation, properties 0x3
+[    0.388468] pci 0001:00:00.0: PME# supported from D0 D3hot
+[    0.388479] pci 0001:00:00.0: VF BAR 0 [mem 0x4cd20000-0x4cd3ffff 64bit]: contains BAR 0 for 2 VFs
+[    0.388485] pci 0001:00:00.0: VF BAR 2 [mem 0x4cd80000-0x4cd9ffff 64bit pref]: contains BAR 2 for 2 VFs
+[    0.388870] pci 0001:00:01.0: [1131:e001] type 00 class 0x080700 PCIe Root Complex Event Collector
+[    0.388921] OF: /soc/netc-blk-ctrl@4cde0000/pcie@4ca00000: no msi-map translation for id 0x8 on (null)
+[    0.389631] pci 0001:00:08.0: [1131:e101] type 00 class 0x020001 PCIe Root Complex Integrated Endpoint
+[    0.389670] pci 0001:00:08.0: BAR 0 [mem 0x4cc40000-0x4cc7ffff 64bit]: from Enhanced Allocation, properties 0x0
+[    0.389678] pci 0001:00:08.0: VF BAR 2 [mem 0x4cd40000-0x4cd4ffff 64bit]: from Enhanced Allocation, properties 0x4
+[    0.389684] pci 0001:00:08.0: VF BAR 4 [mem 0x4cda0000-0x4cdaffff 64bit pref]: from Enhanced Allocation, properties 0x3
+[    0.389702] pci 0001:00:08.0: PME# supported from D0 D3hot
+[    0.389712] pci 0001:00:08.0: VF BAR 0 [mem 0x4cd40000-0x4cd5ffff 64bit]: contains BAR 0 for 2 VFs
+[    0.389718] pci 0001:00:08.0: VF BAR 2 [mem 0x4cda0000-0x4cdbffff 64bit pref]: contains BAR 2 for 2 VFs
+[    0.390651] pci 0001:00:10.0: [1131:e101] type 00 class 0x020001 PCIe Root Complex Integrated Endpoint
+[    0.390698] pci 0001:00:10.0: BAR 0 [mem 0x4cc80000-0x4ccbffff 64bit]: from Enhanced Allocation, properties 0x0
+[    0.390705] pci 0001:00:10.0: VF BAR 2 [mem 0x4cd60000-0x4cd6ffff 64bit]: from Enhanced Allocation, properties 0x4
+[    0.390711] pci 0001:00:10.0: VF BAR 4 [mem 0x4cdc0000-0x4cdcffff 64bit pref]: from Enhanced Allocation, properties 0x3
+[    0.390731] pci 0001:00:10.0: PME# supported from D0 D3hot
+[    0.390742] pci 0001:00:10.0: VF BAR 0 [mem 0x4cd60000-0x4cd7ffff 64bit]: contains BAR 0 for 2 VFs
+[    0.390748] pci 0001:00:10.0: VF BAR 2 [mem 0x4cdc0000-0x4cddffff 64bit pref]: contains BAR 2 for 2 VFs
+[    0.391481] pci 0001:00:18.0: [1131:ee02] type 00 class 0x088001 PCIe Root Complex Integrated Endpoint
+[    0.391521] pci 0001:00:18.0: BAR 0 [mem 0x4ccc0000-0x4ccdffff 64bit]: from Enhanced Allocation, properties 0x0
+[    0.391528] pci 0001:00:18.0: BAR 2 [mem 0x4cd00000-0x4cd0ffff 64bit pref]: from Enhanced Allocation, properties 0x1
+[    0.391547] pci 0001:00:18.0: PME# supported from D0 D3hot
+[    0.392214] pci_bus 0001:00: resource 4 [mem 0x4cc00000-0x4ccdffff]
+[    0.392222] pci_bus 0001:00: resource 5 [mem 0x4cd00000-0x4cd0ffff pref]
+[    0.392226] pci_bus 0001:00: resource 6 [mem 0x4cd20000-0x4cd7ffff]
+[    0.392230] pci_bus 0001:00: resource 7 [mem 0x4cd80000-0x4cddffff pref]
+[    0.392817] pciback 0001:00:00.0: Adding to iommu group 1
+[    0.393451] OF: /soc/netc-blk-ctrl@4cde0000/pcie@4ca00000: no iommu-map translation for id 0x8 on (null)
+[    0.393589] OF: /soc/netc-blk-ctrl@4cde0000/pcie@4ca00000: no iommu-map translation for id 0x8 on (null)
+[    0.393881] pcieport 0001:00:01.0: PME: Signaling with IRQ 238
+[    0.394594] pciback 0001:00:08.0: Adding to iommu group 2
+[    0.395230] pciback 0001:00:10.0: Adding to iommu group 3
+[    0.498039] fsl_enetc4 0001:00:10.0: enabling device (0000 -> 0002)
+[    0.498408] fsl_enetc4 0001:00:10.0: no MAC address specified for SI0, using 5e:6f:e2:0b:0c:6d
+[    0.503763] fsl_enetc4 0001:00:10.0: Failed to get PHY mode
+[    0.545022] fsl_enetc4 0001:00:10.0: probe with driver fsl_enetc4 failed with error -22
+[    0.545298] pciback 0001:00:18.0: Adding to iommu group 4
+[    0.545441] ptp_netc 0001:00:18.0: enabling device (0000 -> 0002)
+[    0.547139] pci-host-generic 4cb00000.pcie: host bridge /soc/netc-blk-ctrl@4cde0000/pcie@4cb00000 ranges:
+[    0.547175] pci-host-generic 4cb00000.pcie:      MEM 0x004cce0000..0x004ccfffff -> 0x004cce0000
+[    0.547189] pci-host-generic 4cb00000.pcie:      MEM 0x004cd10000..0x004cd1ffff -> 0x004cd10000
+[    0.547244] pci-host-generic 4cb00000.pcie: ECAM at [mem 0x4cb00000-0x4cbfffff] for [bus 01]
+[    0.547352] pci-host-generic 4cb00000.pcie: PCI host bridge to bus 0002:01
+[    0.547360] pci_bus 0002:01: root bus resource [bus 01]
+[    0.547364] pci_bus 0002:01: root bus resource [mem 0x4cce0000-0x4ccfffff]
+[    0.547369] pci_bus 0002:01: root bus resource [mem 0x4cd10000-0x4cd1ffff pref]
+[    0.547450] pci 0002:01:00.0: [1131:ee00] type 00 class 0x088001 PCIe Root Complex Integrated Endpoint
+[    0.547492] pci 0002:01:00.0: BAR 0 [mem 0x4cce0000-0x4ccfffff 64bit]: from Enhanced Allocation, properties 0x0
+[    0.547499] pci 0002:01:00.0: BAR 2 [mem 0x4cd10000-0x4cd1ffff 64bit pref]: from Enhanced Allocation, properties 0x1
+[    0.547519] pci 0002:01:00.0: PME# supported from D0 D3hot
+[    0.547878] pci 0002:01:01.0: [1131:e001] type 00 class 0x080700 PCIe Root Complex Event Collector
+[    0.550376] pci_bus 0002:01: resource 4 [mem 0x4cce0000-0x4ccfffff]
+[    0.550391] pci_bus 0002:01: resource 5 [mem 0x4cd10000-0x4cd1ffff pref]
+[    0.654029] fsl_enetc_mdio 0002:01:00.0: enabling device (0000 -> 0002)
+[    0.656097] pcieport 0002:01:01.0: PME: Signaling with IRQ 240
+[    0.657270] /soc/bus@42000000/i2c@42530000/tcpc@50: Fixed dependency cycle(s) with /soc/usb@4c010010/usb@4c100000
+[    0.657408] /soc/usb@4c010010/usb@4c100000: Fixed dependency cycle(s) with /soc/bus@42000000/i2c@42530000/tcpc@50
+[    0.658108] dwc3 4c100000.usb: Adding to iommu group 5
+[    0.695920] sdhci-esdhc-imx 42850000.mmc: Adding to iommu group 6
+[    0.697469] imx-rproc imx95-cm7: Using LMM Protocol OPS
+[    0.697596] remoteproc remoteproc1: imx95-cm7 is available
+[    0.697645] remoteproc remoteproc1: attaching to imx95-cm7
+[    0.697690] imx-rproc imx95-cm7: lmm(1) not under Linux Control
+[    0.697694] imx-rproc imx95-cm7: lmm(1) powered on
+[    0.698554] rproc-virtio rproc-virtio.2.auto: assigned reserved memory node vdevbuffer@88020000
+[    0.698985] virtio_rpmsg_bus virtio0: rpmsg host is online
+[    0.699011] rproc-virtio rproc-virtio.2.auto: registered virtio0 (type 7)
+[    0.699022] rproc-virtio rproc-virtio.3.auto: assigned reserved memory node vdevbuffer@88020000
+[    0.699432] virtio_rpmsg_bus virtio1: rpmsg host is online
+[    0.699451] rproc-virtio rproc-virtio.3.auto: registered virtio1 (type 7)
+[    0.699455] remoteproc remoteproc1: remote processor imx95-cm7 is now attached
+[    0.700426] wave6-vpu-ctrl 4c4c0000.vpu-ctrl: boot phys_addr: 0x00000000a0000000, dma_addr: 0x00000000a0000000, size: 0x100000
+[    0.700450] wave6-vpu-ctrl 4c4c0000.vpu-ctrl: sram 0x0x00000000204c0000, 0x0x00000000204c0000, size 0x14800
+[    0.710877] virtio_rpmsg_bus virtio0: creating channel rpmsg-i2c-channel addr 0x1
+[    0.711085] i2c-rpmsg virtio0.rpmsg-i2c-channel.-1.1: new channel: 0x400 -> 0x1!
+[    0.727935] mmc0: SDHCI controller on 42850000.mmc [42850000.mmc] using ADMA
+[    0.729143] pca953x 1-0022: using AI
+[    0.734599] imx6q-pcie 4c300000.pcie: host bridge /soc/pcie@4c300000 ranges:
+[    0.734643] imx6q-pcie 4c300000.pcie:       IO 0x006ff00000..0x006fffffff -> 0x0000000000
+[    0.734664] imx6q-pcie 4c300000.pcie:      MEM 0x0910000000..0x098fffffff -> 0x0010000000
+[    0.836771] mmc0: new HS400 Enhanced strobe MMC card at address 0001
+[    0.837527] mmcblk0: mmc0:0001 C9A551 29.1 GiB
+[    0.842015]  mmcblk0: p1 p2 p3
+[    0.842584] mmcblk0boot0: mmc0:0001 C9A551 4.00 MiB
+[    0.843708] mmcblk0boot1: mmc0:0001 C9A551 4.00 MiB
+[    0.844770] mmcblk0rpmb: mmc0:0001 C9A551 16.0 MiB, chardev (234:0)
+[    0.850086] fsl_enetc_mdio 0002:01:00.0: enabling device (0000 -> 0002)
+[    0.942158] imx6q-pcie 4c300000.pcie: iATU: unroll T, 128 ob, 128 ib, align 4K, limit 1024G
+[    1.038032] imx6q-pcie 4c300000.pcie: PCIe Gen.3 x1 link up
+[    1.038198] imx6q-pcie 4c300000.pcie: PCI host bridge to bus 0000:00
+[    1.038210] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    1.038217] pci_bus 0000:00: root bus resource [io  0x0000-0xfffff]
+[    1.038222] pci_bus 0000:00: root bus resource [mem 0x910000000-0x98fffffff] (bus address [0x10000000-0x8fffffff])
+[    1.038250] pci 0000:00:00.0: [1131:0000] type 01 class 0x060400 PCIe Root Port
+[    1.038266] pci 0000:00:00.0: BAR 0 [mem 0x00000000-0x000fffff]
+[    1.038276] pci 0000:00:00.0: ROM [mem 0x00000000-0x0000ffff pref]
+[    1.038280] pci 0000:00:00.0: PCI bridge to [bus 01-ff]
+[    1.038286] pci 0000:00:00.0:   bridge window [io  0x0000-0x0fff]
+[    1.038291] pci 0000:00:00.0:   bridge window [mem 0x00000000-0x000fffff]
+[    1.038297] pci 0000:00:00.0:   bridge window [mem 0x00000000-0x000fffff 64bit pref]
+[    1.038335] pci 0000:00:00.0: supports D1 D2
+[    1.038339] pci 0000:00:00.0: PME# supported from D0 D1 D3hot D3cold
+[    1.040914] pci 0000:01:00.0: Setting PCI class for LA9310 PCIe device
+[    1.040922] pci 0000:01:00.0: [1957:1c12] type 00 class 0x000280 PCIe Endpoint
+[    1.040957] pci 0000:01:00.0: BAR 0 [mem 0x00000000-0x0fffffff]
+[    1.040976] pci 0000:01:00.0: BAR 1 [mem 0x00000000-0x0001ffff]
+[    1.041002] pci 0000:01:00.0: BAR 2 [mem 0x00000000-0x007fffff 64bit pref]
+[    1.041042] pci 0000:01:00.0: ROM [mem 0x00000000-0x00ffffff pref]
+[    1.041182] pci 0000:01:00.0: PME# supported from D0 D3hot
+[    1.041534] pci 0000:00:00.0: bridge window [mem 0x910000000-0x927ffffff]: assigned
+[    1.041542] pci 0000:00:00.0: bridge window [mem 0x928000000-0x9287fffff 64bit pref]: assigned
+[    1.041547] pci 0000:00:00.0: BAR 0 [mem 0x928800000-0x9288fffff]: assigned
+[    1.041553] pci 0000:00:00.0: ROM [mem 0x928900000-0x92890ffff pref]: assigned
+[    1.041562] pci 0000:01:00.0: BAR 0 [mem 0x910000000-0x91fffffff]: assigned
+[    1.041571] pci 0000:01:00.0: ROM [mem 0x920000000-0x920ffffff pref]: assigned
+[    1.041576] pci 0000:01:00.0: BAR 2 [mem 0x928000000-0x9287fffff 64bit pref]: assigned
+[    1.041596] pci 0000:01:00.0: BAR 1 [mem 0x921000000-0x92101ffff]: assigned
+[    1.041606] pci 0000:00:00.0: PCI bridge to [bus 01-ff]
+[    1.041612] pci 0000:00:00.0:   bridge window [mem 0x910000000-0x927ffffff]
+[    1.041616] pci 0000:00:00.0:   bridge window [mem 0x928000000-0x9287fffff 64bit pref]
+[    1.041622] pci_bus 0000:00: resource 4 [io  0x0000-0xfffff]
+[    1.041626] pci_bus 0000:00: resource 5 [mem 0x910000000-0x98fffffff]
+[    1.041630] pci_bus 0000:01: resource 1 [mem 0x910000000-0x927ffffff]
+[    1.041634] pci_bus 0000:01: resource 2 [mem 0x928000000-0x9287fffff 64bit pref]
+[    1.041790] pciback 0000:00:00.0: Adding to iommu group 7
+[    1.042607] pcieport 0000:00:00.0: PME: Signaling with IRQ 248
+[    1.042736] pci 0000:01:00.0: Unkown board !
+[    1.042829] pciback 0000:01:00.0: Adding to iommu group 7
+[    1.063961] sdhci-esdhc-imx 42860000.mmc: Adding to iommu group 8
+[    1.064500] sdhci-esdhc-imx 42860000.mmc: Got CD GPIO
+[    1.096674] mmc1: SDHCI controller on 42860000.mmc [42860000.mmc] using ADMA
+[    1.154082] pca953x 1-0020: using no AI
+[    1.154162] pca953x 1-0020: failed writing register: -5
+[    1.154383] pca953x 1-0020: probe with driver pca953x failed with error -5
+[    1.266037] fsl_enetc4 0001:00:00.0: enabling device (0000 -> 0002)
+[    1.374035] fsl_enetc4 0001:00:08.0: enabling device (0000 -> 0002)
+[    1.380617] imx_usb 4c200000.usb: Adding to iommu group 9
+[    1.381629] ci_hdrc ci_hdrc.0: stream 15 already in tree from dev 4c200000.usb
+[    1.384391] ci_hdrc ci_hdrc.0: EHCI Host Controller
+[    1.384415] ci_hdrc ci_hdrc.0: new USB bus registered, assigned bus number 1
+[    1.393988] ci_hdrc ci_hdrc.0: USB 2.0 started, EHCI 1.00
+[    1.394676] hub 1-0:1.0: USB hub found
+[    1.394707] hub 1-0:1.0: 1 port detected
+[    1.396953] imx95-ldb 4b0c0000.syscon:ldb@4: Failed to create device link (0x180) with 4b010000.syscon:bridge@8
+[    1.397602] sdhci-esdhc-imx 428b0000.mmc: Adding to iommu group 10
+[    1.398270] sdhci-esdhc-imx 428b0000.mmc: allocated mmc-pwrseq
+[    1.407760] [drm] Initialized imx95-dpu 1.0.0 for 4b400000.display-controller on minor 0
+[    1.407987] imx95-dpu 4b400000.display-controller: [drm] Cannot find any crtc or sizes
+[    1.408152] imx95-pixel-interleaver 4b0d0000.bridge: Failed to create device link (0x180) with 4b400000.display-controller
+[    1.408196] imx95-dpu 4b400000.display-controller: [drm] Cannot find any crtc or sizes
+[    1.409221] neutron 4ab00004.imx95-neutron: Adding to iommu group 11
+[    1.410102] neutron 4ab00004.imx95-neutron: created neutron device, name=neutron0
+[    1.410361] cfg80211: Loading compiled-in X.509 certificates for regulatory database
+[    1.411411] Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+[    1.411911] Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+[    1.411996] platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+[    1.412002] platform regulatory.0: Falling back to sysfs fallback for: regulatory.db
+[    1.412145] clk: Disabling unused clocks
+[    1.416539] PM: genpd: Disabling unused power domains
+[    1.416673] ALSA device list:
+[    1.416691]   No soundcards found.
+[    1.452821] mmc2: SDHCI controller on 428b0000.mmc [428b0000.mmc] using ADMA
+[    1.597294] mmc1: host does not support reading read-only switch, assuming write-enable
+[    1.642038] usb 1-1: new high-speed USB device number 2 using ci_hdrc
+[    1.672860] mmc2: Failed to initialize a non-removable card
+[    1.757612] mmc1: new ultra high speed SDR104 SDHC card at address 0001
+[    1.758398] mmcblk1: mmc1:0001 SD16G 14.9 GiB
+[    1.760334]  mmcblk1: p1 p2 p3
+[    1.787678] hub 1-1:1.0: USB hub found
+[    1.787776] hub 1-1:1.0: 4 ports detected
+[    4.654353] EXT4-fs (mmcblk0p3): mounted filesystem 6d693fdd-ccf5-4d63-80f4-298867d6b116 r/w with ordered data mode. Quota mode: none.
+[    4.654467] VFS: Mounted root (ext4 filesystem) on device 179:3.
+[    4.655260] devtmpfs: mounted
+[    4.656392] Freeing unused kernel memory: 4288K
+[    4.656534] Run /sbin/init as init process
+[    4.858296] systemd[1]: systemd 257.9-1~deb13u1 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +IPE +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBCRYPTSETUP_PLUGINS +LIBFDISK +PCRE2 +PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD +BPF_FRAMEWORK +BTF -XKBCOMMON -UTMP +SYSVINIT +LIBARCHIVE)
+[    4.858357] systemd[1]: Detected architecture arm64.
 
 Welcome to Debian GNU/Linux 13 (trixie)!
 
-[    4.940672] systemd[1]: Hostname set to <imx95frdm>.
-[    5.246612] systemd[1]: bpf-restrict-fs: BPF LSM hook not enabled in the kernel, BPF LSM not supported.
-[    5.625572] systemd[1]: Queued start job for default target graphical.target.
-[  OK  ] Created slice system[    5.678306] systemd[1]: Created slice system-getty.slice - Slice /system/getty.
--getty.slice - Slice /system/getty.
-[  OK  ] Created slic[    5.700532] systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
-e system-modprobe.slice - Slice /system/modprobe.
-[  OK  ] Created slice [    5.727003] systemd[1]: Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
-system-serial\x2dget…slice - Slice /system/serial-getty.
-[  OK      5.757715] systemd[1]: Created slice user.slice - User and Session Slice.
-m] Created slice user.slice - User and Session Slice.
-[  OK  ] Started systemd-ask[    5.778829] systemd[1]: Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
--password-conso…equests to Console Directory Watch.
-[  OK  ] Started     5.807168] systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
-39msystemd-ask-password-wall.…d Requests to Wall Directory Watch.
-         Expecting device     5.834923] systemd[1]: proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point was skipped because of an unmet condition check (ConditionPathExists=/proc/sys/fs/binfmt_misc).
-mdev-disk-by\x2d[    5.835217] systemd[1]: Expecting device dev-disk-by\x2duuid-bed473c5\x2dc9c3\x2d4a8b\x2d9a31\x2d5752db4a8b24.device - /dev/disk/by-uuid/bed473c5-c9c3-4a8b-9a31-5752db4a8b24...
+[    4.920307] systemd[1]: Hostname set to <imx95frdm>.
+[    5.190692] systemd[1]: bpf-restrict-fs: BPF LSM hook not enabled in the kernel, BPF LSM not supported.
+[    5.577237] systemd[1]: Queued start job for default target graphical.target.
+[  OK      5.620165] systemd[1]: Created slice system-getty.slice - Slice /system/getty.
+m] Created slice system-getty.slice - Slice /system/getty.
+[  OK  ] Created slice[    5.646931] systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+ system-modprobe.slice - Slice /system/modprobe.
+[  OK  ] Created slice system[    5.674877] systemd[1]: Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
+-serial\x2dget…slice - Slice /system/serial-getty.
+[  OK  ] Created slice[    5.699675] systemd[1]: Created slice user.slice - User and Session Slice.
+ user.slice - User and Session Slice.
+[  OK  ] Started     5.719008] systemd[1]: Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
+;39msystemd-ask-password-conso…equests to Console Directory Watch.
+[  OK  ] Started     5.746978] systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+;39msystemd-ask-password-wall.…d Requests to Wall Directory Watch.
+         Expecting device     5.774807] systemd[1]: proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point was skipped because of an unmet condition check (ConditionPathExists=/proc/sys/fs/binfmt_misc).
+9mdev-disk-by\x2d[    5.775077] systemd[1]: Expecting device dev-disk-by\x2duuid-bed473c5\x2dc9c3\x2d4a8b\x2d9a31\x2d5752db4a8b24.device - /dev/disk/by-uuid/bed473c5-c9c3-4a8b-9a31-5752db4a8b24...
 uu…73c5-c9c3-4a8b-9a31-5752db4a8b24...
-         Expecting device dev-ttyLP0.devic[    5.886711] systemd[1]: Expecting device dev-ttyLP0.device - /dev/ttyLP0...
-e - /dev/ttyLP0...
-[  OK  ] Reached target nss-u[    5.906802] systemd[1]: Reached target nss-user-lookup.target - User and Group Name Lookups.
-ser-lookup.target - User and Group Name Lookups.
-[  OK  ] Reached target slice[    5.934805] systemd[1]: Reached target slices.target - Slice Units.
+         Expecting device dev-ttyLP0.de[    5.826247] systemd[1]: Expecting device dev-ttyLP0.device - /dev/ttyLP0...
+vice - /dev/ttyLP0...
+[  OK  ] Reached target nss-use[    5.846461] systemd[1]: Reached target nss-user-lookup.target - User and Group Name Lookups.
+r-lookup.target - User and Group Name Lookups.
+[  OK  ] Reached target slice[    5.870645] systemd[1]: Reached target slices.target - Slice Units.
 s.target - Slice Units.
-[  OK  ] Reached target swap.[    5.954492] systemd[1]: Reached target swap.target - Swaps.
-target - Swaps.
-[  OK      6.025433] systemd[1]: Listening on rpcbind.socket - RPCbind Server Activation Socket.
-m] Listening on rpcbind.socket - RPCbind Server Activation Socket.
-[  OK      6.064848] systemd[1]: Listening on systemd-creds.socket - Credential Encryption/Decryption.
+[  OK  ] Reached target swap.t[    5.890673] systemd[1]: Reached target swap.target - Swaps.
+arget - Swaps.
+[  OK  ] Listening on rpcbind.[    5.970462] systemd[1]: Listening on rpcbind.socket - RPCbind Server Activation Socket.
+socket - RPCbind Server Activation Socket.
+[  OK      6.004864] systemd[1]: Listening on systemd-creds.socket - Credential Encryption/Decryption.
 m] Listening on systemd-creds.socket - Credential Encryption/Decryption.
-[  OK  ] Listening on [    6.095461] systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
-systemd-initctl.socke…- initctl Compatibility Named Pipe.
-[  OK  ] Listening on systemd[    6.118995] systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+[  OK  ] Listening on  systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+[0;1;39msystemd-initctl.socke…- initctl Compatibility Named Pipe.
+[  OK  ] Listening on systemd[    6.058734] systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
 -journald-dev-…socket - Journal Socket (/dev/log).
-[  OK  ] Listening on systemd[    6.142956] systemd[1]: Listening on systemd-journald.socket - Journal Sockets.
--journald.socket - Journal Sockets.
-[  OK  ] Listening on [    6.167988] systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
+[  OK  ] Listening on [    6.083063] systemd[1]: Listening on systemd-journald.socket - Journal Sockets.
+systemd-journald.socket - Journal Sockets.
+[  OK  ] Listening on [    6.107921] systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
 systemd-networkd.socket - Network Service Netlink Socket.
-[  OK  ] Listening on [    6.190639] systemd[1]: systemd-pcrextend.socket - TPM PCR Measurements was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
-systemd[    6.190839] systemd[1]: systemd-pcrlock.socket - Make TPM PCR Policy was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
-[    6.191942] systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
--udevd-control.socket - udev Control Socket.
-[  OK  ] Listening on [    6.243215] systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
-systemd-udevd-kernel.socket - udev Kernel Socket.
-         Mounting dev-hugepages.mount    6.274813] systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
+[  OK  ] Listening on  systemd[1]: systemd-pcrextend.socket - TPM PCR Measurements was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    6.134812] systemd[1]: systemd-pcrlock.socket - Make TPM PCR Policy was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    6.135927] systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+[0;1;39msystemd-udevd-control.socket - udev Control Socket.
+[  OK  ] Listening on  systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+[0;1;39msystemd-udevd-kernel.socket - udev Kernel Socket.
+         Mounting dev-hugepages.mount    6.218615] systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
 m - Huge Pages File System...
-         Mounting[    6.297705] systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
- dev-mqueue.mount - POSIX Message Queue File System...
-         Mounting[    6.328986] systemd[1]: Mounting run-lock.mount - Legacy Locks Directory /run/lock...
- run-lock.mount - Legacy Locks Directory /run/lock...
-         Mounting[    6.353679] systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
- sys-kernel-debug.mount - Kernel Debug File System...
-[    6.374716] systemd[1]: sys-kernel-tracing.mount - Kernel Trace File System was skipped because of an unmet condition check (ConditionPathExists=/sys/kernel/tracing).
-[    6.378911] systemd[1]: Mounting tmp.mount - Temporary Directory /tmp...
-         Mounting tmp.m[    6.400387] systemd[1]: auth-rpcgss-module.service - Kernel Module supporting RPCSEC_GSS was skipped because of an unmet condition check (ConditionPathExists=/etc/krb5.keytab).
-[    6.400711] systemd[1]: kmod-static-nodes.service - Create List of Static Device Nodes was skipped because of an unmet condition check (ConditionFileNotEmpty=/lib/modules/6.12.34-rt11-g088030202a4b/modules.devname).
-ount - Tempor[    6.405143] systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
-ary Directory /tmp...
+         Mounting dev-mq[    6.283985] systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+ueue.mount - POSIX Message Queue File System...
+         Mounting run-loc[    6.339671] systemd[1]: Mounting run-lock.mount - Legacy Locks Directory /run/lock...
+k.mount - Legacy Locks Directory /run/lock...
+         Mounting sys-ke[    6.391737] systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+rnel-debug.mount - Kernel Debug File System...
+[    6.414572] systemd[1]: sys-kernel-tracing.mount - Kernel Trace File System was skipped because of an unmet condition check (ConditionPathExists=/sys/kernel/tracing).
+[    6.422804] systemd[1]: Mounting tmp.mount - Temporary Directory /tmp...
+         Mounting tmp.mo[    6.440244] systemd[1]: auth-rpcgss-module.service - Kernel Module supporting RPCSEC_GSS was skipped because of an unmet condition check (ConditionPathExists=/etc/krb5.keytab).
+[    6.440570] systemd[1]: kmod-static-nodes.service - Create List of Static Device Nodes was skipped because of an unmet condition check (ConditionFileNotEmpty=/lib/modules/6.12.34-rt11-strict-g088030202a4b/modules.devname).
+unt - Tempora[    6.444397] systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+ry Directory /tmp...
          Starting modprobe@configfs.service - Load Kernel Module configfs...
-         Starting modpro[    6.479794] systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
-be@drm.service - Load Kernel Module drm...
-         Starting[    6.504726] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
- modprobe@efi_pstore.servi… - Load Kernel Module efi_pstore...
-         Starting modprobe@fuse.service[    6.530921] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
- - Load Kernel Module fuse...
-[    6.555554] systemd[1]: systemd-fsck-root.service - File System Check on Root Device was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/).
-[    6.555898] systemd[1]: systemd-hibernate-clear.service - Clear Stale Hibernate Storage Info was skipped because of an unmet condition check (ConditionPathExists=/sys/firmware/efi/efivars/HibernateLocation-8cf2644b-4b0b-428f-9387-6d876050dc67).
-[    6.567510] systemd[1]: Starting systemd-journald.service - Journal Service...
-         Starting systemd-journald.servi[    6.606003] systemd[1]: Starting systemd-network-generator.service - Generate network units from Kernel command line...
-ce - Journal Service...
-         Starting systemd-network-genera[    6.631093] systemd[1]: systemd-pcrmachine.service - TPM PCR Machine ID Measurement was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
-[    6.639099] systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
-tor…k units from Kernel command line...
-         Starting systemd-remount-fs.servic…unt Root and Kernel File Systems...
-[    6.671246] systemd[1]: Starting systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully...
+         Starting[    6.528281] systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+ modprobe@drm.service - Load Kernel Module drm...
+         Starting modprobe@efi_pstore.se[    6.554737] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+rvi… - Load Kernel Module efi_pstore...
+         Starting modpro[    6.616305] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+be@fuse.service - Load Kernel Module fuse...
+[    6.642988] systemd[1]: systemd-fsck-root.service - File System Check on Root Device was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/).
+[    6.643209] systemd[1]: systemd-hibernate-clear.service - Clear Stale Hibernate Storage Info was skipped because of an unmet condition check (ConditionPathExists=/sys/firmware/efi/efivars/HibernateLocation-8cf2644b-4b0b-428f-9387-6d876050dc67).
+         Starting system[    6.692255] systemd[1]: Starting systemd-journald.service - Journal Service...
+d-journald.service - Journal Service...
+         Starting[    6.713767] systemd[1]: Starting systemd-network-generator.service - Generate network units from Kernel command line...
+ systemd-network-generator…k units from Kernel command line...
+[    6.742654] systemd[1]: systemd-pcrmachine.service - TPM PCR Machine ID Measurement was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    6.749035] systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+[    6.774275] systemd[1]: Starting systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully...
+
          Starting systemd-tmpfiles-setup-de… Device Nodes in /dev gracefully...
-[    6.698633] systemd[1]: systemd-tpm2-setup-early.service - Early TPM SRK Setup was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
-[    6.704746] systemd[1]: Starting systemd-udev-load-credentials.service - Load udev Rules from Credentials...
-         Starting systemd-udev-load-credent…Load udev Rules from Credentials...
-[    6.730298] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
-         Starting systemd-udev-trigger.s[    6.751014] EXT4-fs (mmcblk0p3): re-mounted 6d693fdd-ccf5-4d63-80f4-298867d6b116.
-ervice - Coldplug All udev Devices...
-[    6.765755] systemd-journald[319]: Collecting audit messages is disabled.
-[  OK  ] Mounted     6.787591] systemd[1]: Mounted dev-hugepages.mount - Huge Pages File System.
-;39mdev-hugepages.mount - Huge Pages File System.
-[  OK  ] Mounted dev-mqueue.m[    6.811191] systemd[1]: Mounted dev-mqueue.mount - POSIX Message Queue File System.
-ount - POSIX Message Queue File System.
-[  OK  ] Mounted     6.836364] systemd[1]: Mounted run-lock.mount - Legacy Locks Directory /run/lock.
-1;39mrun-lock.mount - Legacy Locks Directory /run/lock.
-[  OK  ] Mounted sys-kernel-d[    6.859217] systemd[1]: Mounted sys-kernel-debug.mount - Kernel Debug File System.
+[    6.810551] systemd[1]: systemd-tpm2-setup-early.service - Early TPM SRK Setup was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+         Starting[    6.837309] systemd[1]: Starting systemd-udev-load-credentials.service - Load udev Rules from Credentials...
+ systemd-udev-load-credent…Load udev Rules from Credentials...
+[    6.865716] systemd-journald[320]: Collecting audit messages is disabled.
+[    6.866241] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+         Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+[    6.889231] systemd[1]: Mounted dev-hugepages.mount - Huge Pages File System.
+[    6.890712] EXT4-fs (mmcblk0p3): re-mounted 6d693fdd-ccf5-4d63-80f4-298867d6b116.
+[  OK  ] Mounted dev-hugepages.mount - Huge Pages File System.
+[  OK      6.925542] systemd[1]: Mounted dev-mqueue.mount - POSIX Message Queue File System.
+m] Mounted dev-mqueue.mount - POSIX Message Queue File System.
+[  OK  ] Mounted     6.947114] systemd[1]: Mounted run-lock.mount - Legacy Locks Directory /run/lock.
+39mrun-lock.mount - Legacy Locks Directory /run/lock.
+[  OK  ] Mounted sys-kernel-d[    6.975089] systemd[1]: Mounted sys-kernel-debug.mount - Kernel Debug File System.
 ebug.mount - Kernel Debug File System.
-[  OK  ] Mounted tmp.mount    6.878927] systemd[1]: Mounted tmp.mount - Temporary Directory /tmp.
+[  OK  ] Mounted tmp.mount    6.998967] systemd[1]: Mounted tmp.mount - Temporary Directory /tmp.
 m - Temporary Directory /tmp.
-[  OK  ] Finished     6.903444] systemd[1]: modprobe@configfs.service: Deactivated successfully.
-1;39mmodprobe@co[    6.904211] systemd[1]: Finished modprobe@configfs.service - Load Kernel Module configfs.
-nfigfs.service - Load Kernel Module configfs.
-[  OK  ] Finished     6.935710] systemd[1]: modprobe@drm.service: Deactivated successfully.
-;1;39mmodprobe@d[    6.936424] systemd[1]: Finished modprobe@drm.service - Load Kernel Module drm.
-rm.service - Load Kernel Module drm.
-[  OK  ] Started     6.967235] systemd[1]: Started systemd-journald.service - Journal Service.
+[  OK  ] Finished     7.023498] systemd[1]: modprobe@configfs.service: Deactivated successfully.
+;39mmodprobe@con[    7.024258] systemd[1]: Finished modprobe@configfs.service - Load Kernel Module configfs.
+figfs.service - Load Kernel Module configfs.
+[  OK  ] Started     7.055290] systemd[1]: Started systemd-journald.service - Journal Service.
 ;39msystemd-journald.service - Journal Service.
+[  OK  ] Finished modprobe@drm.service - Load Kernel Module drm.
 [  OK  ] Finished modprobe@efi_pstore.service - Load Kernel Module efi_pstore.
 [  OK  ] Finished modprobe@fuse.service - Load Kernel Module fuse.
 [  OK  ] Finished systemd-network-generator…ork units from Kernel command line.
@@ -824,7 +822,7 @@ rm.service - Load Kernel Module drm.
          Mounting sys-kernel-config.mount - Kernel Configuration File System...
          Starting systemd-journal-flush.ser…sh Journal to Persistent Storage...
          Starting systemd-random-seed.service - Load/Save OS Random Seed...
-[    7.283725] systemd-journald[319]: Received client request to flush runtime journal.
+[    7.407926] systemd-journald[320]: Received client request to flush runtime journal.
          Starting systemd-timesyncd.service - Network Time Synchronization...
          Starting systemd-tmpfiles-setup-de…eate Static Device Nodes in /dev...
 [  OK  ] Mounted sys-kernel-config.mount - Kernel Configuration File System.
@@ -832,26 +830,34 @@ rm.service - Load Kernel Module drm.
 [  OK  ] Finished systemd-tmpfiles-setup-de…Create Static Device Nodes in /dev.
 [  OK  ] Reached target local-fs-pre.target…Preparation for Local File Systems.
          Starting systemd-udevd.service - R…ager for Device Events and Files...
-[  OK  ] Finished systemd-journal-flush.ser…lush Journal to Persistent Storage.
 [  OK  ] Finished systemd-udev-trigger.service - Coldplug All udev Devices.
+[  OK  ] Finished systemd-journal-flush.ser…lush Journal to Persistent Storage.
 [  OK  ] Started systemd-timesyncd.service - Network Time Synchronization.
-[  OK  ] Started systemd-udevd.service - Ru…anager for Device Events and Files.
 [  OK  ] Reached target time-set.target - System Time Set.
+[  OK  ] Started systemd-udevd.service - Ru…anager for Device Events and Files.
 [  OK  ] Found device dev-ttyLP0.device - /dev/ttyLP0.
 [  OK  ] Found device dev-disk-by\x2duuid-b…d473c5-c9c3-4a8b-9a31-5752db4a8b24.
-[    8.482390] cfg80211: failed to load regulatory.db
+[    8.662595] cfg80211: failed to load regulatory.db
          Mounting boot.mount - Boot Partition...
-[  OK  ] Reached target usb-gadget.target - Hardware activated USB gadget.
-[    8.811866] EXT4-fs (mmcblk0p1): mounted filesystem bed473c5-c9c3-4a8b-9a31-5752db4a8b24 r/w with ordered data mode. Quota mode: none.
+[    8.809567] EXT4-fs (mmcblk0p1): mounted filesystem bed473c5-c9c3-4a8b-9a31-5752db4a8b24 r/w with ordered data mode. Quota mode: none.
 [  OK  ] Mounted boot.mount - Boot Partition.
 [  OK  ] Reached target local-fs.target - Local File Systems.
 [  OK  ] Listening on systemd-sysext.socket… System Extension Image Management.
          Starting systemd-modules-load.service - Load Kernel Modules...
+[    8.916251] mxc-jpeg 4c500000.jpegdec: choose slot 0
+[    8.916994] mxc-jpeg 4c500000.jpegdec: decoder device registered as /dev/video2 (81,2)
+[    8.918283] mxc-jpeg 4c550000.jpegenc: choose slot 0
+[    8.919544] mxc-jpeg 4c550000.jpegenc: encoder device registered as /dev/video3 (81,3)
          Starting systemd-tmpfiles-setup.se…ate System Files and Directories...
+[  OK  ] Reached target usb-gadget.target - Hardware activated USB gadget.
+[    9.090309] fsl_ecat_enetc4 0001:00:10.0: enabling device (0000 -> 0002)
+[    9.090677] fsl_ecat_enetc4 0001:00:10.0: no MAC address specified for SI0, using fe:55:53:bb:70:69
 [  OK  ] Finished systemd-modules-load.service - Load Kernel Modules.
+[    9.161039] fsl_ecat_enetc4 0001:00:10.0: Failed to alloc MSI-X
+[    9.161897] fsl_ecat_enetc4 0001:00:10.0: Driver probe function unexpectedly returned 2
          Starting systemd-sysctl.service - Apply Kernel Variables...
-[  OK  ] Finished systemd-sysctl.service - Apply Kernel Variables.
 [  OK  ] Finished systemd-tmpfiles-setup.se…reate System Files and Directories.
+[  OK  ] Finished systemd-sysctl.service - Apply Kernel Variables.
          Mounting run-rpc_pipefs.mount - RPC Pipe File System...
          Starting rpcbind.service - RPC bind portmap service...
          Starting systemd-networkd.service - Network Configuration...
@@ -896,27 +902,27 @@ rm.service - Load Kernel Module drm.
 [  OK  ] Started seatd.service - Seat management daemon.
          Starting sysstat.service - Resets System Activity Logs...
          Starting systemd-logind.service - User Login Management...
-[   10.170357] fsl_enetc4 0001:00:08.0 eth1: PHY [0002:01:00.0:02] driver [YT8521 Gigabit Ethernet] (irq=POLL)
-[   10.170381] fsl_enetc4 0001:00:08.0 eth1: configuring for phy/rgmii-id link mode
-         Starting udisks2.service - Disk Manager...
+         Starting udisks2.service - [   10.337871] fsl_enetc4 0001:00:00.0 eth0: PHY [0002:01:00.0:01] driver [YT8521 Gigabit Ethernet] (irq=POLL)
+[   10.337894] fsl_enetc4 0001:00:00.0 eth0: configuring for phy/rgmii-id link mode
+
 [  OK  ] Started systemd-networkd.service - Network Configuration.
 [  OK  ] Started nfs-blkmap.service - pNFS block layout mapping daemon.
 [  OK  ] Finished sysstat.service - Resets System Activity Logs.
          Starting systemd-networkd-persiste…tent Storage in systemd-networkd...
+[  OK  ] Finished e2scrub_reap.service - Re…line ext4 Metadata Check Snapshots.
 [  OK  ] Started dbus.service - D-Bus System Message Bus.
          Starting NetworkManager.service - Network Manager...
 [  OK  ] Finished wtmpdb-update-boot.servic…oot and shutdown times into wtmpdb.
-         Starting polkit.service - Authorization Manager...
-[  OK  ] Finished e2scrub_reap.service - Re…line ext4 Metadata Check Snapshots.
 [  OK  ] Started systemd-logind.service - User Login Management.
-[   10.723187] fsl_enetc4 0001:00:00.0 eth0: PHY [0002:01:00.0:01] driver [YT8521 Gigabit Ethernet] (irq=POLL)
-[   10.723209] fsl_enetc4 0001:00:00.0 eth0: configuring for phy/rgmii-id link mode
+         Starting polkit.service - Authorization Manager...
+[  OK  ] Finished    10.945461] fsl_enetc4 0001:00:08.0 eth1: PHY [0002:01:00.0:02] driver [YT8521 Gigabit Ethernet] (irq=POLL)
+1;39msystemd-netw[   10.945480] fsl_enetc4 0001:00:08.0 eth1: configuring for phy/rgmii-id link mode
+orkd-persiste…istent Storage in systemd-networkd.
 [  OK  ] Started polkit.service - Authorization Manager.
+[  OK  ] Finished lm-sensors.service - Initialize hardware monitoring sensors.
 [  OK  ] Started accounts-daemon.service - Accounts Service.
 [  OK  ] Started udisks2.service - Disk Manager.
-[  OK  ] Finished systemd-networkd-persiste…istent Storage in systemd-networkd.
          Starting systemd-hostnamed.service - Hostname Service...
-[  OK  ] Finished lm-sensors.service - Initialize hardware monitoring sensors.
 [  OK  ] Started systemd-hostnamed.service - Hostname Service.
          Starting NetworkManager-dispatcher…anager Script Dispatcher Service...
 [  OK  ] Started NetworkManager.service - Network Manager.
@@ -928,30 +934,32 @@ rm.service - Load Kernel Module drm.
          Starting ssh.service - OpenBSD Secure Shell server...
 [  OK  ] Started strongswan-starter.service…KEv1/IKEv2 daemon using ipsec.conf.
          Starting systemd-user-sessions.service - Permit User Sessions...
-[  OK  ] Started rpc-statd-notify.service - Notify NFS peers of a restart.
 [  OK  ] Started cups.service - CUPS Scheduler.
+[  OK  ] Started rpc-statd-notify.service - Notify NFS peers of a restart.
 [  OK  ] Finished systemd-user-sessions.service - Permit User Sessions.
 [  OK  ] Started NetworkManager-dispatcher.… Manager Script Dispatcher Service.
+[  OK  ] Started ssh.service - OpenBSD Secure Shell server.
          Starting gdm.service - GNOME Display Manager...
 [  OK  ] Started serial-getty@ttyLP0.service - Serial Getty on ttyLP0.
 [  OK  ] Reached target getty.target - Login Prompts.
-[  OK  ] Started ssh.service - OpenBSD Secure Shell server.
 [  OK  ] Started mosquitto.service - Mosquitto MQTT Broker.
 [  OK  ] Reached target multi-user.target - Multi-User System.
 [  OK  ] Started gdm.service - GNOME Display Manager.
 [  OK  ] Reached target graphical.target - Graphical Interface.
+                                                                                                                                                                   [   13.383056] fsl_enetc4 0001:00:00.0 eth0: Link is Up - 1Gbps/Full - flow control off
 
 Debian GNU/Linux 13 imx95frdm ttyLP0
 
 NXP Debian Linux SDK lsdk2512 (optimized with NXP-specific hardware acceleration)
-imx95frdm login: [   13.788393] fsl_enetc4 0001:00:00.0 eth0: Link is Up - 1Gbps/Full - flow control off
-[   15.783997] mali 4d900000.gpu: Loading Mali firmware 0x1050000
-[   15.785770] mali 4d900000.gpu: Protected memory allocator not found, Firmware protected mode entry will not be supported
-[   15.786288] mali 4d900000.gpu: Mali firmware git_sha: b4dcf17cf29aa345b70c70f3efcba130a53ffb30
-[   15.790018] mali 4d900000.gpu: CSF_SCHED_PROTM_PROGRESS_TIMEOUT is capped from 20971ms to 4500ms
-[   15.801807] mali 4d900000.gpu: Clearing BASE_MEM_UNCACHED_GPU flag to avoid MMA violation
+imx95frdm login: [   16.061766] mali 4d900000.gpu: Loading Mali firmware 0x1050000
+[   16.063661] mali 4d900000.gpu: Protected memory allocator not found, Firmware protected mode entry will not be supported
+[   16.064046] mali 4d900000.gpu: Mali firmware git_sha: b4dcf17cf29aa345b70c70f3efcba130a53ffb30
+[   16.067648] mali 4d900000.gpu: CSF_SCHED_PROTM_PROGRESS_TIMEOUT is capped from 20971ms to 4500ms
+[   16.079203] mali 4d900000.gpu: Clearing BASE_MEM_UNCACHED_GPU flag to avoid MMA violation
+[   19.423992] platform sound-micfil: deferred probe pending: imx-card: micfil hifi: error getting cpu dai info
+[   19.424005] platform sound-mqs: deferred probe pending: asoc-audio-graph-card2: parse error
 root
-Linux imx95frdm 6.12.34-rt11-g088030202a4b #2 SMP PREEMPT_RT Wed Apr 22 15:04:42 CEST 2026 aarch64
+Linux imx95frdm 6.12.34-rt11-strict-g088030202a4b #1 SMP PREEMPT_RT Tue Nov 17 16:09:07 CET 2026 aarch64
 
 The programs included with the Debian GNU/Linux system are free software;
 the exact distribution terms for each program are described in the
@@ -961,104 +969,97 @@ Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
 permitted by applicable law.
 root@imx95frdm:~#
 root@imx95frdm:~#
-root@imx95frdm:~#
-root@imx95frdm:~#
 root@imx95frdm:~# cd host_utils/
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils# ./load-la9310.sh
-hexdump: /sys/firmware/devicetree/base/reserved-memory/la93@*/reg: No such file or directory
-hexdump: all input file arguments failed
-hexdump: /sys/firmware/devicetree/base/reserved-memory/la93@*/reg: No such file or directory
-hexdump: all input file arguments failed
-insmod /lib/modules/6.12.34-rt11-g088030202a4b/extra/la9310shiva.ko scratch_buf_size=0x scratch_buf_phys_addr=0x adc_mask=0xf adc_rate_mask=0xf dac_mask=0x1 dac_rate_mask=0x1 alt_firmware_name=la9310_dfe.bin alt_vspa_fw_name=apm-iqplayer.eld
-[   29.968304] la9310shiva: loading out-of-tree module taints kernel.
-[   29.970027] la9310shiva: unknown parameter 'scratch_buf_size' ignored
-[   29.970039] la9310shiva: unknown parameter 'scratch_buf_phys_addr' ignored
-[   29.970372] NXP PCIe LA9310 Driver: Init.
-[   29.970797] la9310_wdog: Node missing in DTB, skip wdog config
-[   29.970803] LA9310 IPC driver: major_nr 507, minor 0
-[   29.970998] NXP-LA9310-Driver 0000:01:00.0: enabling device (0000 -> 0002)
-[   29.971046] NXP-LA9310-Driver 0000:01:00.0: max payload size    rc:256 ep:256
-[   29.971067] NXP-LA9310-Driver 0000:01:00.0: Init - shiva0 !
-[   29.971070] NXP-LA9310-Driver 0000:01:00.0: BAR:0  addr:0x910000000 len:0x10000000
-[   29.971075] NXP-LA9310-Driver 0000:01:00.0: BAR:1  addr:0x921000000 len:0x20000
-[   29.971079] NXP-LA9310-Driver 0000:01:00.0: BAR:2  addr:0x928000000 len:0x800000
-[   29.971114] NXP-LA9310-Driver 0000:01:00.0: mem[0] phy 910000000, vaddr ffff8000a0000000
-[   29.971127] NXP-LA9310-Driver 0000:01:00.0: mem[1] phy 921000000, vaddr ffff800083b00000
-[   29.971135] NXP-LA9310-Driver 0000:01:00.0: mem[2] phy 928000000, vaddr ffff800088000000
-[   29.971628] NXP-LA9310-Driver 0000:01:00.0: 8 MSI successfully created
-[   29.977218] NXP-LA9310-Driver 0000:01:00.0: Scratch buffer size: 31560256, va:0xffff0000b6000000 pa:0x136000000 bus:0x136000000
-[   29.977237] NXP-LA9310-Driver 0000:01:00.0: Virtual address after ioremap=ffff0000b6000000
-[   29.983148] NXP-LA9310-Driver 0000:01:00.0: Scratch buf DMA ATU done
-[   29.983158] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[4] offset 0
-[   29.983164] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000b6000000, EP Phys 0xa0000000, size 2097152
-[   29.983170] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000b6200000, size 64 New offset - 0x200040
-[   29.983176] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[5] offset 2097216
-[   29.983181] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000b6200040, EP Phys 0xa0200040, size 0
-[   29.983186] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000b6200040, size 64 New offset - 0x200080
-[   29.983191] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[6] offset 2097280
-[   29.983195] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000b6200080, EP Phys 0xa0200080, size 98304
-[   29.983201] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000b6218080, size 64 New offset - 0x2180c0
-[   29.983206] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[7] offset 2195648
-[   29.983210] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000b62180c0, EP Phys 0xa02180c0, size 4096
-[   29.983216] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000b62190c0, size 64 New offset - 0x219100
-[   29.983221] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[8] offset 2199808
-[   29.983225] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000b6219100, EP Phys 0xa0219100, size 20971520
-[   29.983230] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000b7619100, size 64 New offset - 0x1619140
-[   29.983235] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[9] offset 23171392
-[   29.983240] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000b7619140, EP Phys 0xa1619140, size 8388608
-[   29.983245] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000b7e19140, size 64 New offset - 0x1e19180
-[   29.983250] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[10] offset 31560064
-[   29.983254] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000b7e19180, EP Phys 0xa1e19180, size 131072
-[   29.983260] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000b7e39180, size 64 New offset - 0x1e391c0
-[   29.983265] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[11] offset 31691200
-[   29.983270] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000b7e391c0, EP Phys 0xa1e391c0, size 204800
-[   29.983275] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000b7e6b1c0, size 64 New offset - 0x1e6b200
-[   29.987601] NXP-LA9310-Driver 0000:01:00.0: IQ Flood Buffer size: 33554432, va:0xffff0000b8000000 pa:0x138000000 bus:0x138000000
-[   29.987617] NXP-LA9310-Driver 0000:01:00.0: SDR IQFLOOD Buff:0xb0001000[H]-0x138000000[M],size 33554432
-[   29.987757] NXP-LA9310-Driver 0000:01:00.0: LA9310 Logger init vaddr ffff0000b62180c0, phys a02180c0, size 4096
-[   29.988085] NXP-LA9310-Driver 0000:01:00.0: Created sysfs group la9310sysfs
-[   29.988094] NXP-LA9310-Driver 0000:01:00.0: shiva0: Loading RTOS image
-[   29.989369] NXP-LA9310-Driver 0000:01:00.0: Downloaded f/w at 0xffff800083a1d000 size: 74932
-[   29.989381] NXP-LA9310-Driver 0000:01:00.0: Copy fw to ffff0000b6200080, size 74932
-[   29.989433] NXP-LA9310-Driver 0000:01:00.0: load_firmware[la9310_dfe.bin] - Addr ffff0000b6200080, size 74932
-[   29.989455] NXP-LA9310-Driver 0000:01:00.0: Waiting for FreeRTOS boot.
-[   29.989458] NXP-LA9310-Driver 0000:01:00.0: [Sync fw upgrade] Waiting for FreeRTOS to write 1
-[   30.151904] NXP-LA9310-Driver 0000:01:00.0: LA9310 FreeRTOS booted succesfully: 0x1
-[   30.151917] NXP-LA9310-Driver 0000:01:00.0: shiva0: Initiating Reset handshake
-[   30.151921] NXP-LA9310-Driver 0000:01:00.0: [Reset HS] Waiting for FreeRTOS to write 3
-[   30.182263] NXP-LA9310-Driver 0000:01:00.0: LA9310 Reset HandShake done, scratch 0x3
-[   30.182273] NXP-LA9310-Driver 0000:01:00.0: Reset HandShake: Done. HIF 0x1b000, size 0x328 (808)
-[   30.182279] NXP-LA9310-Driver 0000:01:00.0: HIF Version : 1.0
-[   30.182283] NXP-LA9310-Driver 0000:01:00.0: num_irq 6
-[   30.182287] NXP-LA9310-Driver 0000:01:00.0: CCSR: vaddr ffff8000a0000000, size 268435456
-[   30.182294] NXP-LA9310-Driver 0000:01:00.0: MSI:ATU: DBI 0xffff8000a3400054, DMA 48050040, EP b0000000
-[   30.182827] NXP-LA9310-Driver 0000:01:00.0: irq mux 283 allocated successfully
-[   30.182836] NXP-LA9310-Driver 0000:01:00.0: shiva0:Initiating sub-drivers
-[   30.182843] NXP-LA9310-Driver 0000:01:00.0: VIRQ MASK not defined for subdrv TVD
-[   30.183109] NXP-LA9310-Driver 0000:01:00.0: VIRQ MASK not defined for subdrv TTI
-[   30.183308] NXP-LA9310-Driver 0000:01:00.0: virqmap init, evtmask f, count 4
-[   30.183312] NXP-LA9310-Driver 0000:01:00.0: Inside la9310_ipc_probe function K_hif=328
-[   30.284018] NXP-LA9310-Driver 0000:01:00.0: IPC modem is ready!
-[   30.284035] NXP-LA9310-Driver 0000:01:00.0: Exiting function la9310_ipc_probe
-[   30.284077] NXP-LA9310-Driver 0000:01:00.0: virqmap init, evtmask 10, count 1
-[   30.284470] NXP-LA9310-Driver 0000:01:00.0: shiva0-vspa0: hwver 0x02011500, 16 AUs, dmem 6400 bytes
-[   30.284479] NXP-LA9310-Driver 0000:01:00.0: INFO:vspa_probe : VSPA Loading firmware initiated-
-[   30.285241] NXP-LA9310-Driver 0000:01:00.0: Downloaded f/w at 0xffff8000879ea000 size: 851540
-[   30.285257] NXP-LA9310-Driver 0000:01:00.0: Copy fw to ffff0000b6000000, size 851540
-[   30.908729] NXP-LA9310-Driver 0000:01:00.0: Section Name: .IQ_data_ovl_ddr found
-[   30.908770] NXP-LA9310-Driver 0000:01:00.0: Section Name: .CAL_ovl_ddr found
-[   31.117031] NXP-LA9310-Driver 0000:01:00.0: INFO:vspa_probe :VSPA FW image apm-iqplayer.eld loading finished
-[   31.117065] NXP-LA9310-Driver 0000:01:00.0: Boot Ok Msg Verified: msb = F1000000, lsb = 00000000
-[   31.117082] NXP-LA9310-Driver 0000:01:00.0: SW Version: vspa = 00020002, ippu = 00000000
-[   31.117097] NXP-LA9310-Driver 0000:01:00.0: SPM Ack Msg: msb = F0700000, lsb = 00000000
-[   31.117161] NXP-LA9310-Driver 0000:01:00.0: virqmap init, evtmask 80, count 1
-[   31.118073] NXP-LA9310-Driver 0000:01:00.0: Probed OK, la9310_base_probe  Time elasped 1148 msec
-[   31.118423] Created sysfs group (null)
-[   31.118433] PCIe LA9310 driver total elasped time 1148 msec
-iqflood_addr 0x138000000
+root@imx95frdm:~/host_utils# ./iq-app-rx.sh -X
+***ERROR: cannot retrieve IQFLOOD region - is la9310shiva loaded?
+root@imx95frdm:~/host_utils# ./load-limesdr-micro.sh
+insmod /lib/modules/6.12.34-rt11-strict-g088030202a4b/extra/la9310shiva.ko adc_mask=0xf adc_rate_mask=0xf dac_mask=0x1 dac_rate_mask=0x1 alt_firmware_name=la9310[   79.012802] la9310shiva: loading out-of-tree module taints kernel.
+_dfe.bin alt_vspa[   79.014973] NXP PCIe LA9310 Driver: Init.
+[   79.015450] la9310_wdog: Node missing in DTB, skip wdog config
+[   79.015461] LA9310 IPC driver: major_nr 507, minor 0
+[   79.015714] NXP-LA9310-Driver 0000:01:00.0: enabling device (0000 -> 0002)
+[   79.015772] NXP-LA9310-Driver 0000:01:00.0: max payload size    rc:256 ep:256
+[   79.015787] NXP-LA9310-Driver 0000:01:00.0: Init - shiva0 !
+[   79.015791] NXP-LA9310-Driver 0000:01:00.0: BAR:0  addr:0x910000000 len:0x10000000
+
+[   79.015795] NXP-LA9310-Driver 0000:01:00.0: BAR:1  addr:0x921000000 len:0x20000
+[   79.015799] NXP-LA9310-Driver 0000:01:00.0: BAR:2  addr:0x928000000 len:0x800000
+[   79.015835] NXP-LA9310-Driver 0000:01:00.0: mem[0] phy 910000000, vaddr ffff8000a0000000
+[   79.015854] NXP-LA9310-Driver 0000:01:00.0: mem[1] phy 921000000, vaddr ffff8000867e0000
+[   79.015863] NXP-LA9310-Driver 0000:01:00.0: mem[2] phy 928000000, vaddr ffff800087800000
+[   79.016307] NXP-LA9310-Driver 0000:01:00.0: 8 MSI successfully created
+[   79.021076] NXP-LA9310-Driver 0000:01:00.0: Scratch buffer size: 31560256, va:0xffff0000cc000000 pa:0x14c000000 bus:0x14c000000
+[   79.021092] NXP-LA9310-Driver 0000:01:00.0: Virtual address after ioremap=ffff0000cc000000
+[   79.028457] NXP-LA9310-Driver 0000:01:00.0: Scratch buf DMA ATU done
+[   79.028474] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[4] offset 0
+[   79.028479] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000cc000000, EP Phys 0xa0000000, size 2097152
+[   79.028487] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000cc200000, size 64 New offset - 0x200040
+[   79.028492] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[5] offset 2097216
+[   79.028495] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000cc200040, EP Phys 0xa0200040, size 0
+[   79.028499] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000cc200040, size 64 New offset - 0x200080
+[   79.028503] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[6] offset 2097280
+[   79.028507] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000cc200080, EP Phys 0xa0200080, size 98304
+[   79.028511] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000cc218080, size 64 New offset - 0x2180c0
+[   79.028515] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[7] offset 2195648
+[   79.028519] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000cc2180c0, EP Phys 0xa02180c0, size 4096
+[   79.028523] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000cc2190c0, size 64 New offset - 0x219100
+[   79.028527] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[8] offset 2199808
+[   79.028530] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000cc219100, EP Phys 0xa0219100, size 20971520
+[   79.028535] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000cd619100, size 64 New offset - 0x1619140
+[   79.028539] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[9] offset 23171392
+[   79.028542] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000cd619140, EP Phys 0xa1619140, size 8388608
+[   79.028546] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000cde19140, size 64 New offset - 0x1e19180
+[   79.028550] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[10] offset 31560064
+[   79.028553] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000cde19180, EP Phys 0xa1e19180, size 131072
+[   79.028557] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000cde39180, size 64 New offset - 0x1e391c0
+[   79.028563] NXP-LA9310-Driver 0000:01:00.0: subdrv DMA region:[11] offset 31691200
+[   79.028566] NXP-LA9310-Driver 0000:01:00.0: Host virtual 0xffff0000cde391c0, EP Phys 0xa1e391c0, size 204800
+[   79.028570] NXP-LA9310-Driver 0000:01:00.0: Paint addr 0xffff0000cde6b1c0, size 64 New offset - 0x1e6b200
+[   79.033771] NXP-LA9310-Driver 0000:01:00.0: IQ Flood Buffer size: 33554432, va:0xffff0000ce000000 pa:0x14e000000 bus:0x14e000000
+[   79.033789] NXP-LA9310-Driver 0000:01:00.0: SDR IQFLOOD Buff:0xb0001000[H]-0x14e000000[M],size 33554432
+[   79.033929] NXP-LA9310-Driver 0000:01:00.0: LA9310 Logger init vaddr ffff0000cc2180c0, phys a02180c0, size 4096
+[   79.033977] NXP-LA9310-Driver 0000:01:00.0: Created sysfs group la9310sysfs
+[   79.033982] NXP-LA9310-Driver 0000:01:00.0: shiva0: Loading RTOS image
+[   79.035087] NXP-LA9310-Driver 0000:01:00.0: Downloaded f/w at 0xffff800085680000 size: 74932
+[   79.035101] NXP-LA9310-Driver 0000:01:00.0: Copy fw to ffff0000cc200080, size 74932
+[   79.035159] NXP-LA9310-Driver 0000:01:00.0: load_firmware[la9310_dfe.bin] - Addr ffff0000cc200080, size 74932
+[   79.035165] NXP-LA9310-Driver 0000:01:00.0: Waiting for FreeRTOS boot.
+[   79.035168] NXP-LA9310-Driver 0000:01:00.0: [Sync fw upgrade] Waiting for FreeRTOS to write 1
+[   79.208272] NXP-LA9310-Driver 0000:01:00.0: LA9310 FreeRTOS booted succesfully: 0x1
+[   79.208285] NXP-LA9310-Driver 0000:01:00.0: shiva0: Initiating Reset handshake
+[   79.208289] NXP-LA9310-Driver 0000:01:00.0: [Reset HS] Waiting for FreeRTOS to write 3
+[   79.241550] NXP-LA9310-Driver 0000:01:00.0: LA9310 Reset HandShake done, scratch 0x3
+[   79.241561] NXP-LA9310-Driver 0000:01:00.0: Reset HandShake: Done. HIF 0x1b000, size 0x328 (808)
+[   79.241567] NXP-LA9310-Driver 0000:01:00.0: HIF Version : 1.0
+[   79.241571] NXP-LA9310-Driver 0000:01:00.0: num_irq 6
+[   79.241575] NXP-LA9310-Driver 0000:01:00.0: CCSR: vaddr ffff8000a0000000, size 268435456
+[   79.241582] NXP-LA9310-Driver 0000:01:00.0: MSI:ATU: DBI 0xffff8000a3400054, DMA 48050040, EP b0000000
+[   79.242275] NXP-LA9310-Driver 0000:01:00.0: irq mux 285 allocated successfully
+[   79.242288] NXP-LA9310-Driver 0000:01:00.0: shiva0:Initiating sub-drivers
+[   79.242292] NXP-LA9310-Driver 0000:01:00.0: VIRQ MASK not defined for subdrv TVD
+[   79.242646] NXP-LA9310-Driver 0000:01:00.0: VIRQ MASK not defined for subdrv TTI
+[   79.242868] NXP-LA9310-Driver 0000:01:00.0: virqmap init, evtmask f, count 4
+[   79.242875] NXP-LA9310-Driver 0000:01:00.0: Inside la9310_ipc_probe function K_hif=328
+[   79.349343] NXP-LA9310-Driver 0000:01:00.0: IPC modem is ready!
+[   79.349362] NXP-LA9310-Driver 0000:01:00.0: Exiting function la9310_ipc_probe
+[   79.349368] NXP-LA9310-Driver 0000:01:00.0: virqmap init, evtmask 10, count 1
+[   79.349855] NXP-LA9310-Driver 0000:01:00.0: shiva0-vspa0: hwver 0x02011500, 16 AUs, dmem 6400 bytes
+[   79.349867] NXP-LA9310-Driver 0000:01:00.0: INFO:vspa_probe : VSPA Loading firmware initiated-
+[   79.355424] NXP-LA9310-Driver 0000:01:00.0: Downloaded f/w at 0xffff800087720000 size: 900056
+[   79.355439] NXP-LA9310-Driver 0000:01:00.0: Copy fw to ffff0000cc000000, size 900056
+[   79.985713] NXP-LA9310-Driver 0000:01:00.0: Section Name: .IQ_data_ovl_ddr found
+[   79.985728] NXP-LA9310-Driver 0000:01:00.0: Section Name: .CAL_ovl_ddr found
+[   80.201664] NXP-LA9310-Driver 0000:01:00.0: INFO:vspa_probe :VSPA FW image apm.eld loading finished
+[   80.201721] NXP-LA9310-Driver 0000:01:00.0: Boot Ok Msg Verified: msb = F1000000, lsb = 00000000
+[   80.201734] NXP-LA9310-Driver 0000:01:00.0: SW Version: vspa = 00020002, ippu = 00000000
+[   80.201739] NXP-LA9310-Driver 0000:01:00.0: SPM Ack Msg: msb = F0700000, lsb = 00000000
+[   80.201750] NXP-LA9310-Driver 0000:01:00.0: virqmap init, evtmask 80, count 1
+[   80.202322] NXP-LA9310-Driver 0000:01:00.0: Probed OK, la9310_base_probe  Time elasped 1188 msec
+[   80.202538] Created sysfs group (null)
+[   80.202548] PCIe LA9310 driver total elasped time 1188 msec
+iqflood_addr 0x14e000000
 iqflood_size 0x2000000
-proxy_addr 0x139FFFC00
+proxy_addr 0x14FFFFC00
 
 910000000
 get_modem_ccsr_base: Base PCI addr phy 0x910000000
@@ -1067,331 +1068,257 @@ Ready to send 0x11000000-0x01fffc00 to vspa:0 mail box:0
 910000000
 get_modem_ccsr_base: Base PCI addr phy 0x910000000
 Received from VSPA:0, MBox:0, MSB:0x01fffc00, LSB:0x00000001.
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils# echo 100 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
-root@imx95frdm:~/host_utils#   dpdk-dfe_app
-DFE> [   47.515790] NXP-LA9310-Driver 0000:01:00.0: Huge Page Buff:0x13a000000[H]-0xc0000000[M],size 2097152
-[   47.515808] la9310_dev->hif->ipc_regs.ipc_mdata_size: 352
-
-DFE> lime tx 1 freq 1200000000
-DFE> lime rx 1 freq 1210000000
-DFE> quit
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils# ./iq-replay.sh ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin 1200
-bin2mem -f ./tone_td_3p072Mhz_20ms_4KB1200_2c.bin -a 0x138000000
 
 910000000
 get_modem_ccsr_base: Base PCI addr phy 0x910000000
-Ready to send 0x055004b0-0xb0001000 to vspa:0 mail box:0
+Ready to send 0x12000000-0x00000000 to vspa:0 mail box:0
 
 910000000
 get_modem_ccsr_base: Base PCI addr phy 0x910000000
 Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils# ./rx-chan.sh 3
+RX IQ swap set to 0
 
 910000000
 get_modem_ccsr_base: Base PCI addr phy 0x910000000
-Ready to send 0x0d000000-0x00000003 to vspa:0 mail box:0
+Ready to send 0x0d000000-0x00010213 to vspa:0 mail box:0
 
 910000000
 get_modem_ccsr_base: Base PCI addr phy 0x910000000
-Received from VSPA:0, MBox:0, MSB:0x00000003, LSB:0x00000001.
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils# ./iq-capture.sh ./iqdata.bin 1200
+Received from VSPA:0, MBox:0, MSB:0x00010213, LSB:0x00000001.
+limesdr-micro RX defaults applied
+root@imx95frdm:~/host_utils# ./iq-app-rx.sh -X
+N_RX=1  (auto-detected from proxy at 0x14FFFFC1C)
+N_TX=1
+iqflood     : host=0x14e000000  ep=0xb0001000  size=0x2000000
+slot_size   : 0xFFF000
+rx_base     : 0xB1000000
+fifo/chan    : 0x80000  total: 0x80000
+rx_cmd      : MSB=0x6900080  LSB=0xB1000000  (num_4KB=128)
+
+Clearing RX proxy produced/consumed for 1 channel(s)...
+memtool: zeroed 8 bytes at phys=0x14ffffc40
+  ch0 proxy 0x14FFFFC40: cleared
+
+vspa_mbox send 0 0 0x6900080 0xB1000000
 
 910000000
 get_modem_ccsr_base: Base PCI addr phy 0x910000000
-Ready to send 0x065004b0-0xb1001000 to vspa:0 mail box:0
+Ready to send 0x06900080-0xb1000000 to vspa:0 mail box:0
 
 910000000
 get_modem_ccsr_base: Base PCI addr phy 0x910000000
 Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
-bin2mem -f ./iqdata.bin -a 0x139000000 -r 4915200
+
+Starting spectrum mode (foreground): iq_app -X -n 1 -c 0 -F 0xFFF000 524288 -N 8192 -Y 61.44 -K 0 -B -100 -M 8 -L 40  -Q /root/host_utils/qec  -w /root/host_utils/capture/rx -d 1ms
+iq_app: Fs 61.440 MHz / decim 1 = 61.440 MHz (-Y to change converter rate, -Z to override)
+libiqplayer: mbox1 mapped at phys=0x0000000911000688 core=0 msb_virt=0xffffbee7e688
+libiqplayer: rx_fc_ptr[0] -> BAR2+0x400044 (ahb=0x20400044)
+spectrum ch0: fifo_start=0x00FFF000 size=0x80000 ring=0x400000
+iq_app: RX drain: 1 thread ch0-0 on CPU 2, chunk 16384, rt 0
+
+RX QEC ch 0/1  gain  +0.00 dB  phase  +0.00 deg  DC I +0.000  DC Q +0.000   keys: c=chan g/G p/P i/I j/J r=rst s=save w=snap t=time q=quit
+
+Ch0 [chan 3 RX0 | LMS7002M RX1 (A)]  IQ swap 0  Fs 61.44 MHz  FFT 8192 x8  RBW 7.5 kHz  rect/mag
+  RSSI -16.1  floor -93.4  DC -16.1 dBFS
+  spurs: -73.8@-15.36 -78.2@+4.45 -78.4@-4.45 -78.8@-30.72 MHz
+  peak I -23.4  Q -16.3 dBFS  clip 0 (0.000%)  crest 2.7 dB
+  -2.5 |                                                                                |
+  -5.0 |                                                                                |
+  -7.5 |                                                                                |
+ -10.0 |                                                                                |
+ -12.5 |                                                                                |
+ -15.0 |                                                                                |
+ -17.5 |                                        |                                       |
+ -20.0 |                                        |                                       |
+ -22.5 |                                        |                                       |
+ -25.0 |                                        |                                       |
+ -27.5 |                                        |                                       |
+ -30.0 |                                        |                                       |
+ -32.5 |                                        |                                       |
+ -35.0 |                                        |                                       |
+ -37.5 |                                        #                                       |
+ -40.0 |                                        #                                       |
+ -42.5 |                                        #                                       |
+ -45.0 |                                        #                                       |
+ -47.5 |                                        #                                       |
+ -50.0 |                                        #                                       |
+ -52.5 |                                        #                                       |
+ -55.0 |                                        #                                       |
+ -57.5 |                                        #                                       |
+ -60.0 |                                        #                                       |
+ -62.5 |                                        #                                       |
+ -65.0 |                                        #                                       |
+ -67.5 |                                        #                                       |
+ -70.0 |                                        #                                       |
+ -72.5 |                                        #                                       |
+ -75.0 |                    |                   #                                       |
+ -77.5 |                    |                  |#                                       |
+ -80.0 ||                   |             |    |#    |                                  |
+ -82.5 ||                   |             |    |#    |              |                   |
+ -85.0 ||                   |       |     |    |#    |              |                   |
+ -87.5 ||                   |       |     |    |#    |     |        |                   |
+ -90.0 |||  |     |  |   | ||    | || ||| |||||##||||||||||||  || | | ||   || |    | | ||
+ -92.5 |#|||||||||||||||||||#|||||||||||||#||######||#|||||||||||||||||||||||||||||||||||
+ -95.0 |################################################################################|
+ -97.5 |################################################################################|
+-100.0 |################################################################################|
+       ++-------------------+-------------------+-------------------+-------------------+
+     -30.72              -15.36               +0.00              +15.36              +30.72       MHz
+
+iq_app: drain0 ch0-0: 246.0 MB/s, busy 81% (inval 2%, copy 14%), calls 4766606, idle 94%
+libiqplayer: ch0 acks 16811 (7506/s) skipped 249180, notify 0.3% of run, max lag 0x80000, max VSPA consumed lag 0x8800
 root@imx95frdm:~/host_utils#
+root@imx95frdm:~/host_utils# ./iq-app-tx.sh -T
+TX fifo: 262144 bytes (64 x 4KB), TX slot 16773120 bytes, N_RX=1
+
+910000000
+get_modem_ccsr_base: Base PCI addr phy 0x910000000
+Ready to send 0x05100040-0xb0001000 to vspa:0 mail box:0
+
+910000000
+get_modem_ccsr_base: Base PCI addr phy 0x910000000
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
+iq_app: auto-detected rx_num_chan=1 from VSPA proxy
+iq_app: Fs 61.440 MHz / upsmp 1 = 61.440 MHz (-Y to change converter rate, -Z to override)
+libiqplayer: mbox1 mapped at phys=0x0000000911000688 core=0 msb_virt=0xffffb2c60688
++-----------------------------------------------------------------+
+| iq_app  Tone TX (LA9310)                                        |
++-----------------------------------------------------------------+
+|  Waveform  : tone                                               |
+|  Frequency :     +7680.000 kHz  (up/dn:  960.000 kHz/step)      |
+|  Amplitude :  1.000              (lt/rt: 0.050 /step)           |
++-----------------------------------------------------------------+
+|  TX QEC                                                         |
++-----------------------------------------------------------------+
+|  Gain      :    +0.00 dB           ( g/G : step 0.1 dB  )       |
+|  Phase     :    +0.00 deg          ( p/P : step 0.5 deg )       |
+|  DC I      :   +0.000              ( i/I : step 0.01    )       |
+|  DC Q      :   +0.000              ( j/J : step 0.01    )       |
++-----------------------------------------------------------------+
+|  Keys: up/dn=freq  lt/rt=amp  w=wave  r=rst  s=save  q=quit     |
++-----------------------------------------------------------------+
+| TX spectrum  FFT=512   SR=61.440 MHz
+| ...
+|     8.640 MHz |                                                                                |  -90.11 dBFS
+|     7.680 MHz |############################################################################### |   -0.00 dBFS
+|     6.720 MHz |                                                                                |  -90.17 dBFS
+| ...
++-----------------------------------------------------------------+
+
+Tone TX stopped. Stopping VSPA TX ...
+
+910000000
+get_modem_ccsr_base: Base PCI addr phy 0x910000000
+Ready to send 0x05000000-0x00000000 to vspa:0 mail box:0
+
+910000000
+get_modem_ccsr_base: Base PCI addr phy 0x910000000
+Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
 root@imx95frdm:~/host_utils#
 root@imx95frdm:~/host_utils# iq_trace
+iq_trace: ELD=/lib/firmware/apm.eld  data=0x3300 idx=0x3294 dis=0x3290 entries=100
+iq_trace: l1_trace_disable: vspa=0x3290  bar2_off=0x403290  mmap_size=0x800000  host_ptr=0xffff97913290
+=== VSPA trace (write_head=0) ===
+  [  1] cnt=                   0  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [  2] cnt=                   0  msg=0xd05 L1_TRACE_MSG_BUILD_VER         param=0x00aa780b  built 11/17 18:51
+  [  3] cnt=            24752704  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03200000  MSG1
+  [  4] cnt=            24752760  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
+  [  5] cnt=            24754220  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03200000  MSG1
+  [  6] cnt=            24754276  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [  7] cnt=            24755846  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03200000  MSG1
+  [  8] cnt=            24755902  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [  9] cnt=            24828504  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03200000  MSG1
+  [ 10] cnt=            24828560  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 11] cnt=           579806350  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03100000  MSG0
+  [ 12] cnt=           579806406  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 13] cnt=           600224114  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03100000  MSG0
+  [ 14] cnt=           600224170  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
+  [ 15] cnt=           615991462  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03100000  MSG0
+  [ 16] cnt=           615991518  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 17] cnt=          1691086132  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03100000  MSG0
+  [ 18] cnt=          1691086188  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
+  [ 19] cnt=          1691090880  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 20] cnt=          1691090936  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000008
+  [ 21] cnt=          1691092769  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 22] cnt=          1691092825  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00001000
+  [ 23] cnt=          1691093407  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 24] cnt=          1691093463  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 25] cnt=          1691094077  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 26] cnt=          1691094133  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
+  [ 27] cnt=          1691094678  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 28] cnt=          1691094734  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 29] cnt=          1691095521  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 30] cnt=          1691095577  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 31] cnt=          1691096160  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 32] cnt=          1691096216  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 33] cnt=          1691096830  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 34] cnt=          1691096886  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
+  [ 35] cnt=          1691097432  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 36] cnt=          1691097488  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 37] cnt=          1691098032  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 38] cnt=          1691098088  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 39] cnt=          1691098632  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 40] cnt=          1691098688  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 41] cnt=          1691099233  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 42] cnt=          1691099289  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000008
+  [ 43] cnt=          1691100077  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 44] cnt=          1691100133  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 45] cnt=          1691100715  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 46] cnt=          1691100771  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 47] cnt=          1691101384  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 48] cnt=          1691101440  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
+  [ 49] cnt=          1691101986  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 50] cnt=          1691102042  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 51] cnt=          1691102586  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 52] cnt=          1691102642  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 53] cnt=          1691103187  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 54] cnt=          1691103243  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000008
+  [ 55] cnt=          1691104036  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 56] cnt=          1691104092  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 57] cnt=          1691104674  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 58] cnt=          1691104731  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 59] cnt=          1691105344  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 60] cnt=          1691105400  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
+  [ 61] cnt=          1691105946  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 62] cnt=          1691106002  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 63] cnt=          1691106546  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 64] cnt=          1691106602  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 65] cnt=          1691107146  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 66] cnt=          1691107202  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 67] cnt=          1691107990  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 68] cnt=          1691108046  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 69] cnt=          1691108628  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 70] cnt=          1691108684  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 71] cnt=          1691109297  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 72] cnt=          1691109353  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
+  [ 73] cnt=          1691109898  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 74] cnt=          1691109954  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 75] cnt=          1691110498  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 76] cnt=          1691110554  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 77] cnt=          1691111098  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 78] cnt=          1691111154  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 79] cnt=          1691111943  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 80] cnt=          1691111999  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 81] cnt=          1691112581  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 82] cnt=          1691112637  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 83] cnt=          1691113251  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 84] cnt=          1691113307  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
+  [ 85] cnt=          1691113852  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 86] cnt=          1691113908  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 87] cnt=          1691114452  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 88] cnt=          1691114508  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 89] cnt=          1691115053  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 90] cnt=          1691115109  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 91] cnt=          1691115653  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 92] cnt=          1691115709  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000008
+  [ 93] cnt=          1691116499  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 94] cnt=          1691116555  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 95] cnt=          1691117138  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 96] cnt=          1691117194  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000000  BOOT
+  [ 97] cnt=          1691117808  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [ 98] cnt=          1691117864  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
+  [ 99] cnt=          1691118409  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x03000004  DMA
+  [  0] cnt=                   0  msg=0xc01 L1_TRACE_MSG_ENTRY_MAIN        param=0x00000001
 
-   0, counter: 0000031287317636, param: 0x00003800, (0x301)L1_TRACE_L1APP_TX_QEC_START
-   1, counter: 0000031287317749, param: 0x1ddbf800, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-   2, counter: 0000031287317833, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-   3, counter: 0000031287318211, param: 0xb0372000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-   4, counter: 0000031287318246, param: 0x00003800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-   5, counter: 0000031287321182, param: 0x1ddc1800, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-   6, counter: 0000031287321302, param: 0x00000c40, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-   7, counter: 0000031287321395, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-   8, counter: 0000031287321673, param: 0x0023bb7d, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-   9, counter: 0000031287321786, param: 0x00003c00, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  10, counter: 0000031287321900, param: 0x1ddc0000, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  11, counter: 0000031287321984, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  12, counter: 0000031287322362, param: 0xb0372800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  13, counter: 0000031287322397, param: 0x00003c00, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  14, counter: 0000031287325308, param: 0x0023bb7e, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  15, counter: 0000031287325421, param: 0x00003000, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  16, counter: 0000031287325536, param: 0x1ddc0800, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  17, counter: 0000031287325597, param: 0x00001040, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  18, counter: 0000031287325690, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  19, counter: 0000031287325997, param: 0x1ddc2000, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  20, counter: 0000031287326135, param: 0xb0373000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  21, counter: 0000031287326170, param: 0x00003000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  22, counter: 0000031287326291, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  23, counter: 0000031287329459, param: 0x0023bb7f, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  24, counter: 0000031287329544, param: 0x1ddc2800, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  25, counter: 0000031287329637, param: 0x00003400, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  26, counter: 0000031287329750, param: 0x1ddc1000, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  27, counter: 0000031287329811, param: 0x00001440, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  28, counter: 0000031287329906, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  29, counter: 0000031287330284, param: 0xb0373800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  30, counter: 0000031287330319, param: 0x00003400, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  31, counter: 0000031287333254, param: 0x1ddc3000, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  32, counter: 0000031287333397, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  33, counter: 0000031287333676, param: 0x0023bb80, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  34, counter: 0000031287333789, param: 0x00003800, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  35, counter: 0000031287333902, param: 0x1ddc1800, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  36, counter: 0000031287333964, param: 0x00000c40, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  37, counter: 0000031287334057, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  38, counter: 0000031287334435, param: 0xb0374000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  39, counter: 0000031287334471, param: 0x00003800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  40, counter: 0000031287337406, param: 0x1ddc3800, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  41, counter: 0000031287337550, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  42, counter: 0000031287337829, param: 0x0023bb81, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  43, counter: 0000031287337942, param: 0x00003c00, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  44, counter: 0000031287338057, param: 0x1ddc2000, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  45, counter: 0000031287338118, param: 0x00001040, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  46, counter: 0000031287338211, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  47, counter: 0000031287338589, param: 0xb0374800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  48, counter: 0000031287338624, param: 0x00003c00, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  49, counter: 0000031287341558, param: 0x1ddc4000, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  50, counter: 0000031287341680, param: 0x00001440, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  51, counter: 0000031287341774, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  52, counter: 0000031287342052, param: 0x0023bb82, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  53, counter: 0000031287342167, param: 0x00003000, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  54, counter: 0000031287342280, param: 0x1ddc2800, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  55, counter: 0000031287342364, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  56, counter: 0000031287342743, param: 0xb0375000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  57, counter: 0000031287342778, param: 0x00003000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  58, counter: 0000031287345710, param: 0x1ddc4800, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  59, counter: 0000031287345830, param: 0x00000c40, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  60, counter: 0000031287345923, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  61, counter: 0000031287346201, param: 0x0023bb83, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  62, counter: 0000031287346315, param: 0x00003400, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  63, counter: 0000031287346428, param: 0x1ddc3000, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  64, counter: 0000031287346512, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  65, counter: 0000031287346892, param: 0xb0375800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  66, counter: 0000031287346927, param: 0x00003400, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  67, counter: 0000031287349860, param: 0x1ddc5000, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  68, counter: 0000031287349980, param: 0x00001040, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  69, counter: 0000031287350073, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  70, counter: 0000031287350353, param: 0x0023bb84, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  71, counter: 0000031287350466, param: 0x00003800, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  72, counter: 0000031287350580, param: 0x1ddc3800, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  73, counter: 0000031287350664, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  74, counter: 0000031287351042, param: 0xb0376000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  75, counter: 0000031287351077, param: 0x00003800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  76, counter: 0000031287353986, param: 0x0023bb85, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  77, counter: 0000031287354071, param: 0x1ddc5800, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  78, counter: 0000031287354164, param: 0x00003c00, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  79, counter: 0000031287354278, param: 0x1ddc4000, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  80, counter: 0000031287354339, param: 0x00001440, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  81, counter: 0000031287354433, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  82, counter: 0000031287354811, param: 0xb0376800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  83, counter: 0000031287354846, param: 0x00003c00, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  84, counter: 0000031287357786, param: 0x1ddc6000, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  85, counter: 0000031287357929, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  86, counter: 0000031287358208, param: 0x0023bb86, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  87, counter: 0000031287358321, param: 0x00003000, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  88, counter: 0000031287358434, param: 0x1ddc4800, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  89, counter: 0000031287358495, param: 0x00000c40, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  90, counter: 0000031287358589, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  91, counter: 0000031287358967, param: 0xb0377000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  92, counter: 0000031287359002, param: 0x00003000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  93, counter: 0000031287361937, param: 0x1ddc6800, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  94, counter: 0000031287362080, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  95, counter: 0000031287362360, param: 0x0023bb87, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  96, counter: 0000031287362473, param: 0x00003400, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  97, counter: 0000031287362587, param: 0x1ddc5000, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  98, counter: 0000031287362649, param: 0x00001040, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  99, counter: 0000031287362742, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils# ./iq-capture-ddr.sh 1200
-
-910000000
-get_modem_ccsr_base: Base PCI addr phy 0x910000000
-Ready to send 0x06d004b0-0xb1001000 to vspa:0 mail box:0
-
-910000000
-get_modem_ccsr_base: Base PCI addr phy 0x910000000
-Received from VSPA:0, MBox:0, MSB:0x00000000, LSB:0x00000001.
-running until ./iq-stop.sh and
-bin2mem -f iqdata.bin -a 0x139000000 -r 4915200
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils# iq_trace
-
-   0, counter: 0000040081052948, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-   1, counter: 0000040081053143, param: 0x000c10ea, (0x111)L1_TRACE_MSG_DMA_DDR_WR_COMP
-   2, counter: 0000040081053480, param: 0xb0150000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-   3, counter: 0000040081053515, param: 0x00003800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-   4, counter: 0000040081054980, param: 0x000c10eb, (0x108)L1_TRACE_MSG_DMA_AXIQ_RX_COMP
-   5, counter: 0000040081055073, param: 0x00000440, (0x102)L1_TRACE_MSG_DMA_AXIQ_RX_START
-   6, counter: 0000040081055137, param: 0x00000440, (0x303)L1_TRACE_L1APP_RX_QEC_START
-   7, counter: 0000040081055255, param: 0x603c5800, (0x304)L1_TRACE_L1APP_RX_QEC_COMP
-   8, counter: 0000040081055299, param: 0x00002800, (0x30c)L1_TRACE_L1APP_RX_CMP_START
-   9, counter: 0000040081055350, param: 0x603c5800, (0x30d)L1_TRACE_L1APP_RX_CMP_COMP
-  10, counter: 0000040081055482, param: 0x00002c00, (0x110)L1_TRACE_MSG_DMA_DDR_WR_START
-  11, counter: 0000040081055564, param: 0xb2000c40, (0x100)L1_TRACE_MSG_DMA_XFR
-  12, counter: 0000040081056194, param: 0x23eef800, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  13, counter: 0000040081056337, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  14, counter: 0000040081056711, param: 0x00447dd9, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  15, counter: 0000040081056824, param: 0x00003c00, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  16, counter: 0000040081056938, param: 0x23eee000, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  17, counter: 0000040081056999, param: 0x00000c40, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  18, counter: 0000040081057092, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  19, counter: 0000040081057287, param: 0x000c10eb, (0x111)L1_TRACE_MSG_DMA_DDR_WR_COMP
-  20, counter: 0000040081057624, param: 0xb0150800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  21, counter: 0000040081057659, param: 0x00003c00, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  22, counter: 0000040081059126, param: 0x000c10ec, (0x108)L1_TRACE_MSG_DMA_AXIQ_RX_COMP
-  23, counter: 0000040081059219, param: 0x00000840, (0x102)L1_TRACE_MSG_DMA_AXIQ_RX_START
-  24, counter: 0000040081059283, param: 0x00000840, (0x303)L1_TRACE_L1APP_RX_QEC_START
-  25, counter: 0000040081059404, param: 0x603c6000, (0x304)L1_TRACE_L1APP_RX_QEC_COMP
-  26, counter: 0000040081059448, param: 0x00002c00, (0x30c)L1_TRACE_L1APP_RX_CMP_START
-  27, counter: 0000040081059500, param: 0x603c6000, (0x30d)L1_TRACE_L1APP_RX_CMP_COMP
-  28, counter: 0000040081059634, param: 0x00002000, (0x110)L1_TRACE_MSG_DMA_DDR_WR_START
-  29, counter: 0000040081059716, param: 0xb2000c40, (0x100)L1_TRACE_MSG_DMA_XFR
-  30, counter: 0000040081060347, param: 0x23ef0000, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  31, counter: 0000040081060467, param: 0x00001040, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  32, counter: 0000040081060560, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  33, counter: 0000040081060936, param: 0x00447dda, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  34, counter: 0000040081061049, param: 0x00003000, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  35, counter: 0000040081061163, param: 0x23eee800, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  36, counter: 0000040081061247, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  37, counter: 0000040081061442, param: 0x000c10ec, (0x111)L1_TRACE_MSG_DMA_DDR_WR_COMP
-  38, counter: 0000040081061779, param: 0xb0151000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  39, counter: 0000040081061814, param: 0x00003000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  40, counter: 0000040081063280, param: 0x000c10ed, (0x108)L1_TRACE_MSG_DMA_AXIQ_RX_COMP
-  41, counter: 0000040081063375, param: 0x00000040, (0x102)L1_TRACE_MSG_DMA_AXIQ_RX_START
-  42, counter: 0000040081063439, param: 0x00000040, (0x303)L1_TRACE_L1APP_RX_QEC_START
-  43, counter: 0000040081063559, param: 0x603c6800, (0x304)L1_TRACE_L1APP_RX_QEC_COMP
-  44, counter: 0000040081063603, param: 0x00002000, (0x30c)L1_TRACE_L1APP_RX_CMP_START
-  45, counter: 0000040081063654, param: 0x603c6800, (0x30d)L1_TRACE_L1APP_RX_CMP_COMP
-  46, counter: 0000040081063786, param: 0x00002400, (0x110)L1_TRACE_MSG_DMA_DDR_WR_START
-  47, counter: 0000040081063868, param: 0xb2000c40, (0x100)L1_TRACE_MSG_DMA_XFR
-  48, counter: 0000040081064499, param: 0x23ef0800, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  49, counter: 0000040081064619, param: 0x00001440, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  50, counter: 0000040081064713, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  51, counter: 0000040081065087, param: 0x00447ddb, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  52, counter: 0000040081065200, param: 0x00003400, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  53, counter: 0000040081065313, param: 0x23eef000, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  54, counter: 0000040081065397, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  55, counter: 0000040081065593, param: 0x000c10ed, (0x111)L1_TRACE_MSG_DMA_DDR_WR_COMP
-  56, counter: 0000040081065931, param: 0xb0151800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  57, counter: 0000040081065966, param: 0x00003400, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  58, counter: 0000040081067016, param: 0x000c10ee, (0x108)L1_TRACE_MSG_DMA_AXIQ_RX_COMP
-  59, counter: 0000040081067110, param: 0x00000440, (0x102)L1_TRACE_MSG_DMA_AXIQ_RX_START
-  60, counter: 0000040081067174, param: 0x00000440, (0x303)L1_TRACE_L1APP_RX_QEC_START
-  61, counter: 0000040081067293, param: 0x603c7000, (0x304)L1_TRACE_L1APP_RX_QEC_COMP
-  62, counter: 0000040081067337, param: 0x00002400, (0x30c)L1_TRACE_L1APP_RX_CMP_START
-  63, counter: 0000040081067388, param: 0x603c7000, (0x30d)L1_TRACE_L1APP_RX_CMP_COMP
-  64, counter: 0000040081067521, param: 0x00002800, (0x110)L1_TRACE_MSG_DMA_DDR_WR_START
-  65, counter: 0000040081067603, param: 0xb2000c40, (0x100)L1_TRACE_MSG_DMA_XFR
-  66, counter: 0000040081068705, param: 0x00000c40, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  67, counter: 0000040081068930, param: 0x000c10ee, (0x111)L1_TRACE_MSG_DMA_DDR_WR_COMP
-  68, counter: 0000040081069170, param: 0x00447ddc, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  69, counter: 0000040081069255, param: 0x23ef1000, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  70, counter: 0000040081069348, param: 0x00003800, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  71, counter: 0000040081069461, param: 0x23eef800, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  72, counter: 0000040081069545, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  73, counter: 0000040081070020, param: 0xb0152000, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  74, counter: 0000040081070055, param: 0x00003800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  75, counter: 0000040081071103, param: 0x000c10ef, (0x108)L1_TRACE_MSG_DMA_AXIQ_RX_COMP
-  76, counter: 0000040081071198, param: 0x00000840, (0x102)L1_TRACE_MSG_DMA_AXIQ_RX_START
-  77, counter: 0000040081071262, param: 0x00000840, (0x303)L1_TRACE_L1APP_RX_QEC_START
-  78, counter: 0000040081071381, param: 0x603c7800, (0x304)L1_TRACE_L1APP_RX_QEC_COMP
-  79, counter: 0000040081071425, param: 0x00002800, (0x30c)L1_TRACE_L1APP_RX_CMP_START
-  80, counter: 0000040081071476, param: 0x603c7800, (0x30d)L1_TRACE_L1APP_RX_CMP_COMP
-  81, counter: 0000040081071608, param: 0x00002c00, (0x110)L1_TRACE_MSG_DMA_DDR_WR_START
-  82, counter: 0000040081071691, param: 0xb2000c40, (0x100)L1_TRACE_MSG_DMA_XFR
-  83, counter: 0000040081072792, param: 0x00001040, (0x103)L1_TRACE_MSG_DMA_AXIQ_TX_START
-  84, counter: 0000040081073017, param: 0x000c10ef, (0x111)L1_TRACE_MSG_DMA_DDR_WR_COMP
-  85, counter: 0000040081073257, param: 0x00447ddd, (0x109)L1_TRACE_MSG_DMA_AXIQ_TX_COMP
-  86, counter: 0000040081073342, param: 0x23ef1800, (0x10e)L1_TRACE_MSG_DMA_DDR_RD_COMP
-  87, counter: 0000040081073435, param: 0x00003c00, (0x301)L1_TRACE_L1APP_TX_QEC_START
-  88, counter: 0000040081073550, param: 0x23ef0000, (0x302)L1_TRACE_L1APP_TX_QEC_COMP
-  89, counter: 0000040081073634, param: 0xb2000c00, (0x100)L1_TRACE_MSG_DMA_XFR
-  90, counter: 0000040081074108, param: 0xb0152800, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  91, counter: 0000040081074144, param: 0x00003c00, (0x10d)L1_TRACE_MSG_DMA_DDR_RD_START
-  92, counter: 0000040081075192, param: 0x000c10f0, (0x108)L1_TRACE_MSG_DMA_AXIQ_RX_COMP
-  93, counter: 0000040081075289, param: 0x00000040, (0x102)L1_TRACE_MSG_DMA_AXIQ_RX_START
-  94, counter: 0000040081075353, param: 0x00000040, (0x303)L1_TRACE_L1APP_RX_QEC_START
-  95, counter: 0000040081075472, param: 0x603c8000, (0x304)L1_TRACE_L1APP_RX_QEC_COMP
-  96, counter: 0000040081075516, param: 0x00002c00, (0x30c)L1_TRACE_L1APP_RX_CMP_START
-  97, counter: 0000040081075568, param: 0x603c8000, (0x30d)L1_TRACE_L1APP_RX_CMP_COMP
-  98, counter: 0000040081075702, param: 0x00002000, (0x110)L1_TRACE_MSG_DMA_DDR_WR_START
-  99, counter: 0000040081075784, param: 0xb2000c40, (0x100)L1_TRACE_MSG_DMA_XFR
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils#
-root@imx95frdm:~/host_utils# iq_mon
-
-RX stats :
- DMA_AXIQ_RD    0x004082f8(00000246 MB/s)
- DMA_DDR_WR     0x004082f7(00000246 MB/s)
- EXT_DDR_WR     0x00000000
- DDR_WR_OVR     0x00000000(00000000 MB/s)
- FIFO_RX_UDR    0x00000000
- FIFO_RX_OVR    0x00000000
- DMA_RX_CMD_OVR 0x00000000
- EXT_DDR_WR_OVR 0x00000000
-TX stats :
- DMA_AXIQ_WR    0x0078efe5(00000246 MB/s)
- DMA_DDR_RD     0x0078efec(00000246 MB/s)
- EXT_DDR_RD     0x00000000
- DDR_RD_UDR     0x00000000(00000000 MB/s)
- FIFO_TX_UDR    0x0000000e
- FIFO_TX_OVR    0x00000000
- DMA_TX_CMD_UDR 0x00000001
- EXT_DDR_RD_UDR 0x00000000
-Global stats :
- DMA_CFG_ERROR  0x00000000
- DMA_XFER_ERROR 0x00000000
-
-VSPA DMA regs (IP reg 0xB0):
-ffff74e360b0: 0000 0000  0000 0000  0000 0000  0000 0000
-ffff74e360c0: 0908 0000  0000 0000  0110 0000  0000 0000
-ffff74e360d0: 0000 0000  0808 0000  0000 0000  f7f7 0000
-VSPA AXI regs (GP_IN0-9 IPREG 0x580):
-ffff74e36500: 0003 0000  2222 0300  0000 0000  0000 0000
-ffff74e36510: 2058 2f97  0000 0000  0000 0000  0000 0000
-ffff74e36520: 0000 0000  0000 0000  0000 0000  0000 0000
-
-
-root@imx95frdm:~/host_utils#
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+iq_trace: l1_trace_disable cleared (rearmed)
 

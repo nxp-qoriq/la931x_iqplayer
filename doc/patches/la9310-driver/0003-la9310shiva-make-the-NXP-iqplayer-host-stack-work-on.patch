@@ -1,4 +1,4 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 7b8554df16d543c0d23d43e97bc96393765872c4 Mon Sep 17 00:00:00 2001
 From: mxstrk <Maximilian.stark@tuhh.de>
 Date: Mon, 17 Aug 2026 13:49:32 +0200
 Subject: [PATCH 3/3] la9310shiva: make the NXP iqplayer host stack work on the

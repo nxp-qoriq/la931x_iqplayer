@@ -13,8 +13,13 @@ KMOD_DIR=/rfnm/kernel
 
 # scratch_addr and scratch_size are deprecated parameters for la9310shiva,
 # keeping them for backward compatibility
-scratch_addr=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/reg |cut -f 7-10 -d " " |sed 's/ //g'|cut -f 1 -d " " |head -1`
-scratch_size=0x`hexdump -C /sys/firmware/devicetree/base/reserved-memory/la93@*/reg |cut -f 16-19 -d " " |sed 's/ //g'|head -1`
+scratch_args=
+dt_la93=$(ls /sys/firmware/devicetree/base/reserved-memory/la93@*/reg 2>/dev/null | head -1)
+if [ -n "$dt_la93" ]; then
+        scratch_addr=0x`hexdump -C $dt_la93 |cut -f 7-10 -d " " |sed 's/ //g'|cut -f 1 -d " " |head -1`
+        scratch_size=0x`hexdump -C $dt_la93 |cut -f 16-19 -d " " |sed 's/ //g'|head -1`
+        scratch_args="scratch_buf_size=$scratch_size scratch_buf_phys_addr=$scratch_addr"
+fi
 
 [ -f /lib/firmware/la9310_dfe_122.bin ] || { echo "***ERROR: missing /lib/firmware/la9310_dfe_122.bin. Boot failed"; exit 1; }
 [ -f /lib/firmware/apm.eld ] || { echo "***ERROR: missing /lib/firmware/apm.eld Boot failed"; exit 1; }
@@ -44,8 +49,8 @@ fi
 # Firmware selection is done by symlinking the desired files to the names the driver expects.
 #ln -sf /lib/firmware/la9310_dfe_122.bin /lib/firmware/la9310.bin
 echo 7 > /proc/sys/kernel/printk
-echo insmod $KMOD_DIR/la9310shiva.ko scratch_buf_size=$scratch_size scratch_buf_phys_addr=$scratch_addr adc_mask=$adcm adc_rate_mask=$adcr dac_mask=$dacm dac_rate_mask=$dacr
-insmod $KMOD_DIR/la9310shiva.ko scratch_buf_size=$scratch_size scratch_buf_phys_addr=$scratch_addr adc_mask=$adcm adc_rate_mask=$adcr dac_mask=$dacm dac_rate_mask=$dacr
+echo insmod $KMOD_DIR/la9310shiva.ko $scratch_args adc_mask=$adcm adc_rate_mask=$adcr dac_mask=$dacm dac_rate_mask=$dacr
+insmod $KMOD_DIR/la9310shiva.ko $scratch_args adc_mask=$adcm adc_rate_mask=$adcr dac_mask=$dacm dac_rate_mask=$dacr
 
 # la9310rfnm.ko exports rfnm_* symbols required by rfnm_lalib and RF daughterboard modules
 [ -f $KMOD_DIR/la9310rfnm.ko ]        && insmod $KMOD_DIR/la9310rfnm.ko

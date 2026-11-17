@@ -13,6 +13,7 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <stdlib.h>
+#include "shiva_map.h"
 
 #define dsb(opt) asm volatile("dsb " #opt : : : "memory")
 #define dmb(opt) asm volatile("dmb " #opt : : : "memory")
@@ -154,7 +155,7 @@ static void usage(char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-    int fd, size;
+    int size;
     uint64_t vspa_addr_phys, vspa_addr;
     uint32_t core_id = 0, mbox_id = 0, msb32 = 0, lsb32 = 0;
     int ret = 0;
@@ -183,16 +184,16 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    fd = open("/dev/mem", O_RDWR);
     size = 0x20000;
 
     // vspa_addr_phys = 0x18000000 + 0x1000000;
     vspa_addr_phys = get_modem_ccsr_base() + 0x1000000;
-    vspa_addr = (uint64_t)mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, vspa_addr_phys);
+    /* /dev/shiva0 first: /dev/mem is refused for this BAR with
+     * CONFIG_IO_STRICT_DEVMEM=y because la9310shiva owns it */
+    vspa_addr = (uint64_t)shiva_map_region("VSPA mbox", vspa_addr_phys, size);
 
     if (MAP_FAILED == (void *)vspa_addr) {
         printf("Failed mmap mbox memory to user-space\n");
-        close(fd);
         return -1;
     }
     // printf("%s: mailbox_addr_phys 0x%lX vir_addr 0x%lX\n",__func__, vspa_addr_phys, vspa_addr);
@@ -220,8 +221,6 @@ int main(int argc, char *argv[]) {
         ret = vspa_mbox_recv(vspa_addr, core_id, mbox_id);
         vspa_mbox_clear(vspa_addr, core_id, mbox_id);
     }
-
-    //  close(fd);
 
     return ret;
 }

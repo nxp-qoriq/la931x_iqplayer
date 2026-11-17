@@ -1,4 +1,4 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 783114ab0cb8005f44f6f2678e700724c68bbd79 Mon Sep 17 00:00:00 2001
 From: mxstrk <Maximilian.stark@tuhh.de>
 Date: Wed, 5 Aug 2026 11:50:26 +0200
 Subject: [PATCH 2/3] avi: let the PCIe host own VSPA mailbox 0
@@ -40,7 +40,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
  2 files changed, 67 insertions(+), 7 deletions(-)
 
 diff --git a/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt b/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
-index d944e16..64d07cc 100644
+index 4e5ab00..9f25d21 100644
 --- a/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
 +++ b/Demo/CORTEX_M4_NXP_LA9310_GCC/CMakeLists.txt
 @@ -55,6 +55,14 @@ SET(DCS ON)

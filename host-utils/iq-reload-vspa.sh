@@ -124,6 +124,10 @@ dma_load()
         memtool_regs -32 $DMA_STAT=1 > /dev/null
 }
 
+. "$(cd "$(dirname "$0")" && pwd)/la9310-io.sh"
+# fail before touching the VSPA if its registers cannot be mapped
+la9310_check $DMA_STAT || exit 1
+
 # 1. VSPA software reset: VSPA goes to done state before its memory is rewritten
 echo "VSPA software reset"
 # no reply is expected if the VSPA is already halted (e.g. previous reload failed)
@@ -136,7 +140,10 @@ if [ "$scratch_addr" = "0x" ]; then
         exit 1
 fi
 echo "load $eld at $scratch_addr"
-bin2mem -f "$eld" -a $scratch_addr -c 128 > /dev/null || { echo "*** ERROR: bin2mem failed"; exit 1; }
+# memtool -f through /dev/shiva0 (CONFIG_STRICT_DEVMEM refuses /dev/mem for
+# the scratch RAM); bin2mem (/dev/mem) for drivers without the mmap patch
+la9310_load "$eld" $scratch_addr > /dev/null ||
+        { echo "*** ERROR: cannot write $eld to the scratch buffer (memtool /dev/shiva0 and bin2mem failed)"; exit 1; }
 dma_load .vpram 0x200
 dma_load .vdram 0x000
 dma_load .idram 0x000 $IDRAM_DST

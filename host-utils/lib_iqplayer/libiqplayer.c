@@ -32,6 +32,7 @@
 #include "imx8-host.h"
 #include "l1-trace-host.h"
 #include "lib_iqplayer_api.h"
+#include "shiva_map.h"
 
 uint32_t *v_iqflood_ddr_addr = NULL;
 uint32_t *BAR2_addr = NULL;
@@ -97,7 +98,6 @@ static int map_mbox1_tx(void)
     long     page_size;
     uint64_t page_base;
     uint32_t page_offset;
-    int      fd;
 
     if (g_ccsr_phys == 0)
         return 0; /* no mbox requested */
@@ -110,19 +110,12 @@ static int map_mbox1_tx(void)
     page_base   = mbox_phys & ~((uint64_t)(page_size - 1));
     page_offset = (uint32_t)(mbox_phys - page_base);
 
-    fd = open("/dev/mem", O_RDWR | O_SYNC);
-    if (fd < 0) {
-        perror("libiqplayer: open /dev/mem for mbox1");
-        return -1;
-    }
-
-    g_mbox1_tx_map = mmap(NULL, (size_t)(page_offset + 8),
-                          PROT_READ | PROT_WRITE, MAP_SHARED,
-                          fd, (off_t)page_base);
-    close(fd);
-
+    /* /dev/shiva0 first: /dev/mem is refused for this BAR with
+     * CONFIG_IO_STRICT_DEVMEM=y because la9310shiva owns it */
+    g_mbox1_tx_map = shiva_map_region("VSPA mbox1", page_base,
+                                      (size_t)(page_offset + 8));
     if (g_mbox1_tx_map == MAP_FAILED) {
-        perror("libiqplayer: mmap mbox1");
+        fprintf(stderr, "libiqplayer: cannot map mbox1\n");
         g_mbox1_tx_map = NULL;
         return -1;
     }

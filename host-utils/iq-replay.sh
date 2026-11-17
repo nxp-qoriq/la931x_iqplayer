@@ -54,8 +54,12 @@ if [ $2 -gt $[$maxsize/4096] ];then
         exit 1
 fi
 
-echo bin2mem -f $1 -a $ddrh
-bin2mem -f $1 -a $ddrh
+# memtool -f through /dev/shiva0 (CONFIG_STRICT_DEVMEM refuses /dev/mem for
+# IQFLOOD RAM); bin2mem (/dev/mem) for drivers without the mmap patch
+. "$(cd "$(dirname "$0")" && pwd)/la9310-io.sh"
+echo la9310_load $1 $ddrh
+la9310_load $1 $ddrh ||
+        { echo "*** ERROR: cannot write $1 to IQFLOOD"; exit 1; }
 cmd=`printf "0x%X\n" $[$cmd + $2]`
 #echo vspa_mbox send 0 0 $cmd $ddrep
 vspa_mbox send 0 0 $cmd $ddrep

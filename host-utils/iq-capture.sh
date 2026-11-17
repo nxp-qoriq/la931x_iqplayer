@@ -44,8 +44,10 @@ else
 	cmd=`printf "0x%X\n" $[0x06500000 + $2]`
 fi
 
+# IQFLOOD read through /dev/shiva0 first (CONFIG_STRICT_DEVMEM)
+. "$(cd "$(dirname "$0")" && pwd)/la9310-io.sh"
 vspa_mbox send 0 0 $cmd $buffep
 vspa_mbox recv 0 0
-echo bin2mem -f $1 -a $buff -r $[4096 * $2]
-bin2mem -f $1 -a $buff -r $[4096 * $2]
+echo la9310_dump $1 $buff $[4096 * $2]
+la9310_dump $1 $buff $[4096 * $2] || { echo "*** ERROR: cannot read the capture"; exit 1; }
 

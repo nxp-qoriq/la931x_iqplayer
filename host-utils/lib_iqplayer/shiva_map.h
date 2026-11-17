@@ -12,8 +12,10 @@
  * Drivers without the la9310shiva modinfo mmap patch refuse some regions
  * on /dev/shiva<N> (older NXP drivers: everything but scratch; RFNM driver
  * with patch 0004: the PCIe BARs). Such a region is mapped through /dev/mem
- * instead and a note is printed once. PCIe BARs are MMIO, so /dev/mem
- * still works for them with CONFIG_STRICT_DEVMEM=y; RAM regions do not.
+ * instead and a note is printed once. That fallback only works on kernels
+ * without CONFIG_STRICT_DEVMEM: STRICT_DEVMEM refuses RAM (scratch, IQFLOOD)
+ * and CONFIG_IO_STRICT_DEVMEM also refuses the PCIe BARs, because
+ * la9310shiva claims them.
  */
 #ifndef SHIVA_MAP_H
 #define SHIVA_MAP_H
@@ -66,7 +68,8 @@ static inline void *shiva_map_region(const char *name, uint64_t phys,
 	}
 	if (!warned) {
 		fprintf(stderr,
-			"note: %s not mappable via %s (%s), using /dev/mem\n",
+			"note: %s not mappable via %s (%s), using /dev/mem"
+			" (fails with CONFIG_STRICT_DEVMEM)\n",
 			name, SHIVA_MAP_DEV, strerror(err));
 		warned = 1;
 	}

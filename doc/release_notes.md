@@ -71,8 +71,20 @@ New features
    - needs the la9310shiva modinfo mmap patch:
      doc/patches/la93xx_host_sw/0001-*.patch (NXP la93xx_host_sw, i.MX95 /
      LimeSDR-Micro), doc/patches/la9310-driver/0004-*.patch (RFNM)
+   - all host tools go through /dev/shiva0 first: vspa_mbox, lib_iqplayer
+     mailbox 1, memtool, DPDK dfe_app / bbdev la93xx (doc/patches/dpdk/0003,
+     fixes "No BBDEV device detected") and the scripts (new host-utils/la9310-io.sh helpers
+     replace devmem / bin2mem). Tested on i.MX95 + LimeSDR-Micro with
+     CONFIG_STRICT_DEVMEM=y and CONFIG_IO_STRICT_DEVMEM=y (load, reload
+     1T1R / 1T2R / 0T4R, rx-chan, fdd-start, sync start, replay, debugger)
+   - memtool: new "-a <addr> -f <file>" (write a file to memory) and
+     "-a <addr> -o <file> <size>" (dump memory to a file) modes
    - with an unpatched driver, regions refused by /dev/shiva0 are mapped through
-     /dev/mem (note printed once; needs CONFIG_STRICT_DEVMEM not set for RAM)
+     /dev/mem (note printed once; needs CONFIG_STRICT_DEVMEM not set for RAM).
+     On a strict kernel, iq-reload-vspa.sh and fdd-start.sh stop at once with
+     an error that points to the patch
+   - load-limesdr-micro.sh / load-rfnm.sh pass the scratch_buf_* module
+     arguments only when the device tree has a la93 reserved-memory node
 7. LimeSDR-Micro bring-up fixes
    - LA9310 clock: LA9310_SYS_CLK_FREQ must be 122880000 (former FreeRTOS default
      61.44 MHz gave x2 tone errors and a TX stall), see
@@ -93,6 +105,20 @@ New features
    - TX guard: iq_app / iq-app-tx.sh / iq-replay.sh refuse TX when the loaded
      firmware has no TX channel (0T4R)
 
+Patches (temporary, until the upstream pull requests are merged)
+- doc/patches/README.md lists every patch set: upstream repository, base commit,
+  environment and status
+- NXP BSP (LimeSDR-Micro): la93xx_host_sw, la93xx_freertos, dpdk
+- RFNM SDK: la9310-driver, la9310-freertos. la9310-driver/0005 adds the
+  la9310_modem_info tool (app/modem_info), so RFNM no longer needs the NXP
+  la93xx_host_sw tree
+- both, optional VSPA debugger: la9310_debug (6G for All repository)
+
+Development tools
+- This release was prepared with the help of Vero Studio (AI coding assistant).
+  Changes made with Vero were reviewed by the maintainer; the firmware changes
+  were also tested on the boards.
+
 Other changes
 - Firmware variants: 1T1R, 1T2R, 0T4R only. The CodeWarrior project builds the same
   three ELDs as make (same defines, sources and LCF; 0T4R uses
@@ -109,6 +135,11 @@ Other changes
 - Docs: reference manual simplified, design notes added, LimeSDR-Micro guide
   updated, RFNM quick start guide marked legacy
 - SBOM.spdx.json (SPDX 2.3) replaces SCR.txt
+- RFNM porting guide: patches applied with git apply --index, vermagic checked
+  against the stock module (not uname -r), host requirement for a full SDK
+  build (glibc >= 2.38), iq-app-rx.sh -D usage, Known Trap 8 (harmless
+  la9310rfnm load messages). Validated from scratch on RFNM Blue, image
+  0.1.15: 1T1R, 1T2R, 0T4R, TX and RX
 
 Known limitations
 - 0T4R: a few AXIQ overruns counted at stream start
