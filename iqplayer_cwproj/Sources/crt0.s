@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: (BSD-3-Clause OR GPL-2.0)
-// Copyright 2013 - 2025   NXP Semiconductors
+// Copyright 2013-2026 NXP
 
 
 //============================================================================
