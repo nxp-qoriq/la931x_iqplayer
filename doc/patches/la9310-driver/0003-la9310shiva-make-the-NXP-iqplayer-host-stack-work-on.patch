@@ -32,7 +32,7 @@ running.
    'la9310 shiva driver not started' if it is missing (iq_app.c:195); this fork
    hangs all its sysfs under the PCI device and had no global node.
 
-Verified on RFNM Blue (192.168.10.7, kernel 6.6.36-rt35-ga13146252326, masked
+Verified on RFNM Blue (kernel 6.6.36-rt35-ga13146252326, masked
 iqplayer M4 + legacy apm.eld):
   - dmesg: iqplayer IQFLOOD Buff:0xb0001000[H]-0x96400000[M],size 117440512 (win 3)
   - /dev/shiva0 ready, /sys/shiva/shiva_status = 'modem 0: nlm0 ready'

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <launchConfiguration type="com.freescale.cdt.launch.cw.download">
 <stringAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CCS_Remote_Connection.CCSExeName" value=""/>
-<stringAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CCS_Remote_Connection.CCSIPAddress" value="10.161.204.76"/>
+<stringAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CCS_Remote_Connection.CCSIPAddress" value="127.0.0.1"/>
 <stringAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CCS_Remote_Connection.CCSPortNumber" value="41475"/>
 <stringAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CCS_Remote_Connection.CCSTimeOut" value="60"/>
 <stringAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CCS_Remote_Connection.JTAGConfigFile" value=""/>
@@ -33,7 +33,7 @@
 <intAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CodeWarrior TAP Remote Connection.chainSpeedTCK" value="12500"/>
 <intAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CodeWarrior TAP Remote Connection.debugConnection" value="1"/>
 <booleanAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CodeWarrior TAP Remote Connection.forceShellDownload" value="false"/>
-<stringAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CodeWarrior TAP Remote Connection.hostname" value="192.168.1.71"/>
+<stringAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CodeWarrior TAP Remote Connection.hostname" value="127.0.0.1"/>
 <booleanAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CodeWarrior TAP Remote Connection.jtagTests" value="false"/>
 <booleanAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CodeWarrior TAP Remote Connection.loggingOn" value="false"/>
 <intAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.CodeWarrior TAP Remote Connection.memRdDelay" value="0"/>
